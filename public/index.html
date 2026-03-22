@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="apple-touch-icon" sizes="180x180" href="img/apple-touch-icon.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="img/android-chrome-192x192.png">
+  <link rel="icon" type="image/png" sizes="512x512" href="img/android-chrome-512x512.png">
+  <link rel="icon" type="image/x-icon" href="img/favicon.ico">
+  <link rel="icon" type="image/x-icon" sizes="16x16" href="img/favicon-16x16.ico">
+  <link rel="icon" type="image/x-icon" sizes="32x32" href="img/favicon-32x32.ico">
+
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#7a00cc">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Bingo Online">
+  <title>Login - Bingo Online</title>
+  <link href="https://fonts.googleapis.com/css2?family=Bangers&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
+  <style>
+    body {
+      background: linear-gradient(rgba(255, 255, 255, 0.7), rgba(255, 255, 255, 0.7)),
+                  url('https://img.freepik.com/vectores-premium/padrao-sem-costura-com-simbolos-de-dolar-e-porcentagem_637741-777.jpg');
+      background-repeat: repeat;
+      background-size: auto;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      text-align: center;
+      margin: 0;
+    }
+    #login-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      flex: 1;
+      width: 100%;
+      padding: 20px 0 10px;
+      box-sizing: border-box;
+    }
+    #logo-bingo {
+      width: 250px;
+      max-width: 80vw;
+      height: auto;
+      margin-bottom: 15px;
+    }
+    #login-btn {
+      width: 220px;
+      height: 80px;
+      font-family: 'Bangers', cursive;
+      font-size: 1.6rem;
+      background: rgba(160, 0, 255, 0.8);
+      color: white;
+      border: 4px solid #FFD700;
+      border-radius: 10px;
+      text-shadow: 2px 2px 4px #000;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: transform 0.3s, box-shadow 0.3s, background 0.3s;
+    }
+    #login-btn:hover {
+      transform: scale(1.05);
+      box-shadow: 0 0 15px rgba(255, 215, 0, 0.8);
+    }
+    #login-footer {
+      margin: 30px 0 10px;
+      text-align: center;
+    }
+    #fecha-hora,
+    #derechos {
+      font-family: 'Poppins', sans-serif;
+      font-size: 0.7rem;
+      color: #000;
+    }
+    #derechos {
+      font-size: 0.6rem;
+    }
+    .back-btn {
+      position: fixed;
+      top: 5px;
+      left: 5px;
+      width: 120px;
+      height: 40px;
+      font-family: 'Bangers', cursive;
+      font-size: 1.2rem;
+      background: orange;
+      color: white;
+      border: 4px solid #FFD700;
+      border-radius: 10px;
+      text-shadow: 2px 2px 4px #000;
+      text-transform: uppercase;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      gap:5px;
+    }
+    #register-container,
+    #register-container a {
+      font-family: 'Poppins', sans-serif;
+    }
+  </style>
+  <link rel="stylesheet" href="css/desktopFrame.css">
+</head>
+<body>
+  <div id="login-container">
+    <img id="logo-bingo" src="img/Logo-BingOnline-nuevo500p.png" />
+    <button id="login-btn">Iniciar Sesión</button>
+    <div id="register-container" style="margin-top:10px;font-size:1rem;">¿Aún no tienes cuenta? <a href="#" id="register-link">Regístrate</a></div>
+  </div>
+  <div id="login-footer">
+    <div id="fecha-hora"></div>
+    <div id="derechos">Todos los derechos reservados ® Hexaservice <span class="current-year"></span></div>
+  </div>
+
+  <script src="https://www.gstatic.com/firebasejs/11.5.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/11.5.0/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/11.5.0/firebase-auth-compat.js"></script>
+  <script src="js/logoSwitcher.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/notificationCenter.js"></script>
+  <script src="js/timezone.js"></script>
+  <script src="js/serviceWorkerRegistration.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', async () => {
+      if(typeof firebase === 'undefined'){
+        console.error('Firebase no se cargó correctamente');
+        return;
+      }
+      try{
+        await initFirebase();
+      }catch(e){
+        console.error('No se pudo inicializar Firebase al cargar index.html', e);
+        alert('No se pudo inicializar la sesión. Inténtalo nuevamente.');
+        return;
+      }
+      await handleRedirect();
+      initFechaHora('fecha-hora', { ocultarHora: true });
+      const registerContainer=document.getElementById('register-container');
+      document.getElementById('login-btn').addEventListener('click', async () => {
+        const user = auth.currentUser;
+        if(user){
+          try{
+            const { role, exists } = await getUserRole(user, { createIfMissing: false });
+            if(!exists && role === 'Jugador'){
+              window.location.href='registrarse.html';
+              return;
+            }
+            redirectByRole(role);
+            return;
+          }catch(err){
+            console.error('No se pudo validar el estado de registro del usuario al iniciar sesión', err);
+            alert('No se pudo validar tu cuenta. Intenta nuevamente.');
+            return;
+          }
+        }
+        loginGoogle();
+      });
+      document.getElementById('register-link').addEventListener('click', e => {
+        e.preventDefault();
+        const user = auth.currentUser;
+        if(user){
+          window.location.href='registrarse.html';
+          return;
+        }
+        loginGoogle();
+      });
+      const logoutLink = document.getElementById('logout-link');
+      if (logoutLink) {
+        logoutLink.addEventListener('click', e => {
+          e.preventDefault();
+          logout();
+        });
+      }
+      auth.onAuthStateChanged(async user => {
+        if(user){
+          try{
+            const { role, exists } = await getUserRole(user, { createIfMissing: false });
+            if(!exists && role === 'Jugador'){
+              window.location.href='registrarse.html';
+              return;
+            }
+            if(registerContainer){
+              registerContainer.style.display='none';
+            }
+            redirectByRole(role);
+          }catch(err){
+            console.error('No se pudo validar la sesión existente', err);
+          }
+        }
+      });
+    // Cerrar el manejador de DOMContentLoaded
+  });
+  </script>
+  <script src="js/installPrompt.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      if (typeof window.initInstallPrompt === 'function') {
+        window.initInstallPrompt({ containerId: 'install-prompt-index', mode: 'banner' });
+      }
+    });
+  </script>
+</body>
+</html>

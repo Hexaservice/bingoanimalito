@@ -1,0 +1,2524 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="apple-touch-icon" sizes="180x180" href="img/apple-touch-icon.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="img/android-chrome-192x192.png">
+  <link rel="icon" type="image/png" sizes="512x512" href="img/android-chrome-512x512.png">
+  <link rel="icon" type="image/x-icon" href="img/favicon.ico">
+  <link rel="icon" type="image/x-icon" sizes="16x16" href="img/favicon-16x16.ico">
+  <link rel="icon" type="image/x-icon" sizes="32x32" href="img/favicon-32x32.ico">
+
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#7a00cc">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Bingo Online">
+  <title>Bingo Online</title>
+  <!-- Fuentes -->
+  <link href="https://fonts.googleapis.com/css2?family=Bangers&family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/audioControls.css">
+  <style>
+     		
+      body {
+          font-family: 'Poppins', sans-serif;
+          background-image: linear-gradient(rgba(255, 255, 255, 0.7), rgba(255, 255, 255, 0.7)),
+                            url('img/fondo-dinero-porcentage.jpg');
+          background-repeat: repeat;
+          background-size: auto;
+          background-position: 0 0, 0 0;
+          animation: fondo-movimiento 120s linear infinite;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: flex-start;
+          min-height: 100vh;
+          text-align: center;
+          margin: 0;
+          padding-top: clamp(20px, 6vh, 60px);
+      }
+		
+      @keyframes fondo-movimiento {
+          0% {
+              background-position: 0 0, 0 0;
+          }
+          100% {
+              background-position: 0 0, -600px 600px;
+          }
+      }
+
+      h2 {
+          font-size: 2.5rem;
+          color: #ffcc00;
+          text-shadow: 3px 3px 6px #000;
+      }
+      table {
+			margin: 20px auto;
+			border-collapse: collapse;
+			background: rgba(255, 255, 255, 0.9);
+			border-radius: 15px; /* Bordes redondeados */
+			border: 15px solid #004d00; /* Borde externo verde oscuro */
+			padding: 10px;
+			box-shadow: 0 0 10px rgba(0, 0, 0, 0.5); /* Sombra para mejorar el efecto */
+	  }
+      th {
+          font-size: 2rem;
+          color: #ff6600;
+          text-shadow: 2px 2px 4px #000;
+      }
+      th, td {
+			border: 2px solid black;
+			width: 60px;
+			height: 60px;
+			text-align: center;
+			font-weight: bold;
+		}
+      /* Estilo de los selects dentro del cartón */
+      #bingo-board select {
+          width: 100%;
+          font-size: 2rem;
+          font-weight: bold;
+          padding: 5px;
+          text-align: center;
+          border: none;
+          background: transparent;
+          outline: none;
+          -webkit-appearance: none;
+          -moz-appearance: none;
+          appearance: none;
+      }
+      /* Menú desplegable de sorteos visible */
+      #select-sorteo {
+          width: 220px;
+          font-size: 1.1rem;
+          padding: 5px 10px;
+          text-align: center;
+          border: 1px solid #333;
+          border-radius: 5px;
+          background: #fff;
+          -webkit-appearance: menulist;
+          -moz-appearance: menulist;
+          appearance: auto;
+      }
+      .sorteo-info, #valor-carton, #creditos-info {
+          margin: 5px 0;
+          font-family: 'Poppins', sans-serif;
+          font-size: 1rem;
+          color: #000;
+      }
+      .sorteo-info {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 10px;
+      }
+      #info-carton {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 10px;
+          margin: 5px 0;
+      }
+      #info-text {
+          display: flex;
+          flex-direction: column;
+          text-align: left;
+      }
+      #creditos-info {
+          display: flex;
+          align-items: center;
+          gap: 5px;
+      }
+      #fecha-hora-sorteo {
+          display: flex;
+          flex-direction: column;
+          text-align: left;
+      }
+      #ir-billetera-btn {
+          font-family: 'Bangers', cursive;
+          background: linear-gradient(#0a8800, #ffffff);
+          color: white;
+          border: 3px solid #FFD700;
+          border-radius: 8px;
+          text-shadow: 2px 2px 4px #000;
+          font-size: 1.2rem;
+          width: 200px;
+          cursor: pointer;
+      }
+      .free {
+          background-color: #ffcc00;
+          font-weight: bold;
+      }
+      button {
+          padding: 10px 20px;
+          font-size: 18px;
+          background: #ff6600;
+          color: white;
+          border: none;
+          border-radius: 5px;
+          cursor: pointer;
+          align: center;
+      }
+      button:hover {
+          background: #cc5500;
+      }
+
+      /* Estilos para el login */
+      #login-container {
+          position: relative;
+          min-height: 100vh;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+      }
+      #logo-bingo {
+          width: 250px;
+          max-width: 80vw;
+          height: auto;
+          margin-bottom: 15px;
+      }
+      #menu-logo {
+          width: clamp(260px, 36vw, 420px);
+          height: auto;
+          margin-bottom: clamp(0px, 1vh, 8px);
+      }
+      #login-btn {
+          width: 220px;
+          height: 80px;
+          font-family: 'Bangers', cursive;
+          font-size: 1.6rem;
+          background: rgba(160, 0, 255, 0.8);
+          color: white;
+          border: 4px solid #FFD700;
+          border-radius: 10px;
+          text-shadow: 2px 2px 4px #000;
+          text-transform: uppercase;
+          cursor: pointer;
+          transition: transform 0.3s, box-shadow 0.3s, background 0.3s;
+      }
+      #login-btn:hover {
+          transform: scale(1.05);
+          box-shadow: 0 0 15px rgba(255, 215, 0, 0.8);
+      }
+      #login-btn:active {
+          transform: scale(0.95);
+          box-shadow: 0 0 5px rgba(255, 215, 0, 0.8);
+      }
+
+      /* Estilos para botones del menú principal */
+      .menu-btn {
+          width: 250px;
+          height: 60px;
+          font-family: 'Bangers', cursive;
+          font-size: 1.4rem;
+          background: rgba(0, 170, 255, 0.8);
+          color: white;
+          border: 4px solid #FFD700;
+          border-radius: 10px;
+          text-shadow: 2px 2px 4px #000;
+          text-transform: uppercase;
+          cursor: pointer;
+          transition: transform 0.3s, box-shadow 0.3s, background 0.3s;
+      }
+      .view {
+          position: relative;
+          width: 100%;
+      }
+      .menu-btn:hover {
+          transform: scale(1.05);
+          box-shadow: 0 0 15px rgba(255, 215, 0, 0.8);
+      }
+      .menu-btn:active {
+          transform: scale(0.95);
+          box-shadow: 0 0 5px rgba(255, 215, 0, 0.8);
+      }
+
+      /* Posicionamiento y estilos del menú */
+      #main-menu {
+          position: relative;
+          width: 100%;
+      }
+      #menu-buttons {
+          position: relative;
+          margin: clamp(8px, 3.5vh, 32px) auto 0;
+          width: min(95vw, 980px);
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: clamp(0px, 0.6vh, 6px);
+      }
+      #menu-buttons h3 {
+          margin: clamp(-16px, -2.6vh, -8px) 0 0;
+          font-size: clamp(1.8rem, 2.8vw, 2.6rem);
+          font-family: 'Bangers', cursive;
+          color: #ffffff;
+          text-shadow: 0 0 10px rgba(179, 71, 0, 0.8), 0 0 18px rgba(255, 140, 0, 0.9);
+          text-align: center;
+          letter-spacing: 1px;
+      }
+
+      #menu-heading {
+          position: relative;
+          display: inline-flex;
+          flex-direction: column;
+          align-items: center;
+      }
+
+      #menu-tabla-wrapper {
+          width: 100%;
+          padding: clamp(2px, 0.8vw, 10px);
+          box-sizing: border-box;
+          display: flex;
+          justify-content: center;
+      }
+
+      .menu-tabla {
+          width: 100%;
+          max-width: 640px;
+          border-collapse: separate;
+          border-spacing: clamp(6px, 1.6vw, 14px);
+          margin: 0 auto;
+          background: transparent;
+          border: none;
+          border-radius: 0;
+          box-shadow: none;
+          padding: 0;
+          table-layout: fixed;
+          aspect-ratio: 3 / 2;
+      }
+
+      .menu-tabla col.col-24 {
+          width: 24%;
+      }
+
+      .menu-tabla col.col-52 {
+          width: 52%;
+      }
+
+      .menu-tabla tr:nth-child(1) {
+          height: 54%;
+      }
+
+      .menu-tabla tr:nth-child(2) {
+          height: 30%;
+      }
+
+      .menu-tabla tr:nth-child(3) {
+          height: 16%;
+      }
+
+      .menu-tabla td {
+          border: none;
+          padding: clamp(4px, 1.5vw, 12px);
+          text-align: center;
+          vertical-align: middle;
+          width: auto;
+          height: auto;
+      }
+
+      .menu-opcion {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: clamp(4px, 1vh, 10px);
+          position: relative;
+      }
+      .menu-opcion--sorteo .menu-imagen {
+          max-width: 115%;
+      }
+      .menu-opcion--pqrs .menu-imagen {
+          max-width: 55%;
+      }
+
+      .menu-tabla td.celda-vacia {
+          pointer-events: none;
+      }
+
+      .menu-imagen {
+          width: 100%;
+          height: 100%;
+          max-height: 100%;
+          cursor: pointer;
+          transition: transform 0.25s ease, filter 0.25s ease;
+          filter: drop-shadow(0 0 6px rgba(0, 0, 0, 0.35));
+          object-fit: contain;
+      }
+      .menu-imagen--jugando {
+          animation: pulso-sorteo 1.5s ease-in-out infinite;
+      }
+      .menu-imagen--referidos {
+          max-width: 40%;
+      }
+      @keyframes pulso-sorteo {
+          0%, 100% { transform: scale(1); }
+          50% { transform: scale(1.08); }
+      }
+      @keyframes pulso-referidos {
+          0%, 100% { transform: scale(1); }
+          50% { transform: scale(1.12); }
+      }
+      .menu-opcion--referidos.referidos-activa .menu-imagen--referidos,
+      .menu-opcion--referidos.referidos-activa .menu-label--referidos {
+          animation: pulso-referidos 1.4s ease-in-out infinite;
+      }
+      .menu-opcion--referidos.referidos-activa .menu-label--referidos-sub {
+          animation: pulso-referidos 1.4s ease-in-out infinite;
+      }
+      .menu-imagen:focus,
+      .menu-imagen:hover {
+          transform: scale(1.04);
+          filter: drop-shadow(0 0 12px rgba(255, 215, 0, 0.6));
+          outline: none;
+      }
+      #boton-sorteo {
+          width: 100%;
+      }
+
+      .menu-label {
+          font-family: 'Bangers', cursive;
+          font-size: clamp(1rem, 2.2vw, 1.4rem);
+          color: #ffffff;
+          letter-spacing: 1px;
+      }
+
+      .menu-label--carton {
+          text-shadow: 0 0 8px rgba(0, 51, 153, 0.8), 0 0 14px rgba(0, 34, 102, 0.9);
+      }
+
+      .menu-label--sorteo {
+          text-shadow: 0 0 8px rgba(32, 0, 77, 0.85), 0 0 14px rgba(64, 0, 128, 0.9);
+      }
+
+      .menu-label--billetera {
+          text-shadow: 0 0 8px rgba(0, 77, 26, 0.85), 0 0 14px rgba(0, 128, 51, 0.9);
+      }
+
+      .menu-label--perfil {
+          text-shadow: 0 0 8px rgba(102, 51, 0, 0.8), 0 0 14px rgba(153, 76, 0, 0.85);
+      }
+
+      .menu-label--mensajes {
+          text-shadow: 0 0 8px rgba(179, 71, 0, 0.85), 0 0 14px rgba(230, 115, 0, 0.9);
+      }
+      .menu-label--pqrs {
+          text-shadow: 0 0 8px rgba(0, 0, 0, 0.9), 0 0 14px rgba(0, 0, 0, 0.85);
+      }
+      .menu-label--referidos {
+          text-shadow: 0 0 8px rgba(0, 128, 0, 0.85), 0 0 14px rgba(0, 200, 0, 0.9);
+          display: inline-block;
+      }
+      .menu-label--referidos-sub {
+          font-size: clamp(0.55rem, 1.5vw, 0.75rem);
+          font-family: 'Poppins', sans-serif;
+          font-weight: 700;
+          color: #ffffff;
+          text-shadow: 0 0 6px rgba(0, 0, 0, 0.85), 0 0 12px rgba(0, 0, 0, 0.75);
+          display: inline-flex;
+          flex-direction: column;
+          align-items: center;
+          margin-top: -4px;
+          position: relative;
+          padding-bottom: 0;
+          gap: 4px;
+      }
+      .menu-label--referidos-sub.referidos-datos {
+          font-size: clamp(0.85rem, 2.1vw, 1.05rem);
+          text-shadow: 0 0 8px rgba(128, 0, 180, 0.9), 0 0 16px rgba(160, 0, 220, 0.95);
+          cursor: pointer;
+          animation: pulso-referidos 1.4s ease-in-out infinite;
+      }
+      .referidos-badge {
+          position: static;
+          min-width: 18px;
+          height: 18px;
+          padding: 0 4px;
+          border-radius: 999px;
+          background: #e60000;
+          color: #ffffff;
+          font-size: 0.6rem;
+          font-weight: 700;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+          animation: pulso-referidos 1.4s ease-in-out infinite;
+          transform: none;
+      }
+      .referidos-badge.hidden {
+          display: none;
+      }
+
+      #carton-screen {
+          position: relative;
+          width: 100%;
+          margin-top: 70px;
+      }
+
+      .back-btn {
+          position: fixed;
+          top: 5px;
+          left: 5px;
+          width: 120px;
+          height: 40px;
+          background: orange;
+          display:flex;
+          white-space: nowrap;
+          align-items:center;
+          justify-content:center;
+          gap:5px;
+          z-index: 1100;
+      }
+      #salir-super-btn { background: red; border:4px solid orange; }
+      #logout-link {
+          font-family: Calibri, Arial, sans-serif;
+          color: #ffffff;
+          text-decoration: underline;
+          cursor: pointer;
+          font-size: 0.7rem;
+          margin: 0;
+      }
+      #session-info {
+          position: fixed;
+          top: 10px;
+          right: 10px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 10px;
+          font-size: 0.8rem;
+          z-index: 1000;
+          padding: 6px 10px;
+          border-radius: 14px;
+          background: rgba(0, 0, 0, 0.55);
+          box-shadow: 0 0 12px rgba(0, 0, 0, 0.35);
+          flex-wrap: nowrap;
+      }
+      #user-data {
+          display: flex;
+          flex-direction: column;
+          align-items: flex-end;
+          text-align: right;
+          gap: 2px;
+      }
+      #user-name, #user-email {
+          color: #ffffff;
+          text-shadow: 0 0 6px rgba(0, 0, 0, 0.8);
+          font-family: Calibri, Arial, sans-serif;
+          font-size: 0.7rem;
+          max-width: 170px;
+          word-break: break-word;
+      }
+      #user-pic {
+          width: 40px !important;
+          height: 40px !important;
+          border-radius: 50%;
+          border: 2px solid #ffd700;
+          box-shadow: 0 0 9px rgba(255, 215, 0, 0.55);
+      }
+      #session-avatar {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 4px;
+      }
+      #fecha-hora, #derechos {
+          font-size: 0.7rem;
+          text-align: center;
+          color: #000000;
+          text-shadow: none;
+          margin: 0;
+      }
+      #fecha-hora {
+          margin-top: auto;
+          padding-top: 10px;
+      }
+      #derechos {
+          font-size: 0.6rem;
+          padding-bottom: 10px;
+      }
+      @media (max-width: 600px) {
+          table {
+              width: 90%;
+          }
+          th, td {
+              width: 50px;
+              height: 50px;
+          }
+          select {
+              font-size: 1.5rem;
+          }
+      }
+      @media (max-width: 768px) {
+          #menu-tabla-wrapper {
+              padding-inline: clamp(18px, 6vw, 32px);
+          }
+          .menu-tabla {
+              max-width: 540px;
+          }
+      }
+
+      @media (orientation: landscape) and (max-width: 1024px) {
+          #menu-tabla-wrapper {
+              padding-inline: clamp(40px, 16vw, 160px);
+          }
+      }
+      @media (min-width: 1024px) {
+          #main-menu,
+          #login-container,
+          #terms-container,
+          #register-container,
+          #carton-screen {
+              width: 100%;
+              max-width: var(--app-desktop-max-width, 520px);
+              margin-inline: auto;
+          }
+          #menu-buttons {
+              gap: clamp(0px, 0.6vh, 6px);
+          }
+          #menu-buttons h3 {
+              font-size: clamp(1.3rem, 2vw, 1.7rem);
+              margin: clamp(-10px, -1.6vh, -4px) 0 clamp(2px, 0.4vh, 6px);
+          }
+          #menu-logo {
+              width: clamp(190px, 28vw, 240px);
+          }
+          #menu-buttons {
+              width: 100%;
+          }
+          #menu-tabla-wrapper {
+              padding-inline: 0;
+          }
+          #session-info {
+              right: var(--app-desktop-side-padding, 10px);
+          }
+          #tutorial-controls {
+              left: var(--app-desktop-side-padding, 14px);
+          }
+      }
+      @media (max-width: 480px) {
+          #session-info {
+              flex-wrap: wrap;
+              justify-content: flex-end;
+              row-gap: 6px;
+          }
+          #user-data {
+              align-items: flex-end;
+              text-align: right;
+          }
+      }
+
+      /* Controles del modo tutorial */
+      #tutorial-controls {
+          position: fixed;
+          left: 14px;
+          bottom: 18px;
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          z-index: 1300;
+      }
+
+      #tutorial-toggle {
+          width: 62px;
+          height: 62px;
+          border-radius: 50%;
+          border: 2px solid #0f0f0f;
+          background: radial-gradient(circle at 30% 30%, #aab2ff, #4b3fae 65%);
+          color: #f7f9ff;
+          font-family: 'Poppins', sans-serif;
+          font-weight: 800;
+          font-size: 8.5px;
+          line-height: 1.1;
+          letter-spacing: 0.4px;
+          text-shadow: 0 2px 6px rgba(0, 0, 0, 0.55);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          text-align: center;
+          cursor: pointer;
+          box-shadow: 0 10px 20px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.3);
+          transition: transform 0.22s ease, box-shadow 0.22s ease, background 0.22s ease, opacity 0.22s ease;
+      }
+
+      #tutorial-toggle.activo {
+          background: radial-gradient(circle at 30% 30%, #63e68a, #0b9a2e 70%);
+          box-shadow: 0 12px 20px rgba(0, 128, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.35);
+      }
+
+      #tutorial-toggle:hover {
+          transform: translateY(-1px) scale(1.03);
+          box-shadow: 0 12px 22px rgba(0, 0, 0, 0.4);
+      }
+
+      #tutorial-nav {
+          display: none;
+          gap: 8px;
+          align-items: center;
+          transform: translateX(-10px);
+          opacity: 0;
+      }
+
+      #tutorial-toggle.activo + #tutorial-nav,
+      #tutorial-nav.activo {
+          display: flex;
+          animation: tutorial-nav-surge 0.42s ease forwards;
+      }
+
+      #tutorial-nav.saliendo {
+          display: flex;
+          animation: tutorial-nav-exit 0.32s ease forwards;
+      }
+
+      .tutorial-nav-btn {
+          min-width: 38px;
+          height: auto;
+          border: none;
+          background: transparent;
+          color: #1f1f1f;
+          font-size: 26px;
+          cursor: pointer;
+          box-shadow: none;
+          display: grid;
+          place-items: center;
+          padding: 6px 4px;
+          transition: transform 0.2s ease, color 0.2s ease;
+          animation: tutorial-nav-surge 0.42s ease forwards;
+          opacity: 0;
+      }
+
+      .tutorial-nav-btn--text {
+          background: #ffffff;
+          border: 2px solid #1f1f1f;
+          border-radius: 8px;
+          font-size: 12px;
+          font-weight: 700;
+          min-width: 78px;
+          padding: 6px 10px;
+          color: #111111;
+      }
+
+      #tutorial-nav.saliendo .tutorial-nav-btn {
+          animation: tutorial-nav-exit 0.32s ease forwards;
+      }
+
+      #tutorial-nav.activo .tutorial-nav-btn:nth-child(1) {
+          animation-delay: 0.05s;
+      }
+
+      #tutorial-nav.activo .tutorial-nav-btn:nth-child(2) {
+          animation-delay: 0.12s;
+      }
+
+      .tutorial-nav-btn:hover {
+          transform: scale(1.08);
+          color: #5546c0;
+      }
+
+      .tutorial-nav-btn:active {
+          transform: scale(0.95);
+      }
+
+      #tutorial-toggle:focus-visible,
+      .tutorial-nav-btn:focus-visible {
+          outline: 3px solid #ffd700;
+          outline-offset: 2px;
+      }
+
+      #tutorial-overlay {
+          position: fixed;
+          inset: 0;
+          pointer-events: none;
+          z-index: 1250;
+          background: transparent;
+          transition: background 0.25s ease;
+      }
+
+      #tutorial-hand {
+          position: absolute;
+          width: 44px;
+          height: auto;
+          display: none;
+          filter: drop-shadow(0 6px 10px rgba(0, 0, 0, 0.35));
+          animation: tutorial-hand-pulse 0.65s ease-in-out infinite;
+          transform-origin: center;
+      }
+
+      #tutorial-label {
+          position: absolute;
+          display: none;
+          padding: 8px 12px;
+          background: #ffffff;
+          border: 2px solid #1e1e1e;
+          border-radius: 12px;
+          font-family: 'Poppins', sans-serif;
+          font-size: clamp(11px, 1.7vw, 14px);
+          font-weight: 700;
+          box-shadow: 0 10px 20px rgba(0, 0, 0, 0.28);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          text-align: center;
+          line-height: 1.25;
+          transform: translate(-50%, -100%);
+          width: fit-content;
+          max-width: min(280px, 80vw);
+          min-width: 120px;
+          word-break: break-word;
+          hyphens: auto;
+      }
+
+      @keyframes tutorial-hand-pulse {
+          0% { transform: scale(1); }
+          45% { transform: scale(1.17); }
+          100% { transform: scale(1); }
+      }
+
+      @keyframes tutorial-nav-surge {
+          0% {
+              transform: translateX(-12px);
+              opacity: 0;
+          }
+          100% {
+              transform: translateX(0);
+              opacity: 1;
+          }
+      }
+
+      @keyframes tutorial-nav-exit {
+          0% {
+              transform: translateX(0);
+              opacity: 1;
+          }
+          100% {
+              transform: translateX(-16px);
+              opacity: 0;
+          }
+      }
+      @supports (-webkit-touch-callout: none) {
+          body {
+              min-height: 100dvh;
+              padding-top: max(env(safe-area-inset-top, 0px), clamp(12px, 3vh, 36px));
+          }
+          #menu-buttons {
+              gap: clamp(0px, 0.8vh, 6px);
+              margin-top: clamp(2px, 1vh, 12px);
+          }
+          #menu-logo {
+              margin-bottom: clamp(-2px, 0.4vh, 6px);
+          }
+          #menu-tabla-wrapper {
+              padding-top: clamp(0px, 0.6vh, 8px);
+          }
+      }
+      .modal-whatsapp {
+          position: fixed;
+          top: 0;
+          left: 0;
+          width: 100%;
+          height: 100%;
+          background: rgba(0, 0, 0, 0.6);
+          display: none;
+          align-items: center;
+          justify-content: center;
+          padding: 20px;
+          z-index: 2000;
+      }
+      .modal-whatsapp.activa {
+          display: flex;
+      }
+      .modal-whatsapp .modal-contenido {
+          background: #ffffff;
+          border-radius: 18px;
+          padding: clamp(20px, 4vw, 36px);
+          width: min(360px, 92vw);
+          max-width: 92vw;
+          max-height: min(80vh, 520px);
+          box-shadow: 0 12px 30px rgba(0, 0, 0, 0.35);
+          text-align: center;
+          border: 4px solid #ffd700;
+          overflow: auto;
+          box-sizing: border-box;
+      }
+      .modal-whatsapp .modal-contenido h2 {
+          font-family: 'Bangers', cursive;
+          font-size: clamp(1.4rem, 3vw, 2rem);
+          color: #0056ff;
+          margin-bottom: clamp(12px, 3vh, 24px);
+          text-shadow: 0 0 6px rgba(255, 215, 0, 0.9);
+      }
+      .modal-whatsapp .modal-mensaje {
+          font-size: clamp(0.95rem, 2.4vw, 1.2rem);
+          color: #333;
+          margin-bottom: clamp(16px, 3vh, 28px);
+      }
+      #modal-whatsapp-aceptar {
+          font-family: 'Bangers', cursive;
+          font-size: clamp(1rem, 2.2vw, 1.2rem);
+          background: linear-gradient(135deg, #0a8800, #51c94d);
+          color: #fff;
+          border: 3px solid #ffd700;
+          border-radius: 10px;
+          padding: 10px 24px;
+          cursor: pointer;
+          text-transform: uppercase;
+          box-shadow: 0 6px 16px rgba(0, 0, 0, 0.3);
+      }
+      #modal-whatsapp-aceptar:hover,
+      #modal-whatsapp-aceptar:focus {
+          transform: scale(1.03);
+          outline: none;
+          box-shadow: 0 10px 22px rgba(0, 0, 0, 0.35);
+      }
+      .modal-referidos {
+          --modal-inline-margen: clamp(6px, 2.4vw, 16px);
+          position: fixed;
+          top: 0;
+          left: 0;
+          width: 100%;
+          height: 100%;
+          background: rgba(255, 255, 255, 0.72);
+          display: none;
+          align-items: center;
+          justify-content: center;
+          padding: var(--modal-inline-margen);
+          z-index: 2100;
+      }
+      .modal-referidos.activa {
+          display: flex;
+      }
+      .modal-referidos .modal-contenido {
+          position: relative;
+          background: #ffffff;
+          border-radius: 18px;
+          padding: clamp(10px, 2.2vw, 16px);
+          width: min(820px, calc(100% - (2 * var(--modal-inline-margen))));
+          max-width: 100%;
+          max-height: min(92vh, 760px);
+          box-shadow: 0 16px 32px rgba(0, 0, 0, 0.18);
+          text-align: center;
+          border: 3px solid #ffd700;
+          overflow: hidden;
+          box-sizing: border-box;
+          display: flex;
+          flex-direction: column;
+          gap: 6px;
+      }
+      .modal-referidos .modal-contenido h2 {
+          font-family: 'Poppins', sans-serif;
+          font-size: clamp(0.95rem, 2.2vw, 1.1rem);
+          color: #1f1f1f;
+          margin: 0 0 6px;
+          text-shadow: none;
+      }
+      .modal-referidos-fin {
+          font-family: 'Poppins', sans-serif;
+          font-size: clamp(0.78rem, 2vw, 0.92rem);
+          color: #4a4a4a;
+          margin: 0;
+          display: flex;
+          justify-content: center;
+          gap: 12px;
+          flex-wrap: wrap;
+      }
+      .modal-referidos-inicio {
+          color: #0e6b2b;
+          font-weight: 600;
+      }
+      .modal-referidos-fin-valor {
+          color: #8b1d1d;
+          font-weight: 600;
+      }
+      .modal-referidos-resumen {
+          font-family: 'Poppins', sans-serif;
+          font-size: clamp(0.78rem, 2vw, 0.92rem);
+          line-height: 1.3;
+          margin: 0 0 6px;
+      }
+      .modal-referidos-resumen .resumen-text {
+          color: #1f1f1f;
+      }
+      .modal-referidos-resumen .resumen-valor {
+          font-weight: 700;
+      }
+      .modal-referidos-total {
+          color: #1f1f1f;
+      }
+      .modal-referidos-nuevo {
+          color: #27c93f;
+      }
+      .modal-referidos-min {
+          color: #9b6b2d;
+      }
+      .modal-referidos-tabla {
+          width: 100%;
+          border-collapse: collapse;
+          table-layout: fixed;
+          font-family: 'Poppins', sans-serif;
+          font-size: clamp(0.72rem, 2.6vw, 0.95rem);
+          color: #1f1f1f;
+          background: #ffffff;
+          border: none;
+          border-radius: 0;
+          box-shadow: none;
+          margin: 0 auto;
+          padding: 0;
+          flex: 1 1 auto;
+          display: block;
+          max-height: min(52vh, 440px);
+          overflow-y: auto;
+          overflow-x: hidden;
+      }
+      .modal-referidos-tabla thead {
+          display: table;
+          width: 100%;
+          table-layout: fixed;
+      }
+      .modal-referidos-tabla tbody {
+          display: table;
+          width: 100%;
+          table-layout: fixed;
+      }
+      .modal-referidos-tabla thead th {
+          position: sticky;
+          top: 0;
+          background: #f0f0f0;
+          font-weight: 700;
+          padding: clamp(3px, 0.8vw, 6px) clamp(2px, 0.7vw, 6px);
+          text-align: center;
+          z-index: 2;
+          font-size: clamp(0.68rem, 2.4vw, 0.9rem);
+          border: 1px solid #d9d9d9;
+          text-shadow: none;
+          line-height: 1.3;
+      }
+      .modal-referidos-tabla td {
+          display: table-cell;
+          padding: clamp(3px, 0.8vw, 6px) clamp(2px, 0.7vw, 6px);
+          text-align: center;
+          word-break: break-word;
+          border: 1px solid #ededed;
+          line-height: 1.3;
+      }
+      .modal-referidos-tabla tbody tr {
+          display: table;
+          width: 100%;
+          table-layout: fixed;
+      }
+      .modal-referidos-tabla .col-numero {
+          color: #808080;
+          width: 8%;
+      }
+      .modal-referidos-tabla .col-nombre {
+          color: #000000;
+          width: 44%;
+      }
+      .modal-referidos-tabla .col-fecha {
+          color: #0a8a2a;
+          width: 32%;
+      }
+      .modal-referidos-tabla th.col-premio {
+          width: 16%;
+      }
+      .modal-referidos-tabla tbody .col-premio {
+          color: #ff8c00;
+          font-weight: 700;
+          width: 16%;
+      }
+      .modal-referidos-tabla .icon {
+          font-size: 0.85rem;
+          line-height: 1;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+      }
+      .modal-referidos-tabla .icon.check {
+          color: #1f8f2f;
+      }
+      .modal-referidos-lista {
+          text-align: center;
+      }
+      .modal-referidos-vacio {
+          font-family: 'Poppins', sans-serif;
+          color: #333;
+          font-size: clamp(0.8rem, 2vw, 0.95rem);
+          text-align: center;
+          padding: 12px 6px;
+      }
+      #modal-referidos-cerrar {
+          position: absolute;
+          top: 10px;
+          right: 10px;
+          width: 32px;
+          height: 32px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-family: 'Poppins', sans-serif;
+          font-size: 1.1rem;
+          background: #ffffff;
+          color: #000;
+          border: none;
+          border-radius: 50%;
+          cursor: pointer;
+          box-shadow: 0 4px 10px rgba(0, 0, 0, 0.35);
+      }
+      #modal-referidos-cerrar:hover,
+      #modal-referidos-cerrar:focus {
+          transform: scale(1.05);
+          outline: none;
+          box-shadow: 0 8px 18px rgba(0, 0, 0, 0.4);
+      }
+  </style>
+  <link rel="stylesheet" href="css/desktopFrame.css">
+</head>
+<body>
+  <div id="terms-container" style="display:none;">
+    <h2>Términos y Condiciones</h2>
+    <p>Al usar esta aplicación aceptas las reglas del juego.</p>
+    <button id="close-terms-btn" class="back-btn">&#9664; Volver</button>
+  </div>
+
+  <div id="register-container" style="display:none;">
+    <h2>Registro de Jugador</h2>
+    <input id="alias-registro" placeholder="Alias" style="font-size:1rem;padding:5px;text-align:center;"/>
+    <button id="registrar-btn">Registrar</button>
+  </div>
+
+  <div id="session-info" style="display:none;">
+      <div id="user-data">
+        <div id="user-name"></div>
+        <div id="user-email"></div>
+      </div>
+      <div id="session-avatar">
+        <img id="user-pic" referrerpolicy="no-referrer" crossorigin="anonymous" src="" alt="Foto del jugador">
+        <a id="logout-link" href="#">Cerrar sesión</a>
+      </div>
+  </div>
+  <button id="salir-super-btn" class="menu-btn back-btn" style="display:none;">Salir</button>
+
+  <div id="main-menu" class="view">
+        <div id="menu-buttons">
+          <img id="menu-logo" src="img/Logo-BingOnline-nuevo500p.png" alt="Logo de BingOnline" />
+          <div id="menu-heading">
+            <h3>Menú Jugador</h3>
+          </div>
+        <div id="menu-tabla-wrapper">
+        <table class="menu-tabla" aria-label="Accesos del menú principal">
+          <colgroup>
+            <col class="col-24" />
+            <col class="col-52" />
+            <col class="col-24" />
+          </colgroup>
+          <tbody>
+            <tr>
+              <td>
+                <div class="menu-opcion menu-opcion--carton">
+                  <img id="boton-jugar" class="menu-imagen" src="img/boton-jugar-carton-bingo-300p.png" alt="Ir a jugar cartón" role="button" tabindex="0" loading="lazy" />
+                  <span class="menu-label menu-label--carton">JUGAR CARTÓN</span>
+                </div>
+              </td>
+              <td>
+                <div class="menu-opcion menu-opcion--sorteo">
+                  <img id="boton-sorteo" class="menu-imagen" src="img/boton-sorteo-en-vivo400p.png" alt="Ir al sorteo en vivo" role="button" tabindex="0" />
+                  <span class="menu-label menu-label--sorteo">SORTEO EN VIVO</span>
+                </div>
+              </td>
+              <td>
+                <div class="menu-opcion menu-opcion--billetera">
+                  <img id="boton-billetera" class="menu-imagen" src="img/boton-billetera300p.png" alt="Ir a la billetera" role="button" tabindex="0" loading="lazy" />
+                  <span class="menu-label menu-label--billetera">BILLETERA</span>
+                </div>
+              </td>
+            </tr>
+            <tr>
+              <td>
+                <div class="menu-opcion menu-opcion--perfil">
+                  <img id="boton-perfil" class="menu-imagen" src="img/boton-perfiles300p.png" alt="Ir al perfil del jugador" role="button" tabindex="0" loading="lazy" />
+                  <span class="menu-label menu-label--perfil">PERFIL</span>
+                </div>
+              </td>
+              <td>
+                <div class="menu-opcion menu-opcion--referidos">
+                  <img id="boton-referidos" class="menu-imagen menu-imagen--referidos" src="img/boton-compartir-200p.png" alt="Compartir código promocional" role="button" tabindex="0" loading="lazy" />
+                  <span class="menu-label menu-label--referidos">CARTONES GRATIS</span>
+                  <span class="menu-label menu-label--referidos-sub">
+                    <span class="menu-label--referidos-text">AL COMPARTIR BingOnline por WhatsApp</span>
+                    <span id="referidos-badge" class="referidos-badge hidden" aria-hidden="true">0</span>
+                  </span>
+                </div>
+              </td>
+              <td>
+                <div class="menu-opcion menu-opcion--mensajes">
+                  <img id="boton-mensajes" class="menu-imagen" src="img/boton-mensajes300p.png" alt="Abrir el grupo de WhatsApp" role="button" tabindex="0" loading="lazy" />
+                  <span class="menu-label menu-label--mensajes">MENSAJES</span>
+                </div>
+              </td>
+            </tr>
+            <tr>
+              <td class="celda-vacia"></td>
+              <td class="celda-vacia"></td>
+              <td>
+                <div class="menu-opcion menu-opcion--pqrs">
+                  <img id="boton-pqrs" class="menu-imagen" src="img/icono-pqrs.svg" alt="Abrir módulo de ayuda" role="button" tabindex="0" loading="lazy" />
+                  <span class="menu-label menu-label--pqrs">AYUDA</span>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div id="tutorial-overlay" aria-hidden="true">
+    <img id="tutorial-hand" alt="Guía visual del tutorial" loading="lazy" />
+    <div id="tutorial-label" role="status"></div>
+  </div>
+
+  <div id="tutorial-controls" aria-label="Controles del modo tutorial">
+    <button id="tutorial-toggle" type="button" aria-expanded="false" aria-controls="tutorial-nav">MODO<br/>TUTORIAL</button>
+    <div id="tutorial-nav" aria-hidden="true" role="toolbar" aria-label="Navegación del tutorial">
+      <button id="tutorial-prev" class="tutorial-nav-btn" type="button" aria-label="Paso anterior del tutorial">⏪</button>
+      <button id="tutorial-play" class="tutorial-nav-btn" type="button" aria-label="Reproducir tutorial automáticamente">▶️</button>
+      <button id="tutorial-next" class="tutorial-nav-btn" type="button" aria-label="Siguiente paso del tutorial">⏩</button>
+      <button id="tutorial-skip" class="tutorial-nav-btn tutorial-nav-btn--text" type="button">Saltar</button>
+      <button id="tutorial-dismiss" class="tutorial-nav-btn tutorial-nav-btn--text" type="button">No volver a mostrar</button>
+    </div>
+  </div>
+  <p id="tutorial-live-region" class="sr-only" aria-live="polite" aria-atomic="true"></p>
+
+  <div id="fecha-hora"></div>
+  <div id="derechos">Todos los derechos reservados ® Hexaservice <span class="current-year"></span></div>
+
+  <div id="audio-control-player" class="audio-control audio-control--right">
+    <div class="audio-control__volume" hidden aria-hidden="true">
+      <div id="audio-status-player" class="audio-control__status" role="status" aria-live="polite">🔊 Audio activo</div>
+      <div class="audio-control__rows">
+        <div class="audio-control__row">
+          <label for="audio-volume-master-player">General</label>
+          <input id="audio-volume-master-player" class="audio-control__range" type="range" min="0" max="1" step="0.05" value="1" aria-label="Volumen general">
+          <span id="audio-value-master-player" class="audio-control__value">100%</span>
+        </div>
+        <div class="audio-control__row">
+          <label for="audio-volume-player">Música</label>
+          <input id="audio-volume-player" class="audio-control__range" type="range" min="0" max="1" step="0.05" value="0.22" aria-label="Volumen de música">
+          <span id="audio-value-player" class="audio-control__value">22%</span>
+        </div>
+        <div class="audio-control__row">
+          <label for="audio-volume-sfx-player">Efectos</label>
+          <input id="audio-volume-sfx-player" class="audio-control__range" type="range" min="0" max="1" step="0.05" value="1" aria-label="Volumen de efectos">
+          <span id="audio-value-sfx-player" class="audio-control__value">100%</span>
+        </div>
+      </div>
+      <div class="audio-control__actions">
+        <button id="audio-reset-player" class="audio-control__reset" type="button" aria-label="Restablecer audio a valores por defecto">Restablecer</button>
+      </div>
+    </div>
+    <button id="audio-toggle-player" class="audio-control__toggle" type="button" aria-pressed="true" aria-label="Activar o silenciar todo el audio">
+      <svg class="audio-control__icon audio-control__icon--on" viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M4 10v4h4l5 4V6l-5 4H4z" fill="currentColor"></path>
+        <path d="M16.5 8.5a4.5 4.5 0 0 1 0 7" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"></path>
+        <path d="M18.8 6a7.5 7.5 0 0 1 0 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" opacity="0.8"></path>
+      </svg>
+      <svg class="audio-control__icon audio-control__icon--off" viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M4 10v4h4l5 4V6l-5 4H4z" fill="currentColor"></path>
+        <path d="M18.5 8.5l-7 7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path>
+        <path d="M11.5 8.5l7 7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path>
+      </svg>
+    </button>
+  </div>
+
+  <!-- Importar el SDK de Firebase (compatibilidad para evitar problemas de CORS al abrir el archivo localmente) -->
+  <script src="https://www.gstatic.com/firebasejs/11.5.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/11.5.0/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/11.5.0/firebase-auth-compat.js"></script>
+  <div id="modal-whatsapp" class="modal-whatsapp" role="dialog" aria-modal="true" aria-labelledby="modal-whatsapp-titulo" aria-hidden="true">
+    <div class="modal-contenido">
+      <h2 id="modal-whatsapp-titulo">GRUPO DE WHATSAPP NO DISPONIBLE</h2>
+      <p id="modal-whatsapp-mensaje" class="modal-mensaje">Aún no hay grupos disponibles de WhatsApp</p>
+      <button type="button" id="modal-whatsapp-aceptar">Aceptar</button>
+    </div>
+  </div>
+  <div id="modal-referidos" class="modal-referidos" role="dialog" aria-modal="true" aria-labelledby="modal-referidos-titulo" aria-hidden="true">
+    <div class="modal-contenido">
+      <button type="button" id="modal-referidos-cerrar" aria-label="Cerrar">✕</button>
+      <h2 id="modal-referidos-titulo">Campaña: --</h2>
+      <p class="modal-referidos-fin">
+        <span id="modal-referidos-inicio" class="modal-referidos-inicio">Inicio: --/--/----</span>
+        <span id="modal-referidos-fin" class="modal-referidos-fin-valor">Fin: --/--/----</span>
+      </p>
+      <p class="modal-referidos-resumen">
+        <span class="resumen-text">Haz ganado:</span>
+        <strong class="resumen-valor"><span id="modal-referidos-total" class="modal-referidos-total">0</span></strong>
+        <span class="resumen-text">cartones por</span>
+        <strong class="resumen-valor"><span id="modal-referidos-total-referidos" class="modal-referidos-total">0</span></strong>
+        <span class="resumen-text">Referidos que se han registrado con tu código:</span>
+        <strong class="resumen-valor"><span id="modal-referidos-codigo" class="modal-referidos-nuevo">--</span></strong>
+        <span class="resumen-text">Por cada:</span>
+        <strong class="resumen-valor"><span id="modal-referidos-min" class="modal-referidos-min">0</span></strong>
+        <span class="resumen-text">recibiras:</span>
+        <strong class="resumen-valor"><span id="modal-referidos-premio" class="modal-referidos-nuevo">0</span></strong>
+        <span class="resumen-text">En esta campaña llevas:</span>
+        <strong class="resumen-valor"><span id="modal-referidos-total-referidos-campana" class="modal-referidos-total">0</span></strong>
+      </p>
+      <table class="modal-referidos-tabla" aria-label="Tabla de referidos">
+        <thead>
+          <tr>
+            <th class="col-numero">N°</th>
+            <th class="col-nombre">Nombre y Apellido</th>
+            <th class="col-fecha">Fecha y hora</th>
+            <th class="col-premio"><span class="icon check">&#10004;</span></th>
+          </tr>
+        </thead>
+        <tbody id="modal-referidos-lista" class="modal-referidos-lista"></tbody>
+      </table>
+      <div id="modal-referidos-vacio" class="modal-referidos-vacio" hidden></div>
+    </div>
+  </div>
+
+  <script src="js/logoSwitcher.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/notificationCenter.js"></script>
+  <script src="js/internalTransactionNotifier.js"></script>
+  <script src="js/timezone.js"></script>
+  <script src="js/audioManifest.js"></script>
+  <script src="js/audioManager.js"></script>
+  <script src="js/audioControls.js"></script>
+  <script src="js/serviceWorkerRegistration.js"></script>
+<script>
+(function(){
+  const AVATAR_FALLBACK = 'img/avatar-generico.svg';
+  const whatsappModalEl = document.getElementById('modal-whatsapp');
+  const whatsappModalMensajeEl = document.getElementById('modal-whatsapp-mensaje');
+  const whatsappModalAceptarBtn = document.getElementById('modal-whatsapp-aceptar');
+  const referidosModalEl = document.getElementById('modal-referidos');
+  const referidosModalListaEl = document.getElementById('modal-referidos-lista');
+  const referidosModalTotalEl = document.getElementById('modal-referidos-total');
+  const referidosModalTituloEl = document.getElementById('modal-referidos-titulo');
+  const referidosModalInicioEl = document.getElementById('modal-referidos-inicio');
+  const referidosModalFinEl = document.getElementById('modal-referidos-fin');
+  const referidosModalTotalReferidosEl = document.getElementById('modal-referidos-total-referidos');
+  const referidosModalTotalReferidosCampanaEl = document.getElementById('modal-referidos-total-referidos-campana');
+  const referidosModalCodigoEl = document.getElementById('modal-referidos-codigo');
+  const referidosModalMinEl = document.getElementById('modal-referidos-min');
+  const referidosModalPremioEl = document.getElementById('modal-referidos-premio');
+  const referidosModalVacioEl = document.getElementById('modal-referidos-vacio');
+  const referidosModalCerrarBtn = document.getElementById('modal-referidos-cerrar');
+  const sorteoImagen = document.getElementById('boton-sorteo');
+  const referidosOpcion = document.querySelector('.menu-opcion--referidos');
+  const referidosLabel = document.querySelector('.menu-label--referidos');
+  const referidosSubLabel = document.querySelector('.menu-label--referidos-sub');
+  const referidosSubTextEl = referidosSubLabel?.querySelector('.menu-label--referidos-text') || null;
+  const referidosBadgeEl = document.getElementById('referidos-badge');
+  const tutorialToggle = document.getElementById('tutorial-toggle');
+  const tutorialNav = document.getElementById('tutorial-nav');
+  const tutorialPrev = document.getElementById('tutorial-prev');
+  const tutorialPlay = document.getElementById('tutorial-play');
+  const tutorialNext = document.getElementById('tutorial-next');
+  const tutorialSkip = document.getElementById('tutorial-skip');
+  const tutorialDismiss = document.getElementById('tutorial-dismiss');
+  const tutorialHand = document.getElementById('tutorial-hand');
+  const tutorialLabel = document.getElementById('tutorial-label');
+  const tutorialOverlay = document.getElementById('tutorial-overlay');
+  const tutorialLiveRegion = document.getElementById('tutorial-live-region');
+  const whatsappState = { enlace:'', cargado:false };
+  const APP_NOMBRE = 'BingOnline';
+  let firestoreRef = null;
+  let sorteoUnsubscribe = null;
+  const estadoReferidos = { cantidad: 0, tieneDatos: false };
+  const tutorialSteps = [
+    {
+      elementId: 'boton-perfil',
+      hand: 'img/Mano-arri-izq.png',
+      corner: 'bottom-right',
+      color: '#3d2500',
+      label: 'Perfil del jugador',
+      description: 'Actualiza tus datos para jugar y cobrar sin demoras.',
+      ctaAction: () => { window.location.href = 'perfil.html'; },
+    },
+    {
+      elementId: 'boton-billetera',
+      hand: 'img/Mano-arri-der.png',
+      corner: 'bottom-left',
+      color: '#0b7a33',
+      label: 'Billetera',
+      description: 'Revisa tu saldo y solicita recargas o retiros.',
+      ctaAction: () => { window.location.href = 'billetera.html'; },
+    },
+    {
+      elementId: 'boton-jugar',
+      hand: 'img/Mano-aba-izq.png',
+      corner: 'top-right',
+      color: '#003399',
+      label: 'Zona de juego',
+      description: 'Compra cartones y participa en el próximo sorteo.',
+      ctaAction: () => { window.location.href = 'jugarcartones.html'; },
+    },
+    {
+      elementId: 'boton-sorteo',
+      hand: 'img/Mano-arri-der.png',
+      corner: 'bottom-left',
+      color: '#20004d',
+      label: 'Sorteos en vivo',
+      description: 'Mira sorteos activos y revisa resultados finalizados.',
+      ctaAction: () => { window.location.href = 'juegoactivo.html'; },
+    },
+    {
+      elementId: 'boton-mensajes',
+      hand: 'img/Mano-arri-der.png',
+      corner: 'bottom-left',
+      color: '#7a2f00',
+      label: 'Comunidad WhatsApp',
+      description: 'Únete al grupo para avisos y novedades de premios.',
+      ctaAction: manejarClickWhatsapp,
+    },
+    {
+      elementId: 'boton-referidos',
+      hand: 'img/Mano-abajo.png',
+      corner: 'top-left',
+      color: '#006600',
+      label: 'Referidos',
+      description: 'Comparte tu código y gana cartones gratis por invitaciones.',
+      ctaAction: manejarClickReferidos,
+    },
+  ];
+  const tutorialState = {
+    activo: false,
+    indice: 0,
+    auto: { reproduciendo: false, intervalId: null, ciclos: 0, indiceInicio: 0, iniciado: false },
+    inicioRegistrado: false,
+    completo: false,
+    marcadoNoMostrar: false,
+    pasosVistos: new Set(),
+  };
+  let tutorialDimTimeout = null;
+
+  const TUTORIAL_COOKIE = 'tutorialIndice';
+  const TUTORIAL_SEEN_KEY = 'tutorialSeen';
+  const TUTORIAL_DISABLED_KEY = 'tutorialDisabled';
+  const TUTORIAL_METRICS_KEY = 'tutorialMetricsQueue';
+
+  function guardarIndiceTutorial(indice){
+    if(Number.isInteger(indice)){
+      const dias = 30;
+      const maxAge = dias * 24 * 60 * 60;
+      document.cookie = `${TUTORIAL_COOKIE}=${indice};path=/;max-age=${maxAge}`;
+    }
+  }
+
+  function obtenerIndiceTutorial(){
+    const pares = document.cookie.split(';').map(par => par.trim());
+    const encontrado = pares.find(par => par.startsWith(`${TUTORIAL_COOKIE}=`));
+    if(!encontrado) return null;
+    const valor = encontrado.split('=')[1];
+    const numero = Number.parseInt(valor, 10);
+    return Number.isNaN(numero) ? null : numero;
+  }
+
+
+  function obtenerIdentificadorUsuario(){
+    const usuario = auth?.currentUser;
+    return usuario?.email || usuario?.uid || 'anonimo';
+  }
+
+  function setTutorialStorageFlag(key, value){
+    try {
+      window.localStorage.setItem(key, value);
+    } catch (error) {
+      console.warn('No se pudo guardar bandera de tutorial en localStorage', error);
+    }
+  }
+
+  function getTutorialStorageFlag(key){
+    try {
+      return window.localStorage.getItem(key);
+    } catch (error) {
+      console.warn('No se pudo leer bandera de tutorial en localStorage', error);
+      return null;
+    }
+  }
+
+  function marcarTutorialComoVisto(){
+    setTutorialStorageFlag(TUTORIAL_SEEN_KEY, '1');
+  }
+
+  function marcarTutorialNoMostrar(){
+    tutorialState.marcadoNoMostrar = true;
+    setTutorialStorageFlag(TUTORIAL_DISABLED_KEY, '1');
+    marcarTutorialComoVisto();
+  }
+
+  function tutorialNoMostrarActivo(){
+    return getTutorialStorageFlag(TUTORIAL_DISABLED_KEY) === '1';
+  }
+
+  async function guardarPreferenciaTutorialUsuario(data = {}){
+    const userId = obtenerIdentificadorUsuario();
+    if(!firestoreRef || !userId || userId === 'anonimo') return;
+    try {
+      await firestoreRef.collection('users').doc(userId).set({ tutorial: data }, { merge: true });
+    } catch (error) {
+      console.warn('No se pudo guardar preferencia de tutorial en users', error);
+    }
+  }
+
+  function guardarMetricasPendientes(metric){
+    try {
+      const actuales = JSON.parse(window.localStorage.getItem(TUTORIAL_METRICS_KEY) || '[]');
+      actuales.push(metric);
+      window.localStorage.setItem(TUTORIAL_METRICS_KEY, JSON.stringify(actuales.slice(-30)));
+    } catch (error) {
+      console.warn('No se pudo guardar cola local de métricas de tutorial', error);
+    }
+  }
+
+  async function registrarMetricaTutorial(evento, detalle = {}){
+    const metrica = {
+      evento,
+      paso: tutorialState.indice,
+      userId: obtenerIdentificadorUsuario(),
+      timestamp: new Date().toISOString(),
+      ...detalle,
+    };
+    guardarMetricasPendientes(metrica);
+    if(!firestoreRef) return;
+    try {
+      await firestoreRef.collection('tutorialMetrics').add(metrica);
+    } catch (error) {
+      console.warn('No se pudo registrar métrica de tutorial en Firestore', error);
+    }
+  }
+
+  async function sincronizarMetricasTutorialPendientes(){
+    if(!firestoreRef) return;
+    try {
+      const data = JSON.parse(window.localStorage.getItem(TUTORIAL_METRICS_KEY) || '[]');
+      if(!Array.isArray(data) || !data.length) return;
+      for(const metrica of data){
+        await firestoreRef.collection('tutorialMetrics').add(metrica);
+      }
+      window.localStorage.removeItem(TUTORIAL_METRICS_KEY);
+    } catch (error) {
+      console.warn('No se pudieron sincronizar métricas locales del tutorial', error);
+    }
+  }
+
+  async function debeAutoIniciarTutorial(){
+    if(tutorialNoMostrarActivo()) return false;
+    if(getTutorialStorageFlag(TUTORIAL_SEEN_KEY) === '1') return false;
+    const userId = obtenerIdentificadorUsuario();
+    if(!firestoreRef || !userId || userId === 'anonimo'){
+      return true;
+    }
+    try {
+      const userDoc = await firestoreRef.collection('users').doc(userId).get();
+      const userData = userDoc.exists ? (userDoc.data() || {}) : {};
+      const visto = userData?.tutorial?.visto === true;
+      const noMostrar = userData?.tutorial?.noMostrar === true;
+      if(visto){
+        marcarTutorialComoVisto();
+      }
+      if(noMostrar){
+        marcarTutorialNoMostrar();
+      }
+      return !visto && !noMostrar;
+    } catch (error) {
+      console.warn('No se pudo validar el estado del tutorial en users', error);
+      return getTutorialStorageFlag(TUTORIAL_SEEN_KEY) !== '1';
+    }
+  }
+  function asignarFotoUsuario(elemento, url){
+    if(!elemento) return;
+    const aplicarFallback = ()=>{
+      elemento.src = AVATAR_FALLBACK;
+    };
+    elemento.addEventListener('error', aplicarFallback, { once: true });
+    const urlValida = typeof url === 'string' && url.trim().length > 0;
+    elemento.src = urlValida ? url : AVATAR_FALLBACK;
+    if(!urlValida){
+      elemento.removeEventListener('error', aplicarFallback);
+    }
+  }
+
+  window.asignarFotoUsuario = asignarFotoUsuario;
+
+  function configurarAccionImagen(id, accion){
+    const elemento = document.getElementById(id);
+    if(!elemento || typeof accion !== 'function') return;
+    const esPasoEnfocado = ()=>{
+      if(!tutorialState.activo) return true;
+      const paso = tutorialSteps[tutorialState.indice];
+      return paso && paso.elementId === id;
+    };
+    const ejecutarAccion = ()=>{
+      if(!esPasoEnfocado()) return;
+      accion();
+    };
+    elemento.addEventListener('click', ejecutarAccion);
+    elemento.addEventListener('keydown', evento=>{
+      if(evento.key === 'Enter' || evento.key === ' '){
+        evento.preventDefault();
+        ejecutarAccion();
+      }
+    });
+  }
+
+  function mostrarModalWhatsapp(texto){
+    if(!whatsappModalEl) return;
+    if(whatsappModalMensajeEl){
+      whatsappModalMensajeEl.textContent = texto || 'Aún no hay grupos disponibles de WhatsApp';
+    }
+    whatsappModalEl.classList.add('activa');
+    whatsappModalEl.setAttribute('aria-hidden','false');
+  }
+
+  function cerrarModalWhatsapp(){
+    if(!whatsappModalEl) return;
+    whatsappModalEl.classList.remove('activa');
+    whatsappModalEl.setAttribute('aria-hidden','true');
+  }
+
+  function normalizarEnlaceWhatsapp(valor){
+    if(typeof valor !== 'string') return '';
+    const enlace = valor.trim();
+    if(!enlace) return '';
+    if(/^https?:\/\//i.test(enlace) || /^whatsapp:\/\//i.test(enlace)){
+      return enlace;
+    }
+    if(enlace.startsWith('wa.me/') || enlace.startsWith('chat.whatsapp.com/')){
+      return `https://${enlace}`;
+    }
+    return `https://${enlace}`;
+  }
+
+  function generarCodigoPromocional(email, telefono){
+    const local = (email || '').split('@')[0] || '';
+    const letras = local.replace(/[^a-zA-Z]/g,'');
+    let prefijo = letras.slice(0,2).toUpperCase();
+    if(prefijo.length < 2){
+      prefijo = (local.replace(/[^a-zA-Z0-9]/g,'').slice(0,2) || '').toUpperCase();
+    }
+    const digitos = (telefono || '').toString().replace(/\D/g,'');
+    const sufijo = digitos.slice(-4);
+    return `${prefijo}${sufijo}`.trim();
+  }
+
+  function parseFecha(valor){
+    if(!valor) return null;
+    const base = new Date(`${valor}T00:00:00`);
+    if(Number.isNaN(base.getTime())) return null;
+    return base;
+  }
+
+  function hoySinHora(){
+    const ahora = new Date();
+    return new Date(ahora.getFullYear(), ahora.getMonth(), ahora.getDate());
+  }
+
+  function normalizarFechaRegistro(valor){
+    if(!valor) return null;
+    if(typeof valor.toDate === 'function'){
+      const fecha = valor.toDate();
+      return Number.isNaN(fecha.getTime()) ? null : fecha;
+    }
+    if(typeof valor === 'string'){
+      const fecha = new Date(valor);
+      return Number.isNaN(fecha.getTime()) ? null : fecha;
+    }
+    if(typeof valor === 'number'){
+      const fecha = new Date(valor);
+      return Number.isNaN(fecha.getTime()) ? null : fecha;
+    }
+    if(typeof valor === 'object' && typeof valor.seconds === 'number'){
+      const fecha = new Date(valor.seconds * 1000);
+      return Number.isNaN(fecha.getTime()) ? null : fecha;
+    }
+    return null;
+  }
+
+  function formatearFechaRegistro(valor){
+    const fecha = normalizarFechaRegistro(valor);
+    if(!fecha) return 'Fecha no disponible';
+    const dia = String(fecha.getDate()).padStart(2, '0');
+    const mes = String(fecha.getMonth() + 1).padStart(2, '0');
+    const anio = fecha.getFullYear();
+    const horas = fecha.getHours();
+    const hora = String(horas % 12 || 12).padStart(2, '0');
+    const minuto = String(fecha.getMinutes()).padStart(2, '0');
+    const periodo = horas >= 12 ? 'pm' : 'am';
+    return `${dia}/${mes}/${anio} ${hora}:${minuto} ${periodo}`;
+  }
+
+  function formatearFechaCorta(valor){
+    const fecha = valor ? parseFecha(valor) : null;
+    if(!fecha || Number.isNaN(fecha.getTime())) return '--/--/----';
+    const dia = String(fecha.getDate()).padStart(2, '0');
+    const mes = String(fecha.getMonth() + 1).padStart(2, '0');
+    const anio = fecha.getFullYear();
+    return `${dia}/${mes}/${anio}`;
+  }
+
+  function obtenerNombreUsuario(data){
+    if(!data) return 'Usuario';
+    const nombre = (data.name || data.nombre || '').toString().trim();
+    const apellido = (data.apellido || '').toString().trim();
+    const alias = (data.alias || '').toString().trim();
+    const combinado = `${nombre} ${apellido}`.trim();
+    return combinado || alias || data.email || data.id || 'Usuario';
+  }
+
+  async function obtenerCampanasPorIds(ids){
+    const mapa = {};
+    const unicos = Array.from(new Set(ids.filter(Boolean)));
+    await Promise.all(unicos.map(async id => {
+      try{
+        const doc = await firestoreRef.collection('campanasReferidos').doc(id).get();
+        mapa[id] = doc.exists ? (doc.data() || {}) : null;
+      }catch(err){
+        console.error('No se pudo cargar la campaña de referidos', err);
+        mapa[id] = null;
+      }
+    }));
+    return mapa;
+  }
+
+  async function obtenerCodigoPromocionalUsuario(usuarioEmail){
+    if(!firestoreRef || !usuarioEmail){
+      return '';
+    }
+    try{
+      const doc = await firestoreRef.collection('users').doc(usuarioEmail).get();
+      const data = doc.exists ? (doc.data() || {}) : {};
+      const telefono = data.celular || data.numerocel || '';
+      const codigo = data.codigoPromocional || generarCodigoPromocional(usuarioEmail, telefono);
+      if(!data.codigoPromocional && codigo){
+        await firestoreRef.collection('users').doc(usuarioEmail).set({ codigoPromocional: codigo }, { merge:true });
+      }
+      return codigo || '';
+    }catch(err){
+      console.error('No se pudo obtener el código promocional', err);
+      return '';
+    }
+  }
+
+  async function obtenerResumenReferidos(usuarioEmail, campanaActiva){
+    if(!firestoreRef || !usuarioEmail){
+      return { referidos: [], totalCartones: 0, cartonesNuevo: 0, referidosMin: 0, totalReferidos: 0, cartonesPremio: 0, progresoActual: 0, campana: null };
+    }
+    const referidosSnapshot = await firestoreRef.collection('users').where('referidoPorEmail','==', usuarioEmail).get();
+    const referidos = referidosSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    const statsSnapshot = await firestoreRef.collection('Referidos').doc(usuarioEmail).collection('campanas').get();
+    const campanaIds = [
+      ...referidos.map(item => item.campanaReferidosId).filter(Boolean),
+      ...statsSnapshot.docs.map(doc => doc.id)
+    ];
+    const campanas = await obtenerCampanasPorIds(campanaIds);
+    const statsPorCampana = {};
+    statsSnapshot.docs.forEach(doc => {
+      statsPorCampana[doc.id] = doc.data() || {};
+    });
+    const totalCartones = statsSnapshot.docs.reduce((acc, doc) => {
+      const data = doc.data() || {};
+      const campana = campanas[doc.id] || {};
+      const cartonesPremio = Number(campana.cartonesPremio || 0) || 0;
+      const premiosEntregados = Number(data.premiosEntregados || 0) || 0;
+      return acc + (premiosEntregados * cartonesPremio);
+    }, 0);
+    const listado = referidos.map(item => {
+      const campana = campanas[item.campanaReferidosId] || {};
+      const nombreCampana = (campana.nombre || campana.titulo || 'Campaña sin nombre').toString();
+      return {
+        campanaId: item.campanaReferidosId || '',
+        campanaNombre: nombreCampana,
+        nombre: obtenerNombreUsuario(item),
+        fechaRegistro: formatearFechaRegistro(item.fechaRegistro || item.creadoEn || item.createdAt),
+        cartonesNuevo: Number(campana.cartonesNuevo || 0) || 0,
+        fechaOrden: normalizarFechaRegistro(item.fechaRegistro || item.creadoEn || item.createdAt)
+      };
+    });
+    listado.sort((a, b) => {
+      if(!a.fechaOrden && !b.fechaOrden) return 0;
+      if(!a.fechaOrden) return 1;
+      if(!b.fechaOrden) return -1;
+      return b.fechaOrden - a.fechaOrden;
+    });
+    const campana = campanaActiva || null;
+    const campanaId = campana?.id || '';
+    const campanaData = campanaId ? (campanas[campanaId] || campana || {}) : null;
+    const totalCartonesCampana = campanaId
+      ? (Number(statsPorCampana[campanaId]?.premiosEntregados || 0) || 0)
+        * (Number(campanaData?.cartonesPremio || 0) || 0)
+      : totalCartones;
+    const cartonesNuevo = Number(campanaData?.cartonesNuevo || 0) || 0;
+    const referidosMin = Number(campanaData?.referidosMin || 0) || 0;
+    const cartonesPremio = Number(campanaData?.cartonesPremio || 0) || 0;
+    const referidosFiltrados = campanaId ? listado.filter(item => item.campanaId === campanaId) : listado;
+    const totalReferidosCampana = campanaId
+      ? (Number(statsPorCampana[campanaId]?.totalReferidos ?? referidosFiltrados.length) || 0)
+      : referidosFiltrados.length;
+    const progresoActual = referidosMin > 0 ? (totalReferidosCampana % referidosMin) : 0;
+    return {
+      referidos: referidosFiltrados,
+      totalCartones: totalCartonesCampana,
+      cartonesNuevo,
+      referidosMin,
+      cartonesPremio,
+      totalReferidos: totalReferidosCampana,
+      progresoActual,
+      campana: campanaData
+    };
+  }
+
+  async function obtenerCampanaActiva(){
+    if(!firestoreRef) return null;
+    const snapshot = await firestoreRef.collection('campanasReferidos').where('estado','==','ACTIVA').get();
+    const hoy = hoySinHora();
+    let activa = null;
+    const batch = firestoreRef.batch();
+    let cambios = 0;
+    snapshot.forEach(doc => {
+      const data = doc.data() || {};
+      const fin = parseFecha(data.fechaFin);
+      if(fin && fin < hoy){
+        batch.update(firestoreRef.collection('campanasReferidos').doc(doc.id), { estado:'INACTIVA' });
+        cambios += 1;
+        return;
+      }
+      const inicio = parseFecha(data.fechaInicio);
+      if(inicio && fin && inicio <= hoy && hoy <= fin && !activa){
+        activa = { id: doc.id, ...data };
+      }
+    });
+    if(cambios){ await batch.commit(); }
+    return activa;
+  }
+
+  async function actualizarIndicadorReferidos(){
+    if(!firestoreRef || !referidosOpcion) return;
+    try{
+      const campana = await obtenerCampanaActiva();
+      referidosOpcion.classList.toggle('referidos-activa', !!campana);
+      if(referidosLabel){
+        referidosLabel.textContent = campana ? 'CARTONES GRATIS' : `COMPARTE ${APP_NOMBRE}`;
+      }
+      if(referidosSubLabel){
+        const textoSub = campana
+          ? `AL COMPARTIR ${APP_NOMBRE} por WhatsApp`
+          : 'A tus amigos por WhatsApp';
+        if(referidosSubTextEl){
+          referidosSubTextEl.textContent = textoSub;
+        }else{
+          referidosSubLabel.textContent = textoSub;
+        }
+        referidosSubLabel.classList.remove('referidos-datos');
+        referidosSubLabel.setAttribute('role', 'presentation');
+        referidosSubLabel.removeAttribute('tabindex');
+      }
+      if(referidosBadgeEl){
+        referidosBadgeEl.textContent = '0';
+        referidosBadgeEl.classList.add('hidden');
+      }
+      estadoReferidos.cantidad = 0;
+      estadoReferidos.tieneDatos = false;
+      const usuario = auth.currentUser;
+      if(usuario?.email && campana){
+        const resumen = await obtenerResumenReferidos(usuario.email, campana);
+        estadoReferidos.cantidad = resumen.referidos.length;
+        estadoReferidos.tieneDatos = resumen.referidos.length > 0;
+        if(referidosSubLabel && estadoReferidos.tieneDatos){
+          if(referidosSubTextEl){
+            referidosSubTextEl.textContent = 'Click AQUÍ para ver Referidos';
+          }else{
+            referidosSubLabel.textContent = 'Click AQUÍ para ver Referidos';
+          }
+          referidosSubLabel.classList.add('referidos-datos');
+          referidosSubLabel.setAttribute('role', 'button');
+          referidosSubLabel.setAttribute('tabindex', '0');
+        }
+        if(referidosBadgeEl && estadoReferidos.tieneDatos){
+          referidosBadgeEl.textContent = `${estadoReferidos.cantidad}`;
+          referidosBadgeEl.classList.remove('hidden');
+        }
+      }
+    }catch(error){
+      console.error('No se pudo validar la campaña activa de referidos', error);
+      referidosOpcion.classList.remove('referidos-activa');
+    }
+  }
+
+  function limpiarModalReferidos(){
+    if(referidosModalListaEl){
+      referidosModalListaEl.innerHTML = '';
+    }
+    if(referidosModalVacioEl){
+      referidosModalVacioEl.hidden = true;
+      referidosModalVacioEl.textContent = '';
+    }
+  }
+
+  function renderizarReferidosModal(resumen){
+    if(!referidosModalListaEl || !referidosModalTotalEl) return;
+    const campanaNombre = resumen.campana
+      ? (resumen.campana?.nombre || resumen.campana?.titulo || 'Campaña').toString()
+      : '--';
+    if(referidosModalTituloEl){
+      referidosModalTituloEl.textContent = `Campaña: ${campanaNombre}`;
+    }
+    if(referidosModalInicioEl){
+      referidosModalInicioEl.textContent = `Inicio: ${formatearFechaCorta(resumen.campana?.fechaInicio)}`;
+    }
+    if(referidosModalFinEl){
+      referidosModalFinEl.textContent = `Fin: ${formatearFechaCorta(resumen.campana?.fechaFin)}`;
+    }
+    referidosModalTotalEl.textContent = `${resumen.totalCartones}`;
+    if(referidosModalTotalReferidosEl){
+      referidosModalTotalReferidosEl.textContent = `${resumen.totalReferidos ?? resumen.referidos.length}`;
+    }
+    if(referidosModalTotalReferidosCampanaEl){
+      referidosModalTotalReferidosCampanaEl.textContent = `${resumen.totalReferidos ?? resumen.referidos.length}`;
+    }
+    if(referidosModalCodigoEl){
+      referidosModalCodigoEl.textContent = resumen.codigoPromocional || '--';
+    }
+    if(referidosModalMinEl){
+      referidosModalMinEl.textContent = `${resumen.referidosMin}`;
+    }
+    if(referidosModalPremioEl){
+      referidosModalPremioEl.textContent = `${resumen.cartonesPremio ?? 0}`;
+    }
+    referidosModalListaEl.innerHTML = '';
+    if(!resumen.referidos.length){
+      if(referidosModalVacioEl){
+        referidosModalVacioEl.textContent = 'Aún no tienes referidos registrados.';
+        referidosModalVacioEl.hidden = false;
+      }
+      return;
+    }
+    resumen.referidos.forEach((item, index) => {
+      const fila = document.createElement('tr');
+      const numero = document.createElement('td');
+      numero.className = 'col-numero';
+      numero.textContent = String(index + 1);
+      const nombre = document.createElement('td');
+      nombre.className = 'col-nombre';
+      nombre.textContent = item.nombre;
+      const fecha = document.createElement('td');
+      fecha.className = 'col-fecha';
+      fecha.textContent = item.fechaRegistro;
+      const premio = document.createElement('td');
+      premio.className = 'col-premio';
+      const cartonesGanados = Number(item.cartonesNuevo || 0) || 0;
+      premio.textContent = `${cartonesGanados}`;
+      fila.appendChild(numero);
+      fila.appendChild(nombre);
+      fila.appendChild(fecha);
+      fila.appendChild(premio);
+      referidosModalListaEl.appendChild(fila);
+    });
+  }
+
+  async function abrirModalReferidos(){
+    if(!referidosModalEl) return;
+    limpiarModalReferidos();
+    const usuario = auth.currentUser;
+    if(usuario?.email){
+      try{
+        const campana = await obtenerCampanaActiva();
+        const resumen = await obtenerResumenReferidos(usuario.email, campana);
+        const codigoPromocional = await obtenerCodigoPromocionalUsuario(usuario.email);
+        renderizarReferidosModal({ ...resumen, codigoPromocional });
+      }catch(error){
+        console.error('No se pudieron cargar los datos de referidos', error);
+        renderizarReferidosModal({ referidos: [], totalCartones: 0, cartonesNuevo: 0, referidosMin: 0, totalReferidos: 0, cartonesPremio: 0, progresoActual: 0, campana: null, codigoPromocional: '' });
+      }
+    }
+    referidosModalEl.classList.add('activa');
+    referidosModalEl.setAttribute('aria-hidden','false');
+  }
+
+  function cerrarModalReferidos(){
+    if(!referidosModalEl) return;
+    referidosModalEl.classList.remove('activa');
+    referidosModalEl.setAttribute('aria-hidden','true');
+  }
+
+  async function manejarClickReferidos(){
+    if(!firestoreRef){
+      alert('No se pudo preparar el código promocional.');
+      return;
+    }
+    const usuario = auth.currentUser;
+    if(!usuario){
+      alert('Debes iniciar sesión para compartir tu código.');
+      return;
+    }
+    let campana = null;
+    try{
+      campana = await obtenerCampanaActiva();
+    }catch(err){
+      console.error('No se pudo obtener la campaña activa', err);
+    }
+    if(!campana){
+      const registroUrl = 'https://www.bingo.juega-online.com/registrarse.html';
+      const mensaje = `Epale! estoy jugando a ${APP_NOMBRE}, y es un vasilón! 🤩 si entras en este link: ${registroUrl} 👈 te registras, y al jugar ¡Puedes ganar muchos PREMIOS!`;
+      const enlace = `https://wa.me/?text=${encodeURIComponent(mensaje)}`;
+      window.location.href = enlace;
+      return;
+    }
+    const codigo = await obtenerCodigoPromocionalUsuario(usuario.email);
+    if(!codigo){
+      alert('No se pudo generar tu código promocional. Completa tus datos en el perfil.');
+      return;
+    }
+    let cartonesNuevo = 0;
+    try{
+      cartonesNuevo = Number(campana?.cartonesNuevo || 0) || 0;
+    }catch(err){
+      console.error('No se pudo obtener la campaña activa', err);
+    }
+    const registroUrl = `https://www.bingo.juega-online.com/registrarse.html?codigo=${encodeURIComponent(codigo)}`;
+    const mensaje = `Epale! estoy jugando a ${APP_NOMBRE}, y es un vasilón! 🤩 si entras en este link: ${registroUrl} 👈 y te registras usando mi código ${codigo} te regalarán ${cartonesNuevo} cartones para que juegues GRATIS!`;
+    const enlace = `https://wa.me/?text=${encodeURIComponent(mensaje)}`;
+    window.location.href = enlace;
+  }
+
+  function manejarClickDatosReferidos(evento){
+    if(!referidosSubLabel || !referidosSubLabel.classList.contains('referidos-datos')){
+      return;
+    }
+    if(evento){
+      evento.preventDefault();
+    }
+    abrirModalReferidos();
+  }
+
+  async function obtenerLinkWhatsapp(){
+    if(whatsappState.cargado) return whatsappState.enlace;
+    if(!firestoreRef) return '';
+    try {
+      const doc = await firestoreRef.collection('Variablesglobales').doc('Parametros').get();
+      const data = doc.exists ? (doc.data() || {}) : {};
+      const posibles = [data.linkwhatsapp, data.linkWhatsapp, data.link_whatsapp];
+      const enlace = posibles.find(valor => typeof valor === 'string' && valor.trim());
+      whatsappState.enlace = enlace ? enlace.trim() : '';
+    } catch (error) {
+      console.error('Error al obtener el enlace de WhatsApp:', error);
+      whatsappState.enlace = '';
+    }
+    whatsappState.cargado = true;
+    return whatsappState.enlace;
+  }
+
+  async function manejarClickWhatsapp(){
+    const enlace = await obtenerLinkWhatsapp();
+    if(enlace){
+      try {
+        const enlaceNormalizado = normalizarEnlaceWhatsapp(enlace);
+        if(!enlaceNormalizado){
+          mostrarModalWhatsapp('Aún no hay grupos disponibles de WhatsApp');
+          return;
+        }
+        window.location.href = enlaceNormalizado;
+      } catch (error) {
+        console.error('No se pudo abrir el enlace de WhatsApp:', error);
+        mostrarModalWhatsapp('No pudimos abrir el grupo de WhatsApp. Intenta nuevamente más tarde.');
+      }
+    } else {
+      mostrarModalWhatsapp('Aún no hay grupos disponibles de WhatsApp');
+    }
+  }
+
+  function observarEstadoSorteo(){
+    if(!firestoreRef || !sorteoImagen || sorteoUnsubscribe){
+      return;
+    }
+    try {
+      sorteoUnsubscribe = firestoreRef.collection('sorteos')
+        .where('estado', '==', 'Jugando')
+        .limit(1)
+        .onSnapshot(snapshot => {
+          const enJuego = snapshot && !snapshot.empty;
+          sorteoImagen.classList.toggle('menu-imagen--jugando', !!enJuego);
+        }, error => {
+          console.error('Error al observar sorteos en vivo:', error);
+          sorteoImagen.classList.remove('menu-imagen--jugando');
+        });
+    } catch (error) {
+      console.error('No se pudo iniciar la observación de sorteos en vivo', error);
+    }
+  }
+
+  function ocultarIndicadoresTutorial(){
+    if(tutorialHand){
+      tutorialHand.style.display = 'none';
+    }
+    if(tutorialLabel){
+      tutorialLabel.style.display = 'none';
+    }
+    if(tutorialOverlay){
+      tutorialOverlay.setAttribute('aria-hidden', 'true');
+      tutorialOverlay.style.background = 'transparent';
+      tutorialOverlay.style.clipPath = 'none';
+    }
+  }
+
+  function animarSalidaControlesTutorial(){
+    if(!tutorialNav) return;
+    const estabaActivo = tutorialNav.classList.contains('activo');
+    const limpiarAnimacion = () => {
+      clearTimeout(temporizadorFallback);
+      tutorialNav.classList.remove('saliendo');
+    };
+    tutorialNav.classList.remove('activo');
+    if(!estabaActivo){
+      tutorialNav.classList.remove('saliendo');
+      return;
+    }
+    tutorialNav.classList.add('saliendo');
+    const temporizadorFallback = setTimeout(limpiarAnimacion, 360);
+    tutorialNav.addEventListener('animationend', limpiarAnimacion, { once: true });
+  }
+
+  function calcularPosicionMano(corner, rect, manoWidth = 44, manoHeight = 44){
+    const base = { x: rect.left, y: rect.top };
+    switch(corner){
+      case 'bottom-right':
+        return { x: rect.right - manoWidth * 0.75, y: rect.bottom - manoHeight * 0.55 };
+      case 'bottom-left':
+        return { x: rect.left - manoWidth * 0.25, y: rect.bottom - manoHeight * 0.55 };
+      case 'top-right':
+        return { x: rect.right - manoWidth * 0.75, y: rect.top - manoHeight * 0.35 };
+      case 'top-left':
+        return { x: rect.left - manoWidth * 0.25, y: rect.top - manoHeight * 0.35 };
+      default:
+        return base;
+    }
+  }
+
+  function actualizarPasoTutorial(){
+    if(!tutorialState.activo){
+      ocultarIndicadoresTutorial();
+      return;
+    }
+    const paso = tutorialSteps[tutorialState.indice];
+    const objetivo = document.getElementById(paso.elementId);
+    if(!paso || !objetivo){
+      ocultarIndicadoresTutorial();
+      return;
+    }
+
+    tutorialState.pasosVistos.add(tutorialState.indice);
+    registrarMetricaTutorial('paso_alcanzado', { pasoId: paso.elementId });
+
+    if(tutorialLiveRegion){
+      tutorialLiveRegion.textContent = `Paso ${tutorialState.indice + 1} de ${tutorialSteps.length}: ${paso.label}. ${paso.description}`;
+    }
+
+    const rect = objetivo.getBoundingClientRect();
+    const manoWidth = tutorialHand ? tutorialHand.width || 44 : 44;
+    const manoHeight = tutorialHand ? tutorialHand.height || 44 : 44;
+    const posicion = calcularPosicionMano(paso.corner, rect, manoWidth, manoHeight);
+    if(tutorialHand){
+      tutorialHand.src = paso.hand;
+      tutorialHand.style.left = `${posicion.x}px`;
+      tutorialHand.style.top = `${posicion.y}px`;
+      tutorialHand.style.display = 'block';
+    }
+    if(tutorialLabel){
+      const colocarEtiqueta = () => {
+        tutorialLabel.style.visibility = 'hidden';
+        const labelRect = tutorialLabel.getBoundingClientRect();
+        const margen = 12;
+        const viewportWidth = window.innerWidth;
+        const viewportHeight = window.innerHeight;
+        const mitadAncho = labelRect.width / 2;
+        const centroDeseado = rect.left + rect.width / 2;
+        const centroLimitado = Math.min(
+          viewportWidth - margen - mitadAncho,
+          Math.max(margen + mitadAncho, centroDeseado)
+        );
+
+        const espacioArriba = rect.top - margen;
+        const espacioAbajo = viewportHeight - rect.bottom - margen;
+        let labelTop;
+        let desplazamientoY = '-100%';
+
+        if(espacioArriba >= labelRect.height + margen){
+          labelTop = rect.top - margen;
+          desplazamientoY = '-100%';
+        } else if(espacioAbajo >= labelRect.height + margen){
+          labelTop = rect.bottom + margen;
+          desplazamientoY = '0%';
+        } else {
+          labelTop = rect.top + rect.height / 2;
+          desplazamientoY = '-50%';
+        }
+
+        const alturaTransform = desplazamientoY === '-100%'
+          ? labelRect.height
+          : desplazamientoY === '-50%'
+            ? labelRect.height / 2
+            : 0;
+
+        const limiteSuperior = margen + alturaTransform;
+        const limiteInferior = viewportHeight - margen - alturaTransform;
+        labelTop = Math.max(limiteSuperior, Math.min(limiteInferior, labelTop));
+
+        tutorialLabel.style.left = `${centroLimitado}px`;
+        tutorialLabel.style.top = `${labelTop}px`;
+        tutorialLabel.style.transform = `translate(-50%, ${desplazamientoY})`;
+        tutorialLabel.style.visibility = 'visible';
+      };
+
+      tutorialLabel.innerHTML = `<strong>${paso.label}</strong><br>${paso.description}`;
+      tutorialLabel.style.color = paso.color;
+      tutorialLabel.style.display = 'block';
+      colocarEtiqueta();
+      requestAnimationFrame(()=>{
+        const pasoActual = tutorialSteps[tutorialState.indice];
+        if(!pasoActual || pasoActual.elementId !== paso.elementId){
+          return;
+        }
+        const rectRefrescado = objetivo.getBoundingClientRect();
+        Object.assign(rect, rectRefrescado);
+        colocarEtiqueta();
+      });
+    }
+    if(tutorialOverlay){
+      tutorialOverlay.setAttribute('aria-hidden', 'false');
+      const centroX = rect.left + rect.width / 2;
+      const centroY = rect.top + rect.height / 2;
+      const radio = Math.sqrt((rect.width ** 2 + rect.height ** 2)) / 2 + 26;
+      const halo = radio + 160;
+      tutorialOverlay.style.background = `radial-gradient(circle at ${centroX}px ${centroY}px, rgba(0, 0, 0, 0) ${radio}px, rgba(0, 0, 0, 0.58) ${halo}px)`;
+    }
+
+    if(!objetivo.hasAttribute('tabindex')){
+      objetivo.setAttribute('tabindex', '-1');
+    }
+    objetivo.focus({ preventScroll: false });
+
+    guardarIndiceTutorial(tutorialState.indice);
+  }
+
+  function cambiarPasoTutorial(delta){
+    const total = tutorialSteps.length;
+    tutorialState.indice = (tutorialState.indice + delta + total) % total;
+    actualizarPasoTutorial();
+    if(tutorialState.pasosVistos.size === tutorialSteps.length && !tutorialState.completo){
+      tutorialState.completo = true;
+      marcarTutorialComoVisto();
+      guardarPreferenciaTutorialUsuario({ visto: true, noMostrar: tutorialNoMostrarActivo() });
+      registrarMetricaTutorial('completado', { totalPasos: tutorialSteps.length });
+    }
+  }
+
+  function actualizarBotonPlay(){
+    if(!tutorialPlay) return;
+    tutorialPlay.textContent = tutorialState.auto.reproduciendo ? '⏸️' : '▶️';
+    const etiqueta = tutorialState.auto.reproduciendo
+      ? 'Pausar avance automático del tutorial'
+      : 'Reproducir tutorial automáticamente';
+    tutorialPlay.setAttribute('aria-label', etiqueta);
+  }
+
+  function limpiarAutoPlay(){
+    if(tutorialState.auto.intervalId){
+      clearInterval(tutorialState.auto.intervalId);
+    }
+    tutorialState.auto.intervalId = null;
+    tutorialState.auto.reproduciendo = false;
+    tutorialState.auto.ciclos = 0;
+    tutorialState.auto.iniciado = false;
+    tutorialState.auto.indiceInicio = tutorialState.indice;
+    actualizarBotonPlay();
+  }
+
+  function pausarAutoPlay(){
+    if(tutorialState.auto.intervalId){
+      clearInterval(tutorialState.auto.intervalId);
+    }
+    tutorialState.auto.intervalId = null;
+    tutorialState.auto.reproduciendo = false;
+    actualizarBotonPlay();
+  }
+
+  function iniciarAutoPlay(){
+    if(!tutorialState.activo){
+      activarTutorial();
+    }
+    if(!tutorialState.auto.iniciado){
+      tutorialState.auto.indiceInicio = tutorialState.indice;
+      tutorialState.auto.iniciado = true;
+    }
+    if(tutorialState.auto.intervalId){
+      clearInterval(tutorialState.auto.intervalId);
+    }
+    tutorialState.auto.reproduciendo = true;
+    actualizarBotonPlay();
+    tutorialState.auto.intervalId = setInterval(()=>{
+      if(!tutorialState.activo){
+        limpiarAutoPlay();
+        return;
+      }
+      const indicePrevio = tutorialState.indice;
+      cambiarPasoTutorial(1);
+      const volvioAlInicio =
+        tutorialState.auto.iniciado &&
+        indicePrevio !== tutorialState.indice &&
+        tutorialState.indice === tutorialState.auto.indiceInicio;
+      if(volvioAlInicio){
+        tutorialState.auto.ciclos += 1;
+        if(tutorialState.auto.ciclos >= 3){
+          limpiarAutoPlay();
+          desactivarTutorial('completado');
+        }
+      }
+    }, 6000);
+  }
+
+  function alternarAutoPlay(){
+    if(tutorialState.auto.reproduciendo){
+      pausarAutoPlay();
+      return;
+    }
+    iniciarAutoPlay();
+  }
+
+  function irAlPasoActual(){
+    const paso = tutorialSteps[tutorialState.indice];
+    if(paso && typeof paso.ctaAction === 'function'){
+      paso.ctaAction();
+    }
+  }
+
+  function manejarTecladoTutorial(evento){
+    if(!tutorialState.activo) return;
+    if(evento.key === 'ArrowRight'){
+      evento.preventDefault();
+      cambiarPasoTutorial(1);
+      return;
+    }
+    if(evento.key === 'ArrowLeft'){
+      evento.preventDefault();
+      cambiarPasoTutorial(-1);
+      return;
+    }
+    if(evento.key === 'Escape'){
+      evento.preventDefault();
+      desactivarTutorial('abandono');
+      return;
+    }
+    if(evento.key === 'Enter' && document.activeElement?.id === tutorialLabel?.id){
+      evento.preventDefault();
+      irAlPasoActual();
+    }
+  }
+
+  function activarTutorial(origen = 'manual'){
+    tutorialState.activo = true;
+    const indiceGuardado = obtenerIndiceTutorial();
+    const total = tutorialSteps.length;
+    tutorialState.indice = Number.isInteger(indiceGuardado)
+      ? Math.max(0, Math.min(total - 1, indiceGuardado))
+      : 0;
+    if(tutorialToggle){
+      tutorialToggle.classList.add('activo');
+      tutorialToggle.style.opacity = '1';
+      tutorialToggle.setAttribute('aria-expanded', 'true');
+    }
+    if(tutorialNav){
+      tutorialNav.classList.remove('saliendo');
+      tutorialNav.classList.add('activo');
+      tutorialNav.setAttribute('aria-hidden', 'false');
+    }
+    if(!tutorialState.inicioRegistrado){
+      tutorialState.inicioRegistrado = true;
+      registrarMetricaTutorial('inicio', { origen });
+    }
+    window.addEventListener('resize', actualizarPasoTutorial);
+    document.addEventListener('keydown', manejarTecladoTutorial);
+    actualizarPasoTutorial();
+  }
+
+  function desactivarTutorial(motivo = 'abandono'){
+    const estabaActivo = tutorialState.activo;
+    tutorialState.activo = false;
+    if(tutorialToggle){
+      tutorialToggle.classList.remove('activo');
+      tutorialToggle.setAttribute('aria-expanded', 'false');
+    }
+    if(tutorialNav){
+      tutorialNav.setAttribute('aria-hidden', 'true');
+      animarSalidaControlesTutorial();
+    }
+    window.removeEventListener('resize', actualizarPasoTutorial);
+    document.removeEventListener('keydown', manejarTecladoTutorial);
+    limpiarAutoPlay();
+    ocultarIndicadoresTutorial();
+    programarAtenuacionTutorial();
+    if(estabaActivo && !tutorialState.completo && motivo === 'abandono'){
+      registrarMetricaTutorial('abandono', { pasoId: tutorialSteps[tutorialState.indice]?.elementId || '' });
+    }
+  }
+
+  function programarAtenuacionTutorial(){
+    if(!tutorialToggle) return;
+    if(tutorialDimTimeout){
+      clearTimeout(tutorialDimTimeout);
+    }
+    tutorialToggle.style.opacity = '1';
+    if(tutorialState.activo) return;
+    tutorialDimTimeout = setTimeout(()=>{
+      if(!tutorialState.activo && tutorialToggle){
+        tutorialToggle.style.opacity = '0.3';
+      }
+    }, 10000);
+  }
+
+  function configurarTutorial(){
+    if(!tutorialToggle || !tutorialNav || !tutorialPrev || !tutorialNext || !tutorialPlay || !tutorialSkip || !tutorialDismiss){
+      return;
+    }
+    actualizarBotonPlay();
+    tutorialLabel?.addEventListener('click', irAlPasoActual);
+    tutorialLabel?.setAttribute('tabindex', '0');
+    tutorialLabel?.setAttribute('role', 'button');
+    tutorialToggle.addEventListener('click', ()=>{
+      if(tutorialState.activo){
+        desactivarTutorial('abandono');
+      } else {
+        activarTutorial('manual');
+      }
+    });
+    tutorialPrev.addEventListener('click', ()=>{
+      if(tutorialState.activo){
+        cambiarPasoTutorial(-1);
+      }
+    });
+    tutorialPlay.addEventListener('click', ()=>{
+      alternarAutoPlay();
+    });
+    tutorialNext.addEventListener('click', ()=>{
+      if(!tutorialState.activo){
+        activarTutorial('manual');
+        return;
+      }
+      cambiarPasoTutorial(1);
+    });
+    tutorialSkip.addEventListener('click', ()=>{
+      registrarMetricaTutorial('abandono', { motivo: 'saltar' });
+      desactivarTutorial('saltar');
+    });
+    tutorialDismiss.addEventListener('click', async ()=>{
+      marcarTutorialNoMostrar();
+      await guardarPreferenciaTutorialUsuario({ visto: true, noMostrar: true });
+      registrarMetricaTutorial('abandono', { motivo: 'no_volver_mostrar' });
+      desactivarTutorial('no_mostrar');
+    });
+    window.addEventListener('beforeunload', ()=>{
+      if(tutorialState.activo && !tutorialState.completo){
+        registrarMetricaTutorial('abandono', { motivo: 'salida_pagina' });
+      }
+    });
+    programarAtenuacionTutorial();
+  }
+
+  async function inicializarVistaJugador(){
+    try {
+      await initFirebase();
+    } catch (error) {
+      console.error('No se pudo inicializar Firebase para la vista de jugador', error);
+      alert('No se pudo inicializar Firebase. Intenta nuevamente más tarde.');
+      return;
+    }
+
+    ensureAuth();
+    setupSuperadminExit('#salir-super-btn');
+    initFechaHora('fecha-hora');
+
+    firestoreRef = firebase.firestore();
+
+    await sincronizarMetricasTutorialPendientes();
+    configurarTutorial();
+    const autoIniciarTutorial = await debeAutoIniciarTutorial();
+    if(autoIniciarTutorial){
+      activarTutorial('auto_primer_ingreso');
+      marcarTutorialComoVisto();
+      await guardarPreferenciaTutorialUsuario({ visto: true, noMostrar: false });
+    }
+    configurarAccionImagen('boton-jugar', ()=>{ window.location.href = 'jugarcartones.html'; });
+    configurarAccionImagen('boton-sorteo', ()=>{ window.location.href = 'juegoactivo.html'; });
+    configurarAccionImagen('boton-billetera', ()=>{ window.location.href = 'billetera.html'; });
+    configurarAccionImagen('boton-perfil', ()=>{ window.location.href = 'perfil.html'; });
+    configurarAccionImagen('boton-mensajes', manejarClickWhatsapp);
+    configurarAccionImagen('boton-pqrs', ()=>{ window.location.href = 'ayuda.html'; });
+    configurarAccionImagen('boton-referidos', manejarClickReferidos);
+    if(referidosSubLabel){
+      referidosSubLabel.addEventListener('click', manejarClickDatosReferidos);
+      referidosSubLabel.addEventListener('keydown', evento=>{
+        if(evento.key === 'Enter' || evento.key === ' '){
+          manejarClickDatosReferidos(evento);
+        }
+      });
+    }
+
+    if(whatsappModalAceptarBtn){
+      whatsappModalAceptarBtn.addEventListener('click', cerrarModalWhatsapp);
+    }
+    if(whatsappModalEl){
+      whatsappModalEl.addEventListener('click', evento => {
+        if(evento.target === whatsappModalEl){
+          cerrarModalWhatsapp();
+        }
+      });
+    }
+    if(referidosModalCerrarBtn){
+      referidosModalCerrarBtn.addEventListener('click', cerrarModalReferidos);
+    }
+    if(referidosModalEl){
+      referidosModalEl.addEventListener('click', evento => {
+        if(evento.target === referidosModalEl){
+          cerrarModalReferidos();
+        }
+      });
+    }
+
+    observarEstadoSorteo();
+    if(auth?.onAuthStateChanged){
+      auth.onAuthStateChanged(()=>{ actualizarIndicadorReferidos(); });
+    }else{
+      actualizarIndicadorReferidos();
+    }
+  }
+
+  initBingoAudioControl({
+    containerId: 'audio-control-player',
+    toggleId: 'audio-toggle-player',
+    volumeId: 'audio-volume-player',
+    masterVolumeId: 'audio-volume-master-player',
+    sfxVolumeId: 'audio-volume-sfx-player',
+    resetId: 'audio-reset-player',
+    statusId: 'audio-status-player',
+    masterValueId: 'audio-value-master-player',
+    musicValueId: 'audio-value-player',
+    sfxValueId: 'audio-value-sfx-player',
+    musicManifestKey: 'music.backgroundMain',
+    defaultVolume: 0.22,
+    musicTrackId: 'player-background',
+  });
+
+  inicializarVistaJugador();
+})();
+</script>
+  <script src="js/installPrompt.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      if (typeof window.initInstallPrompt === 'function') {
+        window.initInstallPrompt({ containerId: 'install-prompt-player', mode: 'banner' });
+      }
+    });
+  </script>
+</body>
+</html>

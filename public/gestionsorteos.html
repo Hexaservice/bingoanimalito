@@ -1,0 +1,518 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <link rel="apple-touch-icon" sizes="180x180" href="img/apple-touch-icon.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="img/android-chrome-192x192.png">
+  <link rel="icon" type="image/png" sizes="512x512" href="img/android-chrome-512x512.png">
+  <link rel="icon" type="image/x-icon" href="img/favicon.ico">
+  <link rel="icon" type="image/x-icon" sizes="16x16" href="img/favicon-16x16.ico">
+  <link rel="icon" type="image/x-icon" sizes="32x32" href="img/favicon-32x32.ico">
+
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gestionar Sorteos</title>
+  <link href="https://fonts.googleapis.com/css2?family=Bangers&display=swap" rel="stylesheet">
+  <style>
+    body {
+      background: linear-gradient(rgba(255, 255, 255, 0.7), rgba(255, 255, 255, 0.7)),
+                  url('https://img.freepik.com/vectores-premium/padrao-sem-costura-com-simbolos-de-dolar-e-porcentagem_637741-777.jpg');
+      background-repeat: repeat;
+      background-size: auto;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      min-height: 100vh;
+      text-align: center;
+      font-family: 'Bangers', cursive;
+      padding-top: 20px;
+      margin: 0;
+    }
+    .menu-btn {
+      width: 250px;
+      height: 60px;
+      font-family: 'Bangers', cursive;
+      font-size: 1.4rem;
+      background: rgba(0, 170, 255, 0.8);
+      color: white;
+      border: 4px solid #FFD700;
+      border-radius: 10px;
+      text-shadow: 2px 2px 4px #000;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: transform 0.3s, box-shadow 0.3s, background 0.3s;
+      margin: 5px;
+    }
+    .mini-btn {
+      display:inline-flex;
+      align-items:center;
+      gap:2px;
+      padding:2px 4px;
+      font-size:0.7rem;
+      border:1px solid #ccc;
+      border-radius:4px;
+      background:rgba(255,255,255,0.9);
+      cursor:pointer;
+      margin-right:2px;
+    }
+    .menu-btn:hover {
+      transform: scale(1.05);
+      box-shadow: 0 0 15px rgba(255, 215, 0, 0.8);
+    }
+    .back-btn {
+      position: fixed;
+      top: 5px;
+      left: 5px;
+      width: 120px;
+      height: 40px;
+      background: orange;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      gap:5px;
+    }
+    #actions {
+      width:95%;
+      display:flex;
+      justify-content:center;
+      margin-top:5px;
+      font-family:Calibri, Arial, sans-serif;
+    }
+
+    #nuevo-btn .icon, #nuevo-btn .txt {
+      color: yellow;
+      text-shadow: 1px 1px 1px #000;
+    }
+
+    #editar-btn .icon, #editar-btn .txt {
+      color: blue;
+      text-shadow: 1px 1px 1px #000;
+    }
+
+    #inactivar-btn .icon, #inactivar-btn .txt {
+      color: red;
+      text-shadow: 1px 1px 1px #000;
+    }
+
+    #archivar-btn .txt {
+      color: brown;
+      text-shadow: 1px 1px 1px #000;
+    }
+    .archivo-activo{background:#654321;color:#fff;}
+
+    .fecha-container { position:relative; }
+    .fecha-placeholder {
+      position:absolute;
+      left:4px;
+      top:2px;
+      pointer-events:none;
+      color:#666;
+      font-size:0.8rem;
+    }
+    #tabla-sorteos {
+      width: 95%;
+      max-height: 50vh;
+      overflow-y: auto;
+      font-family: Calibri, Arial, sans-serif;
+      font-size: 0.8rem;
+      border-collapse: collapse;
+      background: rgba(255,255,255,0.6);
+      margin-top: 10px;
+    }
+    #tabla-sorteos th, #tabla-sorteos td {
+      border: 1px solid #ccc;
+      padding: 4px 6px;
+    }
+    #tabla-sorteos tbody td {
+      font-weight: bold;
+    }
+    #tabla-sorteos thead th {
+      position: sticky;
+      top: 0;
+      background: rgba(255,255,255,0.8);
+    }
+    #session-info {
+      position: fixed;
+      top: 10px;
+      right: 10px;
+      display: flex;
+      align-items: center;
+      font-size: 0.7rem;
+    }
+    #user-pic {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+    }
+    #logout-link {
+      font-family: Calibri, Arial, sans-serif;
+      margin-left: 5px;
+      font-size: 0.7rem;
+      color: #007bff;
+      text-decoration: underline;
+    }
+    .modal {
+      display:none;
+      position:fixed;
+      top:0;
+      left:0;
+      right:0;
+      bottom:0;
+      background:rgba(0,0,0,0.5);
+      align-items:center;
+      justify-content:center;
+    }
+    .modal-box {
+      background:white;
+      padding:20px;
+      border-radius:8px;
+      max-width:300px;
+      text-align:left;
+      font-family: Calibri, Arial, sans-serif;
+    }
+    .modal-box .forma-nombre { color:orange; }
+    .modal-box .porcentaje { color:darkgreen; }
+    .modal-box .cartones { color:purple; }
+    .modal-box .imagen { color:blue; }
+    .modal-box .forma-detalle { margin-bottom:8px; }
+    .modal-box button { margin-top:10px; }
+  </style>
+  <link rel="stylesheet" href="css/desktopFrame.css">
+</head>
+<body>
+  <button id="volver-btn" class="menu-btn back-btn" data-compact-back="true">&#9664; Volver</button>
+  <div id="session-info">
+    <img id="user-pic" referrerpolicy="no-referrer" crossorigin="anonymous" src="" alt="Usuario" />
+    <a href="#" id="logout-link">Cerrar sesión</a>
+  </div>
+  <h2>Gestionar Sorteos</h2>
+  <div id="actions">
+    <button id="nuevo-btn" class="mini-btn"><span class="icon">&#9728;</span> <span class="txt">Nuevo</span></button>
+    <button id="editar-btn" class="mini-btn"><span class="icon">&#9998;</span> <span class="txt">Editar</span></button>
+    <button id="inactivar-btn" class="mini-btn"><span class="icon">&#128683;</span> <span class="txt">Inactivar</span></button>
+    <button id="archivar-btn" class="mini-btn"><span class="icon">&#128194;</span> <span class="txt">Archivar</span></button>
+    <button id="archivo-btn" class="mini-btn"><span class="icon">&#128230;</span> <span class="txt">Archivo</span></button>
+  </div>
+  <table id="tabla-sorteos">
+    <thead>
+        <tr>
+          <th>N°</th>
+          <th><input type="text" id="filtro-nombre" placeholder="Nombre de sorteo" style="width:100%;box-sizing:border-box;"></th>
+          <th>
+            <div class="fecha-container">
+              <input type="date" id="filtro-fecha" style="width:100%;">
+              <span class="fecha-placeholder">Fecha</span>
+            </div>
+          </th>
+          <th>
+            <select id="filtro-estado" style="width:100%;">
+              <option value="">Estado</option>
+              <option value="Activo">Activo</option>
+              <option value="Inactivo">Inactivo</option>
+              <option value="Finalizado">Finalizado</option>
+            </select>
+          </th>
+          <th style="text-align:center;"><span id="sel-sorteo" style="cursor:pointer;">&#10004;</span></th>
+        </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+      <div id="modal-premios" class="modal">
+        <div class="modal-box">
+          <div id="modal-premios-content"></div>
+          <button id="modal-premios-cerrar">Aceptar</button>
+        </div>
+      </div>
+      <div id="modal-info" class="modal">
+        <div class="modal-box">
+          <div id="modal-info-content"></div>
+          <button id="modal-info-cerrar">Aceptar</button>
+        </div>
+      </div>
+  <script src="https://www.gstatic.com/firebasejs/11.5.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/11.5.0/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/11.5.0/firebase-auth-compat.js"></script>
+  <script src="js/logoSwitcher.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/notificationCenter.js"></script>
+  <script>
+  const datos=[];
+  const tbody=document.querySelector('#tabla-sorteos tbody');
+  let mostrarArch=false;
+  const formasPorSorteo=new Map();
+  let cacheSorteos=[];
+  let unsubscribeSorteos=null;
+  let unsubscribeFormas=null;
+
+  function actualizarArchivarBtn(){
+    const btn=document.getElementById('archivar-btn');
+    const icon=btn.querySelector('.icon');
+    const txt=btn.querySelector('.txt');
+    if(mostrarArch){
+      txt.textContent='Desarchivar';
+      icon.innerHTML='&#128193;';
+      icon.style.color='blue';
+      txt.style.color='blue';
+    }else{
+      txt.textContent='Archivar';
+      icon.innerHTML='&#128194;';
+      icon.style.color='brown';
+      txt.style.color='brown';
+    }
+  }
+
+  function recomponerDatos(){
+    datos.length=0;
+    cacheSorteos.forEach(item=>{
+      const info={id:item.id,...item.data};
+      info.condicion=info.condicion||'VISIBLE';
+      const formas=formasPorSorteo.get(item.id)||[];
+      info.formas=formas.slice();
+      datos.push(info);
+    });
+    datos.sort((a,b)=>{
+      const fa=a.fecha||'';
+      const fb=b.fecha||'';
+      return fa>fb?-1:fa<fb?1:0;
+    });
+    filtrar();
+  }
+
+  function iniciarMonitoreo(){
+    if(unsubscribeFormas) unsubscribeFormas();
+    if(unsubscribeSorteos) unsubscribeSorteos();
+
+    unsubscribeFormas=db.collection('formas').onSnapshot(snapshot=>{
+      formasPorSorteo.clear();
+      snapshot.forEach(doc=>{
+        const data=doc.data();
+        const sid=data.sorteoId;
+        if(!sid) return;
+        if(!formasPorSorteo.has(sid)) formasPorSorteo.set(sid,[]);
+        formasPorSorteo.get(sid).push(data);
+      });
+      recomponerDatos();
+    },err=>{
+      console.error('Error al escuchar las formas de premios',err);
+    });
+
+    unsubscribeSorteos=db.collection('sorteos').onSnapshot(snapshot=>{
+      cacheSorteos=[];
+      snapshot.forEach(doc=>{
+        cacheSorteos.push({id:doc.id,data:doc.data()});
+      });
+      recomponerDatos();
+    },err=>{
+      console.error('Error al escuchar los sorteos',err);
+      alert('No se pudieron cargar los sorteos. Intenta nuevamente más tarde.');
+    });
+  }
+
+  function renderTabla(lista){
+    tbody.innerHTML='';
+    let idx=1;
+    lista.forEach(d=>{
+      let fecha=d.fecha||'';
+      if(fecha.includes('-')) fecha=fecha.split('-').reverse().join('/');
+      const tr=document.createElement('tr');
+      tr.innerHTML=`<td>${idx++}</td><td class="nombre">${d.nombre}</td><td class="fecha">${fecha}</td><td>${d.estado}</td><td style="text-align:center;"><input type="checkbox" data-id="${d.id}" data-estado="${d.estado}"></td>`;
+      const nombreCell=tr.querySelector('.nombre');
+      nombreCell.style.cursor='pointer';
+      nombreCell.addEventListener('click',()=>mostrarPremios(d.formas));
+      const fechaCell=tr.querySelector('.fecha');
+      fechaCell.style.cursor='pointer';
+      fechaCell.addEventListener('click',()=>mostrarInfo(d));
+      const color=d.estado==='Activo'?'green':
+                   d.estado==='Inactivo'?'red':
+                   d.estado==='Finalizado'?'black':
+                   d.estado==='Jugando'?'purple':
+                   d.estado==='Sellado'?'gray':'';
+      if(color){
+        tr.children[1].style.color=color;
+        tr.children[2].style.color=color;
+        tr.children[3].style.color=color;
+      }
+      tbody.appendChild(tr);
+    });
+  }
+
+  function filtrar(){
+    const nom=document.getElementById('filtro-nombre').value.trim().toLowerCase();
+    const fecha=document.getElementById('filtro-fecha').value;
+    const est=document.getElementById('filtro-estado').value;
+    let lista=datos.filter(s=>mostrarArch?s.condicion==='ARCHIVADO':s.condicion!=='ARCHIVADO');
+    if(nom) lista=lista.filter(s=>s.nombre.toLowerCase().includes(nom));
+    if(fecha) lista=lista.filter(s=>s.fecha===fecha);
+    if(est) lista=lista.filter(s=>s.estado===est);
+    renderTabla(lista);
+  }
+
+  document.getElementById('filtro-nombre').addEventListener('input',filtrar);
+  const fechaInput=document.getElementById('filtro-fecha');
+  const fechaPh=document.querySelector('.fecha-placeholder');
+  function toggleFechaPh(){
+    if(fechaInput.value) fechaPh.style.display='none';
+    else fechaPh.style.display='block';
+  }
+  fechaInput.addEventListener('change',()=>{toggleFechaPh();filtrar();});
+  document.getElementById('filtro-estado').addEventListener('change',filtrar);
+  toggleFechaPh();
+
+  document.getElementById('sel-sorteo').addEventListener('click',()=>{
+    const checks=document.querySelectorAll('#tabla-sorteos tbody input[type=checkbox]');
+    const all=Array.from(checks).every(c=>c.checked);
+    checks.forEach(c=>c.checked=!all);
+  });
+
+  document.getElementById('archivo-btn').addEventListener('click',()=>{
+    mostrarArch=!mostrarArch;
+    document.getElementById('archivo-btn').classList.toggle('archivo-activo',mostrarArch);
+    actualizarArchivarBtn();
+    filtrar();
+  });
+
+  document.getElementById('nuevo-btn').addEventListener('click',()=>{window.location.href='nuevosorteo.html';});
+  document.getElementById('editar-btn').addEventListener('click',()=>{
+    const chks=document.querySelectorAll('#tabla-sorteos input[type=checkbox]:checked');
+    if(chks.length===0){alert('Elige al menos un sorteo para editarlo');return;}
+    let jug=false,sell=false;
+    chks.forEach(c=>{
+      if(c.dataset.estado==='Jugando'){jug=true;c.checked=false;}
+      else if(c.dataset.estado==='Sellado'){sell=true;c.checked=false;}
+    });
+    if(jug) alert('No se pueden modificar ni cambiar estado de sorteos que estan Jugando');
+    if(sell) alert('No se pueden modificar ni cambiar estado de sorteos que estan Sellados');
+    const chk=document.querySelector('#tabla-sorteos input[type=checkbox]:checked');
+    if(!chk) return;
+    localStorage.setItem('editSorteoId',chk.dataset.id);
+    window.location.href='editarsorte.html';
+  });
+  document.getElementById('inactivar-btn').addEventListener('click',async ()=>{
+    const chks=document.querySelectorAll('#tabla-sorteos input[type=checkbox]:checked');
+    if(chks.length===0){alert('Debes seleccionar al menos un sorteo para poder ponerlo incativo');return;}
+    const ids=[];let jug=false,sell=false;
+    chks.forEach(c=>{
+      if(c.dataset.estado==='Jugando'){jug=true;c.checked=false;}
+      else if(c.dataset.estado==='Sellado'){sell=true;c.checked=false;}
+      else ids.push(c.dataset.id);
+    });
+    if(jug) alert('No se pueden modificar ni cambiar estado de sorteos que estan Jugando');
+    if(sell) alert('No se pueden modificar ni cambiar estado de sorteos que estan Sellados');
+    if(!ids.length) return;
+    const batch=db.batch();
+    ids.forEach(id=>batch.update(db.collection('sorteos').doc(id),{estado:'Inactivo'}));
+    await batch.commit();
+  });
+  document.getElementById('archivar-btn').addEventListener('click',async ()=>{
+    const chks=document.querySelectorAll('#tabla-sorteos input[type=checkbox]:checked');
+    if(chks.length===0){alert('Debes seleccionar al menos un sorteo');return;}
+    const ids=[];let jug=false,sell=false,activo=false;
+    chks.forEach(c=>{
+      if(c.dataset.estado==='Jugando'){jug=true;c.checked=false;}
+      else if(c.dataset.estado==='Sellado'){sell=true;c.checked=false;}
+      else if(!mostrarArch && c.dataset.estado==='Activo'){activo=true;c.checked=false;}
+      else ids.push(c.dataset.id);
+    });
+    if(jug) alert('No se pueden modificar ni cambiar estado de sorteos que estan Jugando');
+    if(sell) alert('No se pueden modificar ni cambiar estado de sorteos que estan Sellados');
+    if(!mostrarArch && activo) alert('No pueden archivarse Sorteos Activos');
+    if(!ids.length) return;
+    const batch=db.batch();
+    if(mostrarArch){
+      ids.forEach(id=>batch.update(db.collection('sorteos').doc(id),{condicion:'VISIBLE'}));
+    }else{
+      ids.forEach(id=>batch.update(db.collection('sorteos').doc(id),{condicion:'ARCHIVADO'}));
+    }
+    await batch.commit();
+  });
+
+  function formatoHora12(h){
+    if(!h) return '';
+    const [hh,mm]=h.split(':');
+    let hnum=parseInt(hh,10);
+    const ampm=hnum>=12?'PM':'AM';
+    hnum=hnum%12; if(hnum===0) hnum=12;
+    return `${hnum}:${mm} ${ampm}`;
+  }
+
+  function formatoValorCierre(valor){
+    if(valor===null || typeof valor==='undefined') return '';
+    if(typeof valor==='number' && !isNaN(valor)){
+      return `${valor} min`;
+    }
+    const texto=valor.toString().trim();
+    if(!texto) return '';
+    if(/^\d+$/.test(texto)){
+      return `${texto} min`;
+    }
+    return formatoHora12(texto);
+  }
+
+  function mostrarPremios(formas){
+    const modal=document.getElementById('modal-premios');
+    const cont=document.getElementById('modal-premios-content');
+    cont.innerHTML='';
+    const ordenadas=(formas||[]).slice().sort((a,b)=>{
+      const na=a.idx||parseInt((a.nombre||'').match(/\d+/));
+      const nb=b.idx||parseInt((b.nombre||'').match(/\d+/));
+      return (na||0)-(nb||0);
+    });
+    if(ordenadas.length===0){
+      cont.textContent='Sin premios';
+    } else {
+      ordenadas.forEach((f,i)=>{
+        const item=document.createElement('div');
+        item.className='forma-detalle';
+        const porcentaje=f.porcentaje||0;
+        const cartones=f.cartonesGratis||0;
+        const imagen=f.premioImagen||'N/A';
+        item.innerHTML=`<div class="forma-nombre">${f.nombre||('Forma '+(i+1))}:</div>`+
+                       `<div class="porcentaje">Porcentaje premio: ${porcentaje}%</div>`+
+                       `<div class="cartones">Cartones gratis: ${cartones}</div>`+
+                       `<div class="imagen">Imagen: ${imagen}</div>`;
+        cont.appendChild(item);
+      });
+    }
+    modal.style.display='flex';
+  }
+
+  function mostrarInfo(d){
+    const modal=document.getElementById('modal-info');
+    const cont=document.getElementById('modal-info-content');
+    cont.innerHTML=`<div style="font-weight:bold;color:darkgreen;">Tipo de Sorteo: ${d.tipo||''}</div>`+
+                   `<div style="font-weight:bold;color:darkblue;">Valor Cartón: ${d.valorCarton||''}</div>`+
+                   `<div style="font-weight:bold;color:darkorange;">Hora Sorteo: ${formatoHora12(d.hora)}</div>`+
+                   `<div style="font-weight:bold;color:darkorange;">Hora cierre: ${formatoValorCierre(d.horacierre||d.cierre||d.cierreMinutos||'')}</div>`;
+    modal.style.display='flex';
+  }
+
+  document.getElementById('modal-premios-cerrar').addEventListener('click',()=>{
+    document.getElementById('modal-premios').style.display='none';
+  });
+
+  document.getElementById('modal-info-cerrar').addEventListener('click',()=>{
+    document.getElementById('modal-info').style.display='none';
+  });
+
+  document.getElementById('volver-btn').addEventListener('click',()=>{window.location.href='admin.html';});
+  actualizarArchivarBtn();
+  window.addEventListener('beforeunload',()=>{
+    if(unsubscribeFormas) unsubscribeFormas();
+    if(unsubscribeSorteos) unsubscribeSorteos();
+  });
+
+  (async ()=>{
+    try{
+      await initFirebase();
+    }catch(err){
+      console.error('No se pudo inicializar Firebase en gestionsorteos.html',err);
+      alert('No se pudieron cargar los datos de sorteos.');
+      return;
+    }
+    ensureAuth('Administrador');
+    iniciarMonitoreo();
+  })();
+  </script>
+  <script src="js/backNavigation.js"></script>
+</body>
+</html>

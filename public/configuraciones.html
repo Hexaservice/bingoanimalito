@@ -1,0 +1,2745 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <link rel="apple-touch-icon" sizes="180x180" href="img/apple-touch-icon.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="img/android-chrome-192x192.png">
+  <link rel="icon" type="image/png" sizes="512x512" href="img/android-chrome-512x512.png">
+  <link rel="icon" type="image/x-icon" href="img/favicon.ico">
+  <link rel="icon" type="image/x-icon" sizes="16x16" href="img/favicon-16x16.ico">
+  <link rel="icon" type="image/x-icon" sizes="32x32" href="img/favicon-32x32.ico">
+
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Configuraciones</title>
+  <link href="https://fonts.googleapis.com/css2?family=Bangers&family=Poppins:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    body {
+      background-color: #ffffff;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      min-height: 100vh;
+      text-align: center;
+      font-family: 'Bangers', cursive;
+      margin: 0;
+      position: relative;
+      overflow-x: hidden;
+    }
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background: url('https://img.freepik.com/vectores-premium/padrao-sem-costura-com-simbolos-de-dolar-e-porcentagem_637741-777.jpg') repeat;
+      opacity: 0.08;
+      pointer-events: none;
+      z-index: -1;
+    }
+    #session-info {
+      position: fixed;
+      top: 10px;
+      right: 10px;
+      display: flex;
+      align-items: center;
+      font-size: 0.7rem;
+    }
+    #user-pic {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+    }
+    #logout-link {
+      font-family: Calibri, Arial, sans-serif;
+      margin-left: 5px;
+      font-size: 0.7rem;
+      color: #007bff;
+      text-decoration: underline;
+    }
+    .menu-btn {
+      width: 250px;
+      height: 60px;
+      font-family: 'Bangers', cursive;
+      font-size: 1.4rem;
+      background: rgba(0, 170, 255, 0.8);
+      color: white;
+      border: 4px solid #FFD700;
+      border-radius: 10px;
+      text-shadow: 2px 2px 4px #000;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: transform 0.3s, box-shadow 0.3s, background 0.3s;
+      margin: 5px;
+    }
+    .menu-btn:hover {
+      transform: scale(1.05);
+      box-shadow: 0 0 15px rgba(255, 215, 0, 0.8);
+    }
+    .back-btn {
+      position: fixed;
+      top: 5px;
+      left: 5px;
+      width: 120px;
+      height: 40px;
+      background: orange;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      gap:5px;
+    }
+    .icon-square {
+      width: 30px;
+      height: 30px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1rem;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      margin: 0 2px;
+      cursor: pointer;
+    }
+    .icon-btn {
+      display:inline-flex;
+      align-items:center;
+      gap:4px;
+      font-size:0.8rem;
+      border:1px solid #ccc;
+      border-radius:4px;
+      padding:4px 8px;
+      margin:0 2px;
+      cursor:pointer;
+    }
+    #bancos-table {
+      width: 95%;
+      max-height: 50vh;
+      overflow-y: auto;
+      font-family: Calibri, Arial, sans-serif;
+      font-size: 0.8rem;
+      border-collapse: collapse;
+      background: rgba(255,255,255,0.6);
+      margin-top: 10px;
+    }
+    #bancos-table th, #bancos-table td {
+      border: 1px solid #ccc;
+      padding: 4px 6px;
+    }
+    #bancos-table td { font-weight:bold; }
+    #bancos-table thead th {
+      position: sticky;
+      top: 0;
+      background: rgba(255,255,255,0.8);
+    }
+    #gestionar-section {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      font-family: Calibri, Arial, sans-serif;
+      font-size: 0.9rem;
+      margin-top: 0;
+    }
+    #gestionar-header {
+      font-family: 'Bangers', cursive;
+      color: #ff7a00;
+      letter-spacing: 0.5px;
+    }
+    #gestionar-header h3 {
+      margin: 0;
+      font-family: inherit;
+      color: inherit;
+      text-transform: uppercase;
+    }
+    .switch {
+      position: relative;
+      display: inline-block;
+      width: 42px;
+      height: 24px;
+    }
+    .switch input { display:none; }
+    .slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background-color: #ccc;
+      transition: .4s;
+      border-radius: 24px;
+    }
+    .slider:before {
+      position: absolute;
+      content: "";
+      height: 18px;
+      width: 18px;
+      left: 3px;
+      bottom: 3px;
+      background-color: white;
+      transition: .4s;
+      border-radius: 50%;
+    }
+    input:checked + .slider {
+      background-color: #4caf50;
+    }
+    input:checked + .slider:before {
+      transform: translateX(18px);
+    }
+    #estado-container {
+      display:flex;
+      width:100%;
+      justify-content:center;
+      gap:20px;
+      padding:5px 0;
+    }
+    #estado-container label {
+      display:flex;
+      align-items:center;
+      gap:4px;
+      font-family: Calibri, Arial, sans-serif;
+      font-size: 0.9rem;
+    }
+    .panel-section,
+    .asignacion-section {
+      width: 95%;
+      margin-top: 4px;
+      background: rgba(255,255,255,0.4);
+      border-radius: 12px;
+      padding: 6px 10px 8px;
+      box-sizing: border-box;
+    }
+    #gestionar-section.panel-section {
+      margin-top: 6px;
+    }
+    .asignacion-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      color: #4a148c;
+      width: 100%;
+      min-height: 28px;
+    }
+    .asignacion-header h3 {
+      margin: 0;
+      font-size: 1.08rem;
+      line-height: 1.1;
+      flex: 1;
+      text-align: left;
+    }
+    #gestionar-header {
+      width: 100%;
+    }
+    #mensajes-referidos-section .asignacion-header h3 {
+      color: #6b7280;
+    }
+    .asignacion-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-family: Calibri, Arial, sans-serif;
+      font-size: 0.78rem;
+      background: rgba(255,255,255,0.65);
+      table-layout: fixed;
+    }
+    .asignacion-table th,
+    .asignacion-table td {
+      border: 1px solid #d1c4e9;
+      padding: 4px 6px;
+      font-weight: bold;
+      white-space: nowrap;
+    }
+    .asignacion-table th {
+      background: rgba(255,255,255,0.85);
+      position: sticky;
+      top: 0;
+      z-index: 1;
+    }
+    .asignacion-table thead tr.controles-superiores th {
+      background: transparent;
+      border-top: none;
+      border-left: none;
+      border-right: none;
+      border-bottom: 1px solid #d1c4e9;
+      padding: 6px 4px;
+    }
+    .asignacion-table thead tr.controles-superiores th + th {
+      border-left: none;
+    }
+    .th-aprobar {
+      text-align: center;
+    }
+    .th-aprobar #asignacion-aprobar {
+      width: 100%;
+      font-family: Calibri, Arial, sans-serif;
+      font-size: 0.78rem;
+      font-weight: 700;
+      padding: 6px 8px;
+      border-radius: 8px;
+      border: 1px solid #4a148c;
+      background: linear-gradient(135deg,#6a1b9a,#8e24aa);
+      color: #fff;
+      cursor: pointer;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      box-shadow: 0 2px 6px rgba(74,20,140,0.2);
+    }
+    .masivo-input {
+      width: 100%;
+      box-sizing: border-box;
+      border-radius: 6px;
+      border: 1px solid #b39ddb;
+      padding: 4px 6px;
+      font-weight: 700;
+      font-family: Calibri, Arial, sans-serif;
+      text-align: right;
+      background: rgba(255,255,255,0.9);
+    }
+    .masivo-input:focus {
+      outline: 2px solid rgba(106,27,154,0.35);
+    }
+    .asignacion-table thead select#asignacion-filtro-rol {
+      width: 100%;
+      border-radius: 6px;
+      border: 1px solid #b39ddb;
+      padding: 4px 6px;
+      font-weight: 600;
+      font-family: Calibri, Arial, sans-serif;
+      background: rgba(255,255,255,0.9);
+    }
+    .asignacion-table td.col-gmail {
+      cursor: pointer;
+      position: relative;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .asignacion-table td.col-creditos,
+    .asignacion-table td.col-cartones {
+      text-align: right;
+      position: relative;
+      padding-right: 8px;
+      cursor: pointer;
+    }
+    .asignacion-table td.col-creditos .asignacion-input,
+    .asignacion-table td.col-cartones .asignacion-input {
+      cursor: inherit;
+    }
+    .asignacion-table td.col-rol {
+      text-align: center;
+      white-space: nowrap;
+      position: relative;
+      vertical-align: middle;
+    }
+    .asignacion-table th.col-check,
+    .asignacion-table td.col-check {
+      text-align: center;
+      vertical-align: middle;
+      min-width: 34px;
+    }
+    .asignacion-table td.col-check {
+      padding: 2px 0;
+    }
+    .asignacion-table td.col-check input[type="checkbox"] {
+      width: 16px;
+      height: 16px;
+      margin: 0 auto;
+      display: block;
+    }
+    .rol-badge {
+      display: inline-block;
+      font-weight: 700;
+      letter-spacing: 0.3px;
+      font-family: Calibri, Arial, sans-serif;
+      text-transform: uppercase;
+      line-height: 1.1;
+      white-space: nowrap;
+      max-width: 100%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      font-size: clamp(0.5rem, 0.42rem + 1.4vw, 0.85rem);
+    }
+    .rol-badge--colaborador { color: #1b5e20; }
+    .rol-badge--administrador { color: #0d47a1; }
+    .rol-badge--superadmin { color: #6a1b9a; }
+    .rol-badge--jugador { color: #f57c00; }
+    .asignacion-table th.col-creditos,
+    .asignacion-table td.col-creditos {
+      color: #2e7d32;
+    }
+    .asignacion-table th.col-cartones,
+    .asignacion-table td.col-cartones {
+      color: #6a1b9a;
+    }
+    .asignacion-table th.col-creditos,
+    .asignacion-table th.col-cartones {
+      font-family: Calibri, Arial, sans-serif;
+      font-size: clamp(0.6rem, 2vw, 0.7rem);
+      font-weight: 700;
+      letter-spacing: 0.2px;
+      text-transform: uppercase;
+      white-space: normal;
+      word-break: break-word;
+      cursor: pointer;
+      background-color: #fff;
+      transition: background-color 0.3s ease, color 0.3s ease;
+    }
+    .asignacion-table th.col-creditos.vista-actual {
+      background-color: #2e7d32;
+      color: #ffffff;
+    }
+    .asignacion-table th.col-cartones.vista-actual {
+      background-color: #6a1b9a;
+      color: #ffffff;
+    }
+    .asignacion-input {
+      width: 100%;
+      box-sizing: border-box;
+      border: none;
+      background: transparent;
+      color: inherit;
+      font-weight: bold;
+      text-align: right;
+      font-size: 0.78rem;
+      padding: 2px 0;
+    }
+    .asignacion-input:disabled {
+      color: inherit;
+      opacity: 0.85;
+    }
+    .valor-temporal {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      padding: 0 8px;
+      background: rgba(255,255,255,0.96);
+      border-radius: 6px;
+      box-shadow: 0 0 6px rgba(0,0,0,0.2);
+      font-size: 0.78rem;
+      font-weight: 700;
+      color: inherit;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.2s ease;
+    }
+    .valor-temporal.visible {
+      opacity: 1;
+    }
+    .asignacion-table td .asignacion-input.temporal-oculto {
+      visibility: hidden;
+    }
+    .valor-actual-fijo {
+      position: absolute;
+      inset: 0;
+      display: none;
+      align-items: center;
+      justify-content: flex-end;
+      padding: 0 8px;
+      font-weight: 700;
+      color: inherit;
+      font-size: 0.78rem;
+      pointer-events: none;
+    }
+    .asignacion-table td.mostrar-valor-actual .asignacion-input {
+      visibility: hidden;
+    }
+    .asignacion-table td.mostrar-valor-actual .valor-actual-fijo {
+      display: flex;
+    }
+    .asignacion-table td.mostrar-valor-actual.temporal-activo .valor-actual-fijo {
+      display: none;
+    }
+    .check-header {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      cursor: pointer;
+    }
+    .mensaje-tabla {
+      text-align: center;
+      padding: 12px 8px;
+      color: #283593;
+      font-family: Calibri, Arial, sans-serif;
+      font-size: 0.9rem;
+    }
+    .whatsapp-section {
+      width: 95%;
+      margin-top: 4px;
+      background: rgba(255,255,255,0.4);
+      border-radius: 12px;
+      padding: 8px 10px 10px;
+      box-sizing: border-box;
+      font-family: Calibri, Arial, sans-serif;
+      text-align: left;
+    }
+    .whatsapp-mensajes-section .asignacion-header,
+    .referidos-mensajes-section .asignacion-header {
+      color: #15803d;
+    }
+    .mensajes-editor-contenido {
+      margin-top: 12px;
+      display: none;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .mensaje-editor-item {
+      background: rgba(255,255,255,0.82);
+      border-radius: 10px;
+      padding: 10px;
+      box-shadow: inset 0 0 0 1px rgba(21,128,61,0.15);
+    }
+    .mensaje-editor-item.retiro {
+      box-shadow: inset 0 0 0 1px rgba(185,28,28,0.18);
+    }
+    .mensaje-editor-label {
+      display: block;
+      margin-bottom: 5px;
+      font-size: 0.82rem;
+      font-weight: 700;
+    }
+    .mensaje-editor-label.recarga,
+    .mensaje-editor-label.referidos {
+      color: #15803d;
+    }
+    .mensaje-editor-label.retiro {
+      color: #b91c1c;
+    }
+    .mensaje-editor-texto {
+      width: 100%;
+      min-height: 72px;
+      border-radius: 8px;
+      border: 1px solid #15803d;
+      padding: 8px 10px;
+      box-sizing: border-box;
+      font-family: Calibri, Arial, sans-serif;
+      font-size: 0.84rem;
+      resize: vertical;
+    }
+    .mensaje-editor-texto.retiro {
+      border-color: #b91c1c;
+    }
+    .mensaje-editor-texto.referidos {
+      border-color: #15803d;
+    }
+    .mensaje-variables {
+      margin-top: 6px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      align-items: center;
+    }
+    .mensaje-variable-btn {
+      font-size: 0.62rem;
+      padding: 2px 6px;
+      border-radius: 999px;
+      border: 1px solid #15803d;
+      color: #166534;
+      background: #f0fdf4;
+      cursor: pointer;
+      line-height: 1.25;
+    }
+    .mensaje-variable-btn.retiro {
+      border-color: #b91c1c;
+      color: #991b1b;
+      background: #fef2f2;
+    }
+    .mensaje-acciones {
+      margin-top: 8px;
+      display: flex;
+      justify-content: flex-end;
+    }
+    .mensaje-guardar-btn {
+      font-size: 0.78rem;
+      font-weight: 700;
+      border-radius: 8px;
+      padding: 5px 12px;
+      border: 1px solid #15803d;
+      color: #166534;
+      background: #dcfce7;
+      cursor: pointer;
+    }
+    .mensaje-guardar-btn.retiro {
+      border-color: #b91c1c;
+      color: #991b1b;
+      background: #fee2e2;
+    }
+    .whatsapp-number {
+      margin-bottom: 12px;
+    }
+    .whatsapp-number label {
+      display: block;
+      margin-bottom: 4px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: #6a1b9a;
+    }
+    #numero-whatsapp-label {
+      font-family: 'Bangers', cursive;
+      color: #6a1b9a;
+      letter-spacing: 0.4px;
+    }
+    .whatsapp-number-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+    }
+    .whatsapp-number-row select,
+    .whatsapp-number-row input {
+      flex: 1 1 220px;
+      min-width: 180px;
+      border-radius: 8px;
+      border: 1px solid #7c3aed;
+      padding: 6px 8px;
+      box-sizing: border-box;
+      font-family: Calibri, Arial, sans-serif;
+      font-size: 0.85rem;
+    }
+    .whatsapp-number-row select {
+      min-width: 220px;
+    }
+    .whatsapp-edit-btn {
+      width: 36px;
+      height: 36px;
+      border-radius: 8px;
+      border: 1px solid #7c3aed;
+      background: #f3e8ff;
+      color: #6a1b9a;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1rem;
+      cursor: pointer;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.15);
+    }
+    .whatsapp-edit-btn:hover { filter: brightness(0.98); }
+    .whatsapp-number-guardar {
+      background: #7c3aed;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      padding: 6px 16px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: filter 0.2s ease;
+    }
+    .whatsapp-number-guardar:hover,
+    .whatsapp-number-guardar:focus {
+      filter: brightness(1.05);
+      outline: none;
+    }
+    .whatsapp-section label {
+      display: block;
+      margin-bottom: 6px;
+      font-size: 0.8rem;
+      color: #15803d;
+      font-weight: 500;
+    }
+    .whatsapp-section label[for="link-live-tiktok"] {
+      color: #ff7a00;
+      text-shadow: none;
+      margin-top: 12px;
+    }
+    .whatsapp-section label.publicidad-label {
+      color: #1d4ed8;
+    }
+    .whatsapp-section textarea {
+      width: 100%;
+      min-height: 72px;
+      border-radius: 8px;
+      border: 1px solid #86efac;
+      padding: 8px 10px;
+      box-sizing: border-box;
+      font-family: Calibri, Arial, sans-serif;
+      font-size: 0.85rem;
+      resize: vertical;
+    }
+    #link-live-tiktok {
+      border-color: #fb923c;
+      box-shadow: none;
+    }
+    #link-live-tiktok:focus {
+      outline: 2px solid rgba(255,146,60,0.55);
+    }
+    .publicidad-bloque {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-top: 10px;
+      border: 1px solid rgba(37,99,235,0.35);
+      border-radius: 12px;
+      padding: 12px;
+      background: rgba(59,130,246,0.04);
+    }
+    .publicidad-bloque .publicidad-titulo {
+      color: #0f3fa3;
+      font-weight: 700;
+      margin: 0;
+      font-size: 0.9rem;
+      text-align: left;
+    }
+    .publicidad-bloque .publicidad-campos {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 10px;
+    }
+    .publicidad-campo {
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+      gap: 4px;
+    }
+    .publicidad-campo label {
+      color: #1d4ed8;
+      font-weight: 600;
+      font-size: 0.82rem;
+      text-align: left;
+    }
+    .publicidad-campo input {
+      min-height: 38px;
+      border-radius: 8px;
+      border: 1px solid #2563eb;
+      padding: 8px 10px;
+      box-sizing: border-box;
+      font-family: Calibri, Arial, sans-serif;
+      font-size: 0.85rem;
+      color: #0f172a;
+    }
+    .publicidad-campo input:focus {
+      outline: 2px solid rgba(37,99,235,0.45);
+    }
+    .publicidad-acciones {
+      display: flex;
+      justify-content: flex-end;
+      margin-top: 2px;
+    }
+    .publicidad-acciones button {
+      font-family: Calibri, Arial, sans-serif;
+      font-size: 0.85rem;
+      padding: 9px 18px;
+      border-radius: 10px;
+      border: 1px solid #1d4ed8;
+      background: linear-gradient(135deg,#60a5fa,#1d4ed8);
+      color: #ffffff;
+      cursor: pointer;
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+      min-width: 140px;
+      letter-spacing: 0.2px;
+      box-shadow: 0 6px 16px rgba(37,99,235,0.25);
+    }
+    .publicidad-acciones button:hover {
+      transform: scale(1.02);
+      box-shadow: 0 8px 18px rgba(37,99,235,0.3);
+    }
+    .whatsapp-actions {
+      margin-top: 8px;
+      display: flex;
+      justify-content: flex-end;
+    }
+    .whatsapp-actions button {
+      font-family: Calibri, Arial, sans-serif;
+      font-size: 0.8rem;
+      padding: 6px 14px;
+      border-radius: 6px;
+      border: 1px solid #16a34a;
+      background: #22c55e;
+      color: #ffffff;
+      cursor: pointer;
+      transition: transform 0.2s ease;
+    }
+    .whatsapp-actions button:hover {
+      transform: scale(1.02);
+    }
+    .live-link-actions {
+      margin-top: 8px;
+      display: flex;
+      justify-content: flex-end;
+    }
+    .live-link-actions button {
+      font-family: Calibri, Arial, sans-serif;
+      font-size: 0.8rem;
+      padding: 6px 14px;
+      border-radius: 6px;
+      border: 1px solid #ea580c;
+      background: linear-gradient(135deg,#ff9a3c,#ff6200);
+      color: #ffffff;
+      cursor: pointer;
+      transition: transform 0.2s ease;
+    }
+    .live-link-actions button:hover {
+      transform: scale(1.02);
+    }
+
+    .cierre-cantos-row {
+      margin-top: 10px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .cierre-cantos-input {
+      width: 74px;
+      min-height: 34px;
+      border-radius: 8px;
+      border: 1px solid #6b7280;
+      padding: 6px 8px;
+      box-sizing: border-box;
+      font-family: Calibri, Arial, sans-serif;
+      font-size: 0.82rem;
+      color: #374151;
+      background: #f9fafb;
+    }
+    .cierre-cantos-input:focus {
+      outline: 2px solid rgba(107,114,128,0.35);
+    }
+    .cierre-cantos-btn {
+      font-family: Calibri, Arial, sans-serif;
+      font-size: 0.8rem;
+      padding: 6px 14px;
+      border-radius: 6px;
+      border: 1px solid #6b7280;
+      background: #9ca3af;
+      color: #ffffff;
+      cursor: pointer;
+      transition: transform 0.2s ease;
+    }
+    .cierre-cantos-btn:hover {
+      transform: scale(1.02);
+    }
+    @media (orientation: portrait) {
+      #asignacion-usuarios-section {
+        margin: 4px 0;
+        padding: 4px 4px 8px;
+        width: 100%;
+        box-sizing: border-box;
+      }
+      .asignacion-table {
+        font-size: 0.74rem;
+      }
+      .asignacion-table thead tr.controles-superiores th {
+        padding: 4px 3px;
+      }
+      .masivo-input {
+        font-size: 0.72rem;
+        padding: 4px;
+      }
+      .th-aprobar #asignacion-aprobar {
+        font-size: 0.72rem;
+        padding: 5px 6px;
+      }
+      .asignacion-table td.col-gmail {
+        font-size: 0.72rem;
+      }
+      .asignacion-table td.col-rol .rol-badge {
+        font-size: clamp(0.55rem, 3.2vw, 0.8rem);
+      }
+      #asignacion-usuarios-section .asignacion-table {
+        margin: 2px 0;
+      }
+      #tabla-asignacion col:nth-child(1) { width: 7%; }
+      #tabla-asignacion col:nth-child(2) { width: calc(38% - 8px); }
+      #tabla-asignacion col:nth-child(3) { width: calc(17% - 4px); }
+      #tabla-asignacion col:nth-child(4) { width: calc(17% - 4px); }
+      #tabla-asignacion col:nth-child(5) { width: calc(17% - 4px); }
+      #tabla-asignacion col:nth-child(6) { width: 9%; }
+    }
+    @media (max-width: 600px) and (orientation: portrait) {
+      #tabla-asignacion col:nth-child(2) { width: calc(40% - 8px); }
+      #tabla-asignacion col:nth-child(3) { width: calc(16% - 4px); }
+      #tabla-asignacion col:nth-child(4) { width: calc(18% - 4px); }
+      #tabla-asignacion col:nth-child(5) { width: calc(18% - 4px); }
+    }
+
+    .notificaciones-panel {
+      width: 100%;
+      margin-top: 16px;
+      background: rgba(255,255,255,0.88);
+      border-radius: 14px;
+      padding: 16px;
+      box-shadow: 0 10px 26px rgba(0,0,0,0.18);
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+    .notificaciones-fila {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 18px;
+      width: 100%;
+    }
+    .notificaciones-fila .notificaciones-titulo-texto {
+      margin: 0;
+      flex: 1;
+      text-align: left;
+    }
+    .notificaciones-contenido {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .notificaciones-contenido[aria-hidden="true"] {
+      display: none;
+    }
+    .notificaciones-opcion {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 18px;
+      width: 100%;
+      font-family: Calibri, Arial, sans-serif;
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: #0b1b4d;
+      cursor: pointer;
+    }
+    .notificaciones-opcion-todo {
+      margin-top: 25px;
+    }
+    .notificaciones-fila-titulo {
+      cursor: pointer;
+    }
+    .notificaciones-opcion-titulo {
+      flex: 1;
+      text-align: left;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 4px;
+      margin: 0;
+      padding-right: 12px;
+    }
+    .notificaciones-opcion-titulo small {
+      font-weight: 400;
+      font-size: 0.78rem;
+      color: #444;
+    }
+    .notificaciones-opcion[data-clave="mensajeRecargaAprobada"] .notificaciones-opcion-titulo {
+      color: #0b6b27;
+    }
+    .notificaciones-opcion[data-clave="mensajeRecargaAprobada"] .notificaciones-opcion-titulo small {
+      color: #0b6b27;
+    }
+    .notificaciones-opcion[data-clave="mensajeRetiroAprobado"] .notificaciones-opcion-titulo {
+      color: #b71c1c;
+    }
+    .notificaciones-opcion[data-clave="mensajeRetiroAprobado"] .notificaciones-opcion-titulo small {
+      color: #b71c1c;
+    }
+    .notificaciones-opcion[data-clave="mensajeRecargaAnulada"] .notificaciones-opcion-titulo {
+      color: #0a8800;
+    }
+    .notificaciones-opcion[data-clave="mensajeRecargaAnulada"] .notificaciones-opcion-titulo small {
+      color: #0a8800;
+    }
+    .notificaciones-opcion[data-clave="mensajeRetiroAnulado"] .notificaciones-opcion-titulo {
+      color: #d32f2f;
+    }
+    .notificaciones-opcion[data-clave="mensajeRetiroAnulado"] .notificaciones-opcion-titulo small {
+      color: #d32f2f;
+    }
+    .notificaciones-grupo-titulo {
+      margin: 8px 0 0;
+      font-weight: 700;
+      font-size: 0.95rem;
+      text-align: left;
+      font-family: Calibri, Arial, sans-serif;
+    }
+    .notificaciones-grupo-titulo.colaborador {
+      color: #1b5e20;
+    }
+    .notificaciones-grupo-titulo.jugador {
+      color: #FF8C00;
+    }
+    .notificaciones-grupo-titulo.administrador {
+      color: #1565c0;
+    }
+    .notificaciones-titulo-texto {
+      font-family: 'Bangers', cursive;
+      font-size: 1.3rem;
+      color: #0b1b4d;
+      margin: 0;
+      cursor: pointer;
+      padding-right: 12px;
+    }
+    .notificaciones-titulo-texto:focus {
+      outline: 2px solid #0a8800;
+      outline-offset: 2px;
+    }
+    .notificaciones-todo-etiqueta {
+      color: #000000;
+      font-weight: 700;
+    }
+    .notificaciones-panel .switch {
+      position: relative;
+      display: inline-block;
+      width: 48px;
+      height: 26px;
+      cursor: pointer;
+      user-select: none;
+    }
+    .notificaciones-panel .switch input {
+      display: none;
+    }
+    .notificaciones-panel .switch .slider {
+      position: absolute;
+      inset: 0;
+      background: #cccccc;
+      border-radius: 26px;
+      transition: background 0.3s ease;
+    }
+    .notificaciones-panel .switch .slider::before {
+      content: "";
+      position: absolute;
+      width: 22px;
+      height: 22px;
+      left: 2px;
+      top: 2px;
+      background: #ffffff;
+      border-radius: 50%;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.25);
+      transition: transform 0.3s ease;
+    }
+    .notificaciones-panel .switch input:checked + .slider {
+      background: #4caf50;
+    }
+    .notificaciones-panel .switch input:checked + .slider::before {
+      transform: translateX(22px);
+    }
+    .whatsapp-modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.45);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 50;
+      padding: 10px;
+    }
+    .whatsapp-modal-overlay.visible { display: flex; }
+    .whatsapp-modal {
+      width: min(680px, 96vw);
+      max-height: 90vh;
+      background: #ffffff;
+      border-radius: 14px;
+      padding: 14px 14px 10px;
+      box-shadow: 0 12px 32px rgba(0,0,0,0.25);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .whatsapp-modal h3 {
+      margin: 0;
+      color: #6a1b9a;
+      text-align: center;
+      letter-spacing: 0.4px;
+    }
+    .whatsapp-modal-controles {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      justify-content: center;
+    }
+    .whatsapp-modal-controles button {
+      background: #6a1b9a;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      padding: 8px 12px;
+      font-weight: 700;
+      cursor: pointer;
+      box-shadow: 0 3px 10px rgba(106,27,154,0.2);
+    }
+    .whatsapp-modal-controles button:hover { filter: brightness(1.05); }
+    #whatsapp-tabla-wrap {
+      flex: 1;
+      overflow: auto;
+      border: 1px solid #e5e7eb;
+      border-radius: 10px;
+      background: #faf5ff;
+    }
+    #whatsapp-tabla {
+      width: 100%;
+      border-collapse: collapse;
+      font-family: Calibri, Arial, sans-serif;
+      font-size: 0.9rem;
+    }
+    #whatsapp-tabla th, #whatsapp-tabla td {
+      padding: 8px;
+      border-bottom: 1px solid #e5e7eb;
+      text-align: left;
+    }
+    #whatsapp-tabla th { background: #ede9fe; position: sticky; top: 0; }
+    #whatsapp-tabla select { width: 115px; }
+    #whatsapp-tabla input[type="text"] { width: 100%; box-sizing: border-box; padding: 6px; border-radius: 6px; border: 1px solid #c4b5fd; }
+    #whatsapp-tabla button { background: transparent; border: none; color: #b91c1c; cursor: pointer; font-weight: 700; }
+    #whatsapp-tabla tbody tr { cursor: pointer; }
+    #whatsapp-tabla tbody tr.seleccionado { background: #e0f2fe; }
+    #whatsapp-tabla .col-prefijo { width: 22%; }
+    #whatsapp-tabla .col-numero { width: 48%; }
+    #whatsapp-tabla .col-acciones { width: 30%; }
+    .whatsapp-modal-controles .whatsapp-guardar { background: #16a34a; }
+    .whatsapp-modal-footer { text-align: right; }
+    #cerrar-whatsapp-modal { background: #ef4444; color: #fff; border: none; border-radius: 8px; padding: 8px 12px; cursor: pointer; }
+    .notificaciones-panel .switch input:focus + .slider {
+      outline: 2px solid #0a8800;
+      outline-offset: 2px;
+    }
+  </style>
+  <link rel="stylesheet" href="css/desktopFrame.css">
+</head>
+<body>
+  <button id="volver-btn" class="menu-btn back-btn" data-compact-back="true">&#9664; Volver</button>
+  <div id="session-info">
+    <img id="user-pic" referrerpolicy="no-referrer" crossorigin="anonymous" src="" alt="Usuario" />
+    <a href="#" id="logout-link">Cerrar sesión</a>
+  </div>
+  <h2>Configuraciones</h2>
+  <section id="gestionar-section" class="panel-section">
+    <div id="gestionar-header" class="asignacion-header">
+      <h3>GESTIÓN DE BANCOS</h3>
+      <label class="switch">
+        <input type="checkbox" id="toggle-bancos">
+        <span class="slider"></span>
+      </label>
+    </div>
+    <div id="bancos-content" style="display:none;margin-top:10px;">
+    <input type="hidden" id="banco-id" />
+    <input type="text" id="banco-nombre" placeholder="Nombre de banco" style="width:90%;padding:5px;text-align:center;border-radius:5px;border:1px solid #ccc;" />
+    <div style="display:flex;align-items:center;width:90%;gap:5px;margin-top:5px;">
+        <label for="banco-categoria" style="flex:0 0 30%;text-align:right;">Banco Para:</label>
+        <select id="banco-categoria" style="flex:0 0 60%;padding:5px;text-align:center;border-radius:5px;border:1px solid #ccc;">
+            <option value="Jugadores">Jugadores</option>
+            <option value="Bingo">Bingo</option>
+        </select>
+    </div>
+    <div id="bingo-extra-fields" style="display:none;width:90%;margin-top:5px;">
+        <input type="text" id="banco-pagomovil" placeholder="Número Pago móvil" style="width:100%;padding:5px;text-align:center;border-radius:5px;border:1px solid #ccc;margin-bottom:5px;" />
+        <input type="text" id="banco-cedula" placeholder="Cédula" style="width:100%;padding:5px;text-align:center;border-radius:5px;border:1px solid #ccc;" />
+    </div>
+    <div id="estado-container">
+      <label><input type="radio" name="banco-estado" value="Activo" checked> Activo</label>
+      <label><input type="radio" name="banco-estado" value="Inactivo"> Inactivo</label>
+    </div>
+    <div style="text-align:center;margin-top:5px;">
+      <button id="guardar-btn" class="icon-btn" title="Guardar" style="color:blue;">&#128190; Guardar</button>
+      <button id="buscar-btn" class="icon-btn" title="Buscar">&#128269; Buscar</button>
+      <button id="editar-btn" class="icon-btn" title="Editar" style="color:green;">&#9998; Editar</button>
+      <button id="borrar-btn" class="icon-btn" title="Borrar" style="color:red;">&#128465; Borrar</button>
+    </div>
+    <table id="bancos-table">
+      <thead>
+        <tr>
+          <th>N°</th>
+          <th>
+            <input id="filtro-nombre" type="text" placeholder="Nombre" style="width:100%;box-sizing:border-box;" />
+          </th>
+          <th>
+            <select id="filtro-categoria" style="width:100%;">
+              <option value="">Banco</option>
+              <option value="Jugadores">Jugadores</option>
+              <option value="Bingo">Bingo</option>
+            </select>
+          </th>
+          <th>
+            <select id="filtro-estado" style="width:100%;">
+              <option value="">Estado</option>
+              <option value="Activo">Activo</option>
+              <option value="Inactivo">Inactivo</option>
+            </select>
+          </th>
+          <th style="text-align:center;">&#10004;</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+    </div>
+  </section>
+  <section class="asignacion-section" id="asignacion-usuarios-section">
+    <div class="asignacion-header">
+      <h3>ASIGNACIÓN RECURSOS USUARIOS</h3>
+      <label class="switch">
+        <input type="checkbox" id="toggle-asignacion">
+        <span class="slider"></span>
+      </label>
+    </div>
+    <div id="asignacion-content" style="display:none;">
+      <table class="asignacion-table" id="tabla-asignacion">
+        <colgroup>
+          <col style="width:6%">
+          <col style="width:32%">
+          <col style="width:18%">
+          <col style="width:18%">
+          <col style="width:20%">
+          <col style="width:6%">
+        </colgroup>
+        <thead>
+          <tr class="controles-superiores">
+            <th></th>
+            <th class="th-aprobar"><button id="asignacion-aprobar" type="button">Aprobar</button></th>
+            <th class="col-creditos"><input type="text" id="asignacion-masivo-creditos" class="masivo-input" placeholder="±0" inputmode="numeric" autocomplete="off"></th>
+            <th class="col-cartones"><input type="text" id="asignacion-masivo-cartones" class="masivo-input" placeholder="±0" inputmode="numeric" autocomplete="off"></th>
+            <th class="col-rol">
+              <select id="asignacion-filtro-rol">
+                <option value="">TODOS</option>
+                <option value="jugador">JUGADOR</option>
+                <option value="colaborador">COLABORADOR</option>
+                <option value="administrador">ADMINISTRADOR</option>
+                <option value="superadmin">SUPERADMIN</option>
+              </select>
+            </th>
+            <th class="col-check"></th>
+          </tr>
+          <tr class="filtros">
+            <th>N°</th>
+            <th><input type="text" id="asignacion-filtro-gmail" placeholder="Gmail/Nombre" style="width:100%;box-sizing:border-box;"></th>
+            <th class="col-creditos" id="asignacion-encabezado-creditos">CREDITOS ASIGNADOS</th>
+            <th class="col-cartones" id="asignacion-encabezado-cartones">CARTONES ASIGNADOS</th>
+            <th class="col-rol">Rol</th>
+            <th class="col-check"><span id="asignacion-marcar" class="check-header">✔</span></th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </section>
+  <section class="asignacion-section whatsapp-mensajes-section" id="mensajes-whatsapp-section">
+    <div class="asignacion-header">
+      <h3>MENSAJES WHATSAPP</h3>
+      <label class="switch">
+        <input type="checkbox" id="toggle-mensajes-whatsapp">
+        <span class="slider"></span>
+      </label>
+    </div>
+    <div id="mensajes-whatsapp-content" class="mensajes-editor-contenido"></div>
+  </section>
+  <section class="asignacion-section referidos-mensajes-section" id="mensajes-referidos-section">
+    <div class="asignacion-header">
+      <h3>MENSAJES SISTEMA REFERIDOS</h3>
+      <label class="switch">
+        <input type="checkbox" id="toggle-mensajes-referidos">
+        <span class="slider"></span>
+      </label>
+    </div>
+    <div id="mensajes-referidos-content" class="mensajes-editor-contenido"></div>
+  </section>
+  <section class="whatsapp-section">
+    <div class="whatsapp-number">
+      <label id="numero-whatsapp-label" for="numero-whatsapp">Número WhatsApp para la aplicación</label>
+      <div class="whatsapp-number-row">
+        <select id="numero-whatsapp" aria-label="Selecciona el número de WhatsApp"></select>
+        <button type="button" id="editar-numeros-whatsapp" class="whatsapp-edit-btn" title="Gestionar números">✏️</button>
+        <button type="button" id="guardar-numero-whatsapp" class="whatsapp-number-guardar">Guardar</button>
+      </div>
+    </div>
+    <label for="link-whatsapp">Link Grupo WhatsApp</label>
+    <textarea id="link-whatsapp" placeholder="https://chat.whatsapp.com/..." spellcheck="false"></textarea>
+    <div class="whatsapp-actions">
+      <button type="button" id="guardar-link-whatsapp">Guardar</button>
+    </div>
+
+    <label for="segundos-cierre-cantos">Segundos para cierre Cantos</label>
+    <div class="cierre-cantos-row">
+      <input type="text" id="segundos-cierre-cantos" class="cierre-cantos-input" inputmode="numeric" pattern="[0-9]*" maxlength="4" placeholder="0">
+      <button type="button" id="guardar-segundos-cierre-cantos" class="cierre-cantos-btn">Guardar</button>
+    </div>
+    <div class="publicidad-bloque" aria-labelledby="publicidad-sorteos-titulo">
+      <p id="publicidad-sorteos-titulo" class="publicidad-titulo">Links de publicidad en Sorteos</p>
+      <div class="publicidad-campos">
+        <div class="publicidad-campo">
+          <input type="text" id="link-publicidad-sorteos" placeholder="https://mis-imagenes.com/publicidad1.jpg" spellcheck="false">
+        </div>
+        <div class="publicidad-campo">
+          <input type="text" id="link-publicidad-sorteos-2" placeholder="https://mis-imagenes.com/publicidad2.jpg" spellcheck="false">
+        </div>
+      </div>
+      <div class="publicidad-acciones">
+        <button type="button" id="guardar-links-publicidad-sorteos">Guardar links</button>
+      </div>
+    </div>
+    <label for="link-live-tiktok">Link de Live TikTok/YouTube/Facebook/Twitch</label>
+    <textarea id="link-live-tiktok" placeholder="https://www.tiktok.com/@cuenta/live, https://youtube.com/watch?v=..., https://www.facebook.com/tuPagina/videos/... o https://www.twitch.tv/tuCanal" spellcheck="false"></textarea>
+    <div class="live-link-actions">
+      <button type="button" id="guardar-link-live-tiktok">Guardar</button>
+    </div>
+  </section>
+  <div id="whatsapp-modal-overlay" class="whatsapp-modal-overlay" aria-hidden="true">
+    <div class="whatsapp-modal" role="dialog" aria-modal="true" aria-labelledby="whatsapp-modal-titulo">
+      <h3 id="whatsapp-modal-titulo">Gestiona los números de WhatsApp</h3>
+      <div class="whatsapp-modal-controles">
+        <button type="button" id="whatsapp-agregar">Agregar número</button>
+        <button type="button" id="whatsapp-guardar" class="whatsapp-guardar">Guardar</button>
+      </div>
+      <div id="whatsapp-tabla-wrap">
+        <table id="whatsapp-tabla">
+          <colgroup>
+            <col class="col-prefijo">
+            <col class="col-numero">
+            <col class="col-acciones">
+          </colgroup>
+          <thead>
+            <tr>
+              <th>Prefijo</th>
+              <th>Número</th>
+              <th>Acciones</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div class="whatsapp-modal-footer">
+        <button type="button" id="cerrar-whatsapp-modal">Cerrar</button>
+      </div>
+    </div>
+  </div>
+  <section id="notificaciones-panel" class="notificaciones-panel" aria-labelledby="notificaciones-titulo">
+    <div class="notificaciones-fila notificaciones-fila-titulo" data-switch="notificaciones-global">
+      <span id="notificaciones-titulo" class="notificaciones-titulo-texto" data-switch="notificaciones-global">Notificaciones</span>
+      <label class="switch switch-base" aria-labelledby="notificaciones-titulo">
+        <input type="checkbox" id="notificaciones-global">
+        <span class="slider" aria-hidden="true"></span>
+      </label>
+    </div>
+    <div id="notificaciones-contenido" class="notificaciones-contenido" aria-hidden="true">
+      <div class="notificaciones-opcion notificaciones-opcion-todo notificaciones-fila" data-switch="notificaciones-todo" data-base-opcion="true">
+        <span class="notificaciones-opcion-titulo notificaciones-todo-etiqueta">Notificarme de todo</span>
+        <label class="switch switch-base" aria-label="Notificarme de todo" data-base-switch="true">
+          <input type="checkbox" id="notificaciones-todo">
+          <span class="slider" aria-hidden="true"></span>
+        </label>
+      </div>
+    </div>
+  </section>
+  <script src="https://www.gstatic.com/firebasejs/11.5.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/11.5.0/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/11.5.0/firebase-auth-compat.js"></script>
+  <script src="js/logoSwitcher.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/notificationCenter.js"></script>
+  <script src="js/notificationPanelSetup.js"></script>
+  <script>
+    ensureAuth('Administrador');
+    let panelNotificacionesAdministrador = null;
+    let rolNotificacionesActual = null;
+    const codigosPais=[
+      {codigo:'VE',nombre:'Venezuela',prefijo:'+58',bandera:'🇻🇪'},
+      {codigo:'CO',nombre:'Colombia',prefijo:'+57',bandera:'🇨🇴'},
+      {codigo:'MX',nombre:'México',prefijo:'+52',bandera:'🇲🇽'},
+      {codigo:'US',nombre:'Estados Unidos',prefijo:'+1',bandera:'🇺🇸'},
+      {codigo:'AR',nombre:'Argentina',prefijo:'+54',bandera:'🇦🇷'},
+      {codigo:'CL',nombre:'Chile',prefijo:'+56',bandera:'🇨🇱'},
+      {codigo:'PE',nombre:'Perú',prefijo:'+51',bandera:'🇵🇪'}
+    ];
+    function configurarPanelNotificaciones(rolDestino){
+      if(typeof setupNotificationPanel !== 'function') return;
+      const rolNormalizado=(rolDestino||'Administrador').toString();
+      if(rolNotificacionesActual===rolNormalizado && panelNotificacionesAdministrador){
+        return;
+      }
+      if(panelNotificacionesAdministrador && typeof panelNotificacionesAdministrador.cleanup==='function'){
+        try{ panelNotificacionesAdministrador.cleanup(); }
+        catch(error){ console.error('No se pudo limpiar el panel de notificaciones previo',error); }
+      }
+      panelNotificacionesAdministrador=setupNotificationPanel({rol:rolNormalizado});
+      rolNotificacionesActual=rolNormalizado;
+    }
+    const datos = [];
+    const tbody = document.querySelector('#bancos-table tbody');
+
+    function cargarDatos(){
+      db.collection('Bancos').get().then(snap=>{
+        datos.length = 0;
+        snap.forEach(doc=>datos.push({id:doc.id, ...doc.data()}));
+        filtrar();
+      });
+    }
+
+    function renderTabla(lista){
+      tbody.innerHTML='';
+      let idx=1;
+      lista.forEach(d=>{
+        const tr=document.createElement('tr');
+        tr.innerHTML=`<td>${idx++}</td><td>${d.nombre}</td><td>${d.categoria}</td><td>${d.estado}</td><td style="text-align:center;"><input type='radio' name='select-banco' data-id='${d.id}' data-nombre='${d.nombre}'></td>`;
+        const tds=tr.querySelectorAll('td');
+        const color=d.estado==='Activo'?'green':'red';
+        const esBingo=d.categoria==='Bingo';
+        const bg=esBingo?'orange':'transparent';
+        [tds[0],tds[1],tds[2],tds[3]].forEach(td=>{
+          td.style.color=color;
+          td.style.background=bg;
+          if(esBingo) td.style.textShadow='1px 1px 1px #000';
+        });
+        tbody.appendChild(tr);
+      });
+    }
+
+    function filtrar(){
+      const nom=document.getElementById('filtro-nombre').value.trim().toLowerCase();
+      const cat=document.getElementById('filtro-categoria').value;
+      const est=document.getElementById('filtro-estado').value;
+      let lista=datos;
+      if(nom) lista=lista.filter(b=>b.nombre.toLowerCase().includes(nom));
+      if(cat) lista=lista.filter(b=>b.categoria===cat);
+      if(est) lista=lista.filter(b=>b.estado===est);
+      renderTabla(lista);
+    }
+
+    document.getElementById('filtro-nombre').addEventListener('input', filtrar);
+    document.getElementById('filtro-categoria').addEventListener('change', filtrar);
+    document.getElementById('filtro-estado').addEventListener('change', filtrar);
+
+    const extraFields=document.getElementById('bingo-extra-fields');
+    const categoriaSelect=document.getElementById('banco-categoria');
+    function toggleExtraFields(){
+      extraFields.style.display=categoriaSelect.value==='Bingo'?'block':'none';
+    }
+    categoriaSelect.addEventListener('change',toggleExtraFields);
+    toggleExtraFields();
+
+    document.getElementById('guardar-btn').addEventListener('click', async ()=>{
+      const id=document.getElementById('banco-id').value.trim();
+      const nombre=document.getElementById('banco-nombre').value.trim();
+      const categoria=document.getElementById('banco-categoria').value;
+      const estado=document.querySelector('input[name="banco-estado"]:checked')?.value;
+      const pagomovil=document.getElementById('banco-pagomovil').value.trim();
+      const cedula=document.getElementById('banco-cedula').value.trim();
+      if(!nombre || !categoria || !estado){
+        alert('Completa todos los campos antes de guardar');
+        return;
+      }
+      if(categoria==='Bingo' && (!pagomovil || !cedula)){
+        alert('Debe ingresar número de Pago móvil y cédula');
+        return;
+      }
+      let idTemporal=id;
+      let existe=false;
+      if(idTemporal){
+        const consulta=await db.collection('Bancos').doc(idTemporal).get();
+        existe=consulta.exists;
+      }
+      const data={nombre,categoria,estado};
+      if(categoria==='Bingo'){
+        data.pagomovil=pagomovil;
+        data.cedula=cedula;
+      }
+      if(existe){
+        data.id=idTemporal;
+        await db.collection('Bancos').doc(idTemporal).set(data);
+        alert('Datos del banco actualizados exitosamente');
+      }else{
+        const docRef=await db.collection('Bancos').add(data);
+        await docRef.update({id:docRef.id});
+        alert('Banco creado exitosamente');
+      }
+      document.getElementById('banco-id').value='';
+      document.getElementById('banco-pagomovil').value='';
+      document.getElementById('banco-cedula').value='';
+      toggleExtraFields();
+      cargarDatos();
+    });
+
+    document.getElementById('buscar-btn').addEventListener('click', ()=>{
+      const val=document.getElementById('banco-nombre').value.trim();
+      if(!val){
+        alert('Debes colocar un nombre de banco para realizar busquedas');
+        document.getElementById('banco-nombre').focus();
+        return;
+      }
+      const res=datos.filter(b=>b.nombre.toLowerCase().includes(val.toLowerCase()));
+      if(res.length===0){
+        alert('No existe el banco buscado');
+      }
+      renderTabla(res);
+    });
+
+    document.getElementById('editar-btn').addEventListener('click', ()=>{
+      const chk=document.querySelector('input[name="select-banco"]:checked');
+      if(!chk){ alert('Elije un banco para editar o borrar'); return; }
+      const banco=datos.find(b=>b.id===chk.dataset.id);
+      if(banco){
+        document.getElementById('banco-id').value=banco.id;
+        document.getElementById('banco-nombre').value=banco.nombre;
+        document.getElementById('banco-categoria').value=banco.categoria;
+        document.getElementById('banco-pagomovil').value=banco.pagomovil||'';
+        document.getElementById('banco-cedula').value=banco.cedula||'';
+        const estadoRadios=document.getElementsByName('banco-estado');
+        estadoRadios.forEach(r=>{r.checked = r.value===banco.estado});
+        toggleExtraFields();
+      }
+    });
+
+    document.getElementById('borrar-btn').addEventListener('click', async ()=>{
+      const chk=document.querySelector('input[name="select-banco"]:checked');
+      if(!chk){ alert('Elije un banco para editar o borrar'); return; }
+      if(await confirm(`¿Confirma borrar el banco ${chk.dataset.nombre}?`)){
+        await db.collection('Bancos').doc(chk.dataset.id).delete();
+        document.getElementById('banco-id').value='';
+        document.getElementById('banco-nombre').value='';
+        document.getElementById('banco-pagomovil').value='';
+        document.getElementById('banco-cedula').value='';
+        toggleExtraFields();
+        cargarDatos();
+      }
+    });
+
+    const toggle=document.getElementById('toggle-bancos');
+    const cont=document.getElementById('bancos-content');
+    toggle.addEventListener('change',()=>{
+      cont.style.display=toggle.checked?'block':'none';
+      if(toggle.checked) cargarDatos();
+    });
+    const campoNumeroWhatsapp=document.getElementById('numero-whatsapp');
+    const botonEditarNumerosWhatsapp=document.getElementById('editar-numeros-whatsapp');
+    const botonGuardarNumeroWhatsapp=document.getElementById('guardar-numero-whatsapp');
+    const etiquetaNumeroWhatsapp=document.getElementById('numero-whatsapp-label');
+    const campoLinkWhatsapp=document.getElementById('link-whatsapp');
+    const botonGuardarLink=document.getElementById('guardar-link-whatsapp');
+    const campoSegundosCierreCantos=document.getElementById('segundos-cierre-cantos');
+    const botonGuardarSegundosCierreCantos=document.getElementById('guardar-segundos-cierre-cantos');
+    const campoLinkPublicidadSorteos=document.getElementById('link-publicidad-sorteos');
+    const campoLinkPublicidadSorteosDos=document.getElementById('link-publicidad-sorteos-2');
+    const botonGuardarLinksPublicidad=document.getElementById('guardar-links-publicidad-sorteos');
+    const campoLinkLiveTiktok=document.getElementById('link-live-tiktok');
+    const botonGuardarLinkLive=document.getElementById('guardar-link-live-tiktok');
+    const modalOverlay=document.getElementById('whatsapp-modal-overlay');
+    const tablaWhatsapp=document.querySelector('#whatsapp-tabla tbody');
+    const botonAgregarNumero=document.getElementById('whatsapp-agregar');
+    const botonGuardarNumeros=document.getElementById('whatsapp-guardar');
+    const botonCerrarModal=document.getElementById('cerrar-whatsapp-modal');
+    const toggleMensajesWhatsapp=document.getElementById('toggle-mensajes-whatsapp');
+    const mensajesWhatsappContent=document.getElementById('mensajes-whatsapp-content');
+    const toggleMensajesReferidos=document.getElementById('toggle-mensajes-referidos');
+    const mensajesReferidosContent=document.getElementById('mensajes-referidos-content');
+    let numerosWhatsappList=[];
+    let numerosWhatsappBase=[];
+    let numeroSeleccionado=null;
+    let numerosModificados=false;
+    const configuracionMensajesWhatsapp=[
+      {key:'mensajeSolicitudRecarga',nombre:'SOLICITUD DE RECARGA',tipo:'recarga',variables:['correo','usuario','bancoReceptor','monto','referencia']},
+      {key:'mensajeRecargaAprobada',nombre:'RECARGA APROBADA',tipo:'recarga',variables:['monto','app','usuario','fecha']},
+      {key:'mensajeRecargaAnulada',nombre:'RECARGA ANULADA',tipo:'recarga',variables:['monto','app','motivo','usuario']},
+      {key:'mensajeSolicitudRetiro',nombre:'SOLICITUD DE RETIRO',tipo:'retiro',variables:['correo','usuario','bancoReceptor','pagoMovil','cuenta','montoSolicitado','montoRecibir']},
+      {key:'mensajeRetiroAprobado',nombre:'RETIRO APROBADO',tipo:'retiro',variables:['monto','app','referencia','totalTransferido','comisionBancaria','comisionGestion','usuario']},
+      {key:'mensajeRetiroAnulado',nombre:'RETIRO ANULADO',tipo:'retiro',variables:['monto','app','motivo','usuario']}
+    ];
+    const configuracionMensajesReferidos=[
+      {key:'mensajeReferidoGeneral',nombre:'INVITACIÓN REFERIDOS (SIN CAMPAÑA)',tipo:'referidos',variables:['app','linkRegistro']},
+      {key:'mensajeReferidoCampana',nombre:'INVITACIÓN REFERIDOS (CON CAMPAÑA)',tipo:'referidos',variables:['app','linkRegistro','codigoReferido','cartonesGratis']},
+      {key:'mensajeReferidoRecordatorio',nombre:'MENSAJE RECORDATORIO REFERIDOS',tipo:'referidos',variables:['app','codigoReferido','metaReferidos','premioReferidos']}
+    ];
+    const mensajesWhatsappDefault={
+      mensajeSolicitudRecarga:'💵 *SOLICITUD DE RECARGA*\nCorreo: <correo>\nUsuario: <usuario>\nBanco receptor: <bancoReceptor>\nMonto: <monto>\nReferencia: <referencia>',
+      mensajeRecargaAprobada:'✅ *RECARGA APROBADA* Tu recarga por <monto> Créditos en <app> ha sido aprobada.',
+      mensajeRecargaAnulada:'🚫 *RECARGA ANULADA* Tu recarga por <monto> Créditos en <app> fue anulada. Motivo: <motivo>.',
+      mensajeSolicitudRetiro:'💰 *SOLICITUD DE RETIRO*\nCorreo: <correo>\nUsuario: <usuario>\nBanco receptor: <bancoReceptor>\nPago móvil: <pagoMovil>\nCuenta: <cuenta>\nMonto solicitado: <montoSolicitado>\nMonto a recibir: <montoRecibir>',
+      mensajeRetiroAprobado:'✅ *RETIRO APROBADO* Tu retiro por <monto> Créditos en <app> ha sido aprobado. Referencia: <referencia>. Comisión bancaria: <comisionBancaria>. Comisión por gestión: <comisionGestion>. Total transferidos: <totalTransferido> Créditos.',
+      mensajeRetiroAnulado:'🚫 *RETIRO ANULADO* Tu retiro por <monto> Créditos en <app> fue anulado. Motivo: <motivo>.'
+    };
+    const mensajesReferidosDefault={
+      mensajeReferidoGeneral:'Epale! estoy jugando a <app>, y es un vasilón! 🤩 si entras en este link: <linkRegistro> 👈 te registras, y al jugar ¡Puedes ganar muchos PREMIOS!',
+      mensajeReferidoCampana:'Epale! estoy jugando a <app>, y es un vasilón! 🤩 si entras en este link: <linkRegistro> 👈 y te registras usando mi código <codigoReferido> te regalarán <cartonesGratis> cartones para que juegues GRATIS!',
+      mensajeReferidoRecordatorio:'Comparte tu código <codigoReferido> en <app> y al llegar a <metaReferidos> referidos obtendrás <premioReferidos>.'
+    };
+    const mensajesEditables={};
+    const llaveGrupoPorMensaje={
+      ...Object.fromEntries(configuracionMensajesWhatsapp.map(item=>[item.key,'mensajesWhatsapp'])),
+      ...Object.fromEntries(configuracionMensajesReferidos.map(item=>[item.key,'mensajesReferidos']))
+    };
+    function obtenerMensajePersistido(data,key){
+      const grupoEsperado=llaveGrupoPorMensaje[key];
+      const grupo=grupoEsperado && data && typeof data[grupoEsperado]==='object' ? data[grupoEsperado] : {};
+      return grupo?.[key] || data?.[key] || '';
+    }
+    function insertarVariableEnCampo(textarea,codigo){
+      if(!textarea) return;
+      const inicio=textarea.selectionStart ?? textarea.value.length;
+      const fin=textarea.selectionEnd ?? textarea.value.length;
+      const valorActual=textarea.value;
+      textarea.value=`${valorActual.slice(0,inicio)}${codigo}${valorActual.slice(fin)}`;
+      const cursor=inicio+codigo.length;
+      textarea.focus();
+      textarea.setSelectionRange(cursor,cursor);
+    }
+    function crearEditorMensajes({contenedor,definicion,defaults,grupoClave}){
+      if(!contenedor) return;
+      contenedor.innerHTML='';
+      definicion.forEach(item=>{
+        const bloque=document.createElement('article');
+        bloque.className=`mensaje-editor-item ${item.tipo}`;
+        const etiqueta=document.createElement('label');
+        etiqueta.className=`mensaje-editor-label ${item.tipo}`;
+        etiqueta.setAttribute('for',`input-${item.key}`);
+        etiqueta.textContent=`Mensaje ${item.nombre}:`;
+        const textarea=document.createElement('textarea');
+        textarea.className=`mensaje-editor-texto ${item.tipo}`;
+        textarea.id=`input-${item.key}`;
+        textarea.value=mensajesEditables[item.key]||defaults[item.key]||'';
+        const filaVariables=document.createElement('div');
+        filaVariables.className='mensaje-variables';
+        (item.variables||[]).forEach(nombreVariable=>{
+          const btnVariable=document.createElement('button');
+          btnVariable.type='button';
+          btnVariable.className=`mensaje-variable-btn ${item.tipo}`;
+          btnVariable.textContent=nombreVariable;
+          btnVariable.addEventListener('click',()=>insertarVariableEnCampo(textarea,`<${nombreVariable}>`));
+          filaVariables.appendChild(btnVariable);
+        });
+        const filaAcciones=document.createElement('div');
+        filaAcciones.className='mensaje-acciones';
+        const botonGuardarMensaje=document.createElement('button');
+        botonGuardarMensaje.type='button';
+        botonGuardarMensaje.className=`mensaje-guardar-btn ${item.tipo}`;
+        botonGuardarMensaje.textContent='Guardar';
+        botonGuardarMensaje.addEventListener('click',async ()=>{
+          const valor=textarea.value.trim();
+          if(!valor){
+            alert(`No puedes dejar el mensaje de ${item.nombre} vacío`);
+            return;
+          }
+          try{
+            await db.collection('Variablesglobales').doc('Parametros').set({
+              [grupoClave]:{
+                [item.key]:valor
+              },
+              [item.key]:valor,
+              mensajesVersion:2,
+              mensajesActualizadoEn:firebase.firestore.FieldValue.serverTimestamp()
+            },{merge:true});
+            mensajesEditables[item.key]=valor;
+            alert('Mensaje guardado correctamente.');
+          }catch(err){
+            console.error(`No se pudo guardar ${item.key}`,err);
+            alert('Ocurrió un error al guardar el mensaje. Inténtalo nuevamente.');
+          }
+        });
+        filaAcciones.appendChild(botonGuardarMensaje);
+        bloque.appendChild(etiqueta);
+        bloque.appendChild(textarea);
+        bloque.appendChild(filaVariables);
+        bloque.appendChild(filaAcciones);
+        contenedor.appendChild(bloque);
+      });
+    }
+    function actualizarVisualizacionMensajes(toggle,contenedor){
+      if(!toggle || !contenedor) return;
+      contenedor.style.display=toggle.checked?'flex':'none';
+    }
+    async function cargarMensajesEditables(){
+      try{
+        const doc=await db.collection('Variablesglobales').doc('Parametros').get();
+        const data=doc.exists?(doc.data()||{}):{};
+        [...configuracionMensajesWhatsapp,...configuracionMensajesReferidos].forEach(item=>{
+          mensajesEditables[item.key]=obtenerMensajePersistido(data,item.key);
+        });
+      }catch(err){
+        console.error('No se pudo cargar la configuración de mensajes de WhatsApp',err);
+      }
+      crearEditorMensajes({contenedor:mensajesWhatsappContent,definicion:configuracionMensajesWhatsapp,defaults:mensajesWhatsappDefault,grupoClave:'mensajesWhatsapp'});
+      crearEditorMensajes({contenedor:mensajesReferidosContent,definicion:configuracionMensajesReferidos,defaults:mensajesReferidosDefault,grupoClave:'mensajesReferidos'});
+    }
+    function poblarSelectCodigos(select,valorDefecto='+58'){
+      if(!select) return;
+      select.innerHTML='';
+      codigosPais.forEach(pais=>{
+        const opt=document.createElement('option');
+        opt.value=pais.prefijo;
+        opt.textContent=`${pais.bandera||''} ${pais.nombre} (${pais.prefijo})`;
+        select.appendChild(opt);
+      });
+      select.value=valorDefecto||'+58';
+    }
+    function crearSelectPrefijo(valor){
+      const select=document.createElement('select');
+      poblarSelectCodigos(select,valor||'+58');
+      return select;
+    }
+    function normalizarNumeroWhatsapp(valor){
+      return (valor||'').toString().replace(/\s+/g,'').replace(/(?!^)[^0-9+]/g,'');
+    }
+    function valorCompuestoNumero(num){
+      const localLimpio=(num.local||'').replace(/\D/g,'');
+      return `${num.prefijo||''}${localLimpio}`;
+    }
+    function construirListadoWhatsapp(){
+      return numerosWhatsappList.map(item=>valorCompuestoNumero(item)).filter(Boolean);
+    }
+    function marcarFilaSeleccionada(valor){
+      if(!tablaWhatsapp) return;
+      const filas=tablaWhatsapp.querySelectorAll('tr[data-valor]');
+      filas.forEach(fila=>{
+        fila.classList.toggle('seleccionado',fila.dataset.valor===valor);
+      });
+    }
+    function actualizarSeleccion(valor){
+      numeroSeleccionado=valor;
+      marcarFilaSeleccionada(valor);
+      renderDropdownWhatsapp();
+    }
+    function descomponerNumeroWhatsapp(valor){
+      const limpio=normalizarNumeroWhatsapp(valor);
+      const candidatos=[...codigosPais].sort((a,b)=>b.prefijo.length-a.prefijo.length);
+      for(const pais of candidatos){
+        const pref=pais.prefijo;
+        if(limpio.startsWith(pref)){
+          return {prefijo:pref,local:limpio.slice(pref.length)};
+        }
+        const prefSinMas=pref.replace('+','');
+        if(prefSinMas && limpio.startsWith(prefSinMas)){
+          return {prefijo:pref,local:limpio.slice(prefSinMas.length)};
+        }
+      }
+      return {prefijo:'+58',local:limpio};
+    }
+    function obtenerListaNormalizadaWhatsapp(lista){
+      return (lista||[]).map(valor=>normalizarNumeroWhatsapp(valor)).filter(Boolean);
+    }
+    function registrarEstadoBaseWhatsapp(listaActual){
+      numerosWhatsappBase=obtenerListaNormalizadaWhatsapp(listaActual).sort();
+      actualizarEstadoBotonGuardar();
+    }
+    function hayCambiosWhatsapp(){
+      const actual=obtenerListaNormalizadaWhatsapp(numerosWhatsappList.map(valorCompuestoNumero)).sort();
+      if(actual.length!==numerosWhatsappBase.length) return true;
+      for(let i=0;i<actual.length;i++){
+        if(actual[i]!==numerosWhatsappBase[i]) return true;
+      }
+      return false;
+    }
+    function actualizarEstadoBotonGuardar(){
+      numerosModificados=hayCambiosWhatsapp();
+      if(botonGuardarNumeros){
+        botonGuardarNumeros.textContent=numerosModificados?'Editar':'Guardar';
+      }
+    }
+    function renderDropdownWhatsapp(){
+      if(!campoNumeroWhatsapp) return;
+      campoNumeroWhatsapp.innerHTML='';
+      numerosWhatsappList.forEach(num=>{
+        const opt=document.createElement('option');
+        const localLimpio=(num.local||'').replace(/\D/g,'');
+        opt.value=`${num.prefijo||''}${localLimpio}`;
+        opt.textContent=`${num.prefijo||''} ${localLimpio}`.trim();
+        campoNumeroWhatsapp.appendChild(opt);
+      });
+      if(numeroSeleccionado && numerosWhatsappList.some(n=>`${n.prefijo}${(n.local||'').replace(/\D/g,'')}`===numeroSeleccionado)){
+        campoNumeroWhatsapp.value=numeroSeleccionado;
+      }else if(campoNumeroWhatsapp.options.length>0){
+        campoNumeroWhatsapp.selectedIndex=0;
+        numeroSeleccionado=campoNumeroWhatsapp.value;
+      }else{
+        const opt=document.createElement('option');
+        opt.value='';
+        opt.textContent='Sin números disponibles';
+        campoNumeroWhatsapp.appendChild(opt);
+      }
+    }
+    function renderTablaNumeros(){
+      if(!tablaWhatsapp) return;
+      tablaWhatsapp.innerHTML='';
+      if(numerosWhatsappList.length===0){
+        const fila=document.createElement('tr');
+        const celda=document.createElement('td');
+        celda.colSpan=3;
+        celda.textContent='Agrega al menos un número para usarlo en la aplicación.';
+        fila.appendChild(celda);
+        tablaWhatsapp.appendChild(fila);
+        return;
+      }
+      numerosWhatsappList.forEach(num=>{
+        const fila=document.createElement('tr');
+        const valorCompuesto=valorCompuestoNumero(num);
+        fila.dataset.valor=valorCompuesto;
+        if(!numeroSeleccionado){
+          numeroSeleccionado=valorCompuesto;
+        }
+        fila.classList.toggle('seleccionado',valorCompuesto===numeroSeleccionado);
+        fila.addEventListener('click',()=>{ actualizarSeleccion(valorCompuestoNumero(num)); });
+        const colPrefijo=document.createElement('td');
+        const selectPrefijo=crearSelectPrefijo(num.prefijo);
+        selectPrefijo.addEventListener('change',()=>{
+          num.prefijo=selectPrefijo.value;
+          fila.dataset.valor=valorCompuestoNumero(num);
+          if(fila.classList.contains('seleccionado')){
+            actualizarSeleccion(valorCompuestoNumero(num));
+          }else{
+            renderDropdownWhatsapp();
+          }
+          actualizarEstadoBotonGuardar();
+        });
+        colPrefijo.appendChild(selectPrefijo);
+        const colNumero=document.createElement('td');
+        const inputNumero=document.createElement('input');
+        inputNumero.type='tel';
+        inputNumero.inputMode='numeric';
+        inputNumero.pattern='[0-9]*';
+        inputNumero.title='Solo números';
+        inputNumero.maxLength=20;
+        inputNumero.value=(num.local||'').replace(/\D/g,'');
+        inputNumero.addEventListener('focus',()=>{ actualizarSeleccion(valorCompuestoNumero(num)); });
+        inputNumero.addEventListener('input',()=>{
+          num.local=inputNumero.value.replace(/\D/g,'');
+          fila.dataset.valor=valorCompuestoNumero(num);
+          if(fila.classList.contains('seleccionado')){
+            actualizarSeleccion(valorCompuestoNumero(num));
+          }else{
+            renderDropdownWhatsapp();
+          }
+          actualizarEstadoBotonGuardar();
+        });
+        colNumero.appendChild(inputNumero);
+        const colAcciones=document.createElement('td');
+        const btnEliminar=document.createElement('button');
+        btnEliminar.textContent='Eliminar';
+        btnEliminar.addEventListener('click',async (e)=>{
+          e.stopPropagation();
+          const numeroCompleto=valorCompuestoNumero(num);
+          const confirmar=await confirm(`¿Deseas eliminar el número ${numeroCompleto}?`);
+          if(!confirmar) return;
+          const respaldo=[...numerosWhatsappList];
+          numerosWhatsappList=numerosWhatsappList.filter(item=>item.id!==num.id);
+          const listaFinal=numerosWhatsappList.map(item=>valorCompuestoNumero(item)).filter(Boolean);
+          try{
+            await db.collection('Variablesglobales').doc('Parametros').set({numerosWhatsapp:listaFinal,numeroWhatsapp:listaFinal[0]||''},{merge:true});
+            alert('Número eliminado correctamente.');
+            if(numeroSeleccionado===numeroCompleto){
+              numeroSeleccionado=listaFinal[0]||'';
+            }
+            renderDropdownWhatsapp();
+            renderTablaNumeros();
+            registrarEstadoBaseWhatsapp(listaFinal);
+          }catch(err){
+            console.error('No se pudo eliminar el número de WhatsApp',err);
+            alert('Ocurrió un error al eliminar el número. Inténtalo nuevamente.');
+            numerosWhatsappList=respaldo;
+            renderDropdownWhatsapp();
+            renderTablaNumeros();
+            actualizarEstadoBotonGuardar();
+          }
+        });
+        colAcciones.appendChild(btnEliminar);
+        fila.appendChild(colPrefijo);
+        fila.appendChild(colNumero);
+        fila.appendChild(colAcciones);
+        tablaWhatsapp.appendChild(fila);
+      });
+      marcarFilaSeleccionada(numeroSeleccionado);
+    }
+    function abrirModalWhatsapp(){
+      if(!modalOverlay) return;
+      modalOverlay.classList.add('visible');
+      modalOverlay.setAttribute('aria-hidden','false');
+      renderTablaNumeros();
+    }
+    function cerrarModalWhatsapp(){
+      if(!modalOverlay) return;
+      modalOverlay.classList.remove('visible');
+      modalOverlay.setAttribute('aria-hidden','true');
+    }
+
+    async function cargarParametrosWhatsapp(){
+      try {
+        const doc=await db.collection('Variablesglobales').doc('Parametros').get();
+        if(doc.exists){
+          const data=doc.data()||{};
+          const nombreApp=data.Aplicacion||data.aplicacion||'';
+          if(nombreApp){
+            etiquetaNumeroWhatsapp.textContent=`Número WhatsApp para ${nombreApp}`;
+          }
+          const listaGuardada=Array.isArray(data.numerosWhatsapp)?data.numerosWhatsapp:[];
+          const numeroGuardado=normalizarNumeroWhatsapp(data.numeroWhatsapp??data.numero_whatsapp??'');
+          const listaNormalizada=listaGuardada.length>0?listaGuardada.map(normalizarNumeroWhatsapp):[];
+          const baseLista=listaNormalizada.length>0?listaNormalizada:[numeroGuardado].filter(Boolean);
+          numerosWhatsappList=baseLista.map(valor=>{
+            const {prefijo,local}=descomponerNumeroWhatsapp(valor);
+            return {id:`num-${prefijo}-${local}`,prefijo,local};
+          });
+          if(numerosWhatsappList.length===0){
+            numerosWhatsappList.push({id:'num-+58',prefijo:'+58',local:''});
+          }
+          numeroSeleccionado=numeroGuardado|| (numerosWhatsappList[0] ? `${numerosWhatsappList[0].prefijo}${numerosWhatsappList[0].local}` : '');
+          renderDropdownWhatsapp();
+          registrarEstadoBaseWhatsapp(baseLista.length>0?baseLista:numerosWhatsappList.map(valorCompuestoNumero));
+          const linkGuardado=data.linkWhatsapp??data.linkwhatsapp??'';
+          if(linkGuardado){
+            campoLinkWhatsapp.value=linkGuardado;
+          }
+          const segundosCierre = Number(data.segundosCierreCantos ?? data.segundosParaCierreCantos ?? data.cierreCantosSegundos ?? data.duracionCantoManualSegundos ?? data.tiempoCantoManualSegundos ?? data.manualBingoDuracionSegundos ?? 0);
+          if(campoSegundosCierreCantos){
+            campoSegundosCierreCantos.value = Number.isFinite(segundosCierre) && segundosCierre >= 0 ? String(Math.floor(segundosCierre)) : '0';
+          }
+          const linkPublicidadPrimario=(data.linkPublicidadSorteos1??data.linkPublicidadSorteos??data.linkpublicidadsorteos??data.linkPublicidad??'').toString();
+          const linkPublicidadSecundario=(data.linkPublicidadSorteos2??data.linkpublicidadsorteos2??data.linkPublicidad2??'').toString();
+          if(linkPublicidadPrimario){
+            campoLinkPublicidadSorteos.value=linkPublicidadPrimario;
+          }
+          if(linkPublicidadSecundario){
+            campoLinkPublicidadSorteosDos.value=linkPublicidadSecundario;
+          }
+          const linkLiveGuardado=data.linkLiveTiktok??data.linklivetiktok??data.link_live_tiktok??'';
+          if(linkLiveGuardado){
+            campoLinkLiveTiktok.value=linkLiveGuardado;
+          }
+        }
+      } catch(err){
+        console.error('No se pudieron obtener los datos de WhatsApp',err);
+      }
+    }
+
+    botonGuardarNumeroWhatsapp.addEventListener('click',async ()=>{
+      const valor=normalizarNumeroWhatsapp(campoNumeroWhatsapp.value||'');
+      if(!valor){
+        alert('Debes elegir un número de WhatsApp');
+        return;
+      }
+      const confirmar=await confirm('¿Deseas guardar este número de WhatsApp para la aplicación?');
+      if(!confirmar) return;
+      try {
+        await db.collection('Variablesglobales').doc('Parametros').set({numeroWhatsapp:valor},{merge:true});
+        alert('Número de WhatsApp guardado correctamente.');
+        numeroSeleccionado=valor;
+      } catch(err){
+        console.error('No se pudo guardar el número de WhatsApp',err);
+        alert('Ocurrió un error al guardar el número de WhatsApp. Inténtalo nuevamente.');
+      }
+    });
+    if(campoNumeroWhatsapp){
+      campoNumeroWhatsapp.addEventListener('change',()=>{ actualizarSeleccion(campoNumeroWhatsapp.value); });
+    }
+    function agregarNumeroWhatsapp(prefijo='+58',local=''){
+      const nuevo={id:`num-${Date.now()}-${Math.random().toString(36).slice(2,6)}`,prefijo,local};
+      numerosWhatsappList.unshift(nuevo);
+      numeroSeleccionado=valorCompuestoNumero(nuevo);
+      renderTablaNumeros();
+      renderDropdownWhatsapp();
+      actualizarEstadoBotonGuardar();
+    }
+    if(botonAgregarNumero){
+      botonAgregarNumero.addEventListener('click',()=>{agregarNumeroWhatsapp(selectUltimoPrefijo()||'+58','');});
+    }
+    function selectUltimoPrefijo(){
+      const ultimo=numerosWhatsappList[0];
+      return ultimo?.prefijo||'+58';
+    }
+    if(botonEditarNumerosWhatsapp){
+      botonEditarNumerosWhatsapp.addEventListener('click',()=>{ abrirModalWhatsapp(); });
+    }
+    if(botonCerrarModal){
+      botonCerrarModal.addEventListener('click',()=>{ cerrarModalWhatsapp(); });
+    }
+    if(modalOverlay){
+      modalOverlay.addEventListener('click',e=>{ if(e.target===modalOverlay) cerrarModalWhatsapp(); });
+    }
+    async function guardarListadoWhatsapp(){
+      if(numerosWhatsappList.length===0){
+        alert('Agrega al menos un número antes de guardar.');
+        return;
+      }
+      const listaFinal=construirListadoWhatsapp();
+      if(numerosWhatsappList.some(n=>(n.local||'').replace(/\D/g,'').length<6)){
+        alert('Cada número debe tener al menos 6 dígitos en la parte local.');
+        return;
+      }
+      const confirmar=await confirm('¿Deseas guardar los números configurados?');
+      if(!confirmar) return;
+      try{
+        await db.collection('Variablesglobales').doc('Parametros').set({numerosWhatsapp:listaFinal,numeroWhatsapp:listaFinal[0]||''},{merge:true});
+        alert('Listado de números actualizado.');
+        numeroSeleccionado=listaFinal[0]||'';
+        renderDropdownWhatsapp();
+        registrarEstadoBaseWhatsapp(listaFinal);
+      }catch(err){
+        console.error('No se pudo guardar el listado de números de WhatsApp',err);
+        alert('Hubo un problema guardando los números. Intenta nuevamente.');
+      }
+    }
+    if(botonGuardarNumeros){
+      botonGuardarNumeros.addEventListener('click',guardarListadoWhatsapp);
+    }
+
+
+    if(campoSegundosCierreCantos){
+      campoSegundosCierreCantos.addEventListener('input',()=>{
+        campoSegundosCierreCantos.value=(campoSegundosCierreCantos.value||'').replace(/\D/g,'').slice(0,4);
+      });
+    }
+    if(botonGuardarSegundosCierreCantos){
+      botonGuardarSegundosCierreCantos.addEventListener('click',async ()=>{
+        const valorLimpio=(campoSegundosCierreCantos?.value||'').replace(/\D/g,'');
+        const segundos=valorLimpio===''?0:Math.max(0,Math.floor(Number(valorLimpio)||0));
+        const confirmar=await confirm('¿Deseas guardar los segundos para cierre de cantos? Si guardas 0, el cierre será manual.');
+        if(!confirmar) return;
+        try {
+          await db.collection('Variablesglobales').doc('Parametros').set({
+            segundosCierreCantos:segundos,
+            segundosParaCierreCantos:segundos,
+            cierreCantosSegundos:segundos,
+            duracionCantoManualSegundos:segundos,
+            tiempoCantoManualSegundos:segundos,
+            manualBingoDuracionSegundos:segundos
+          },{merge:true});
+          if(campoSegundosCierreCantos){
+            campoSegundosCierreCantos.value=String(segundos);
+          }
+          alert(segundos===0
+            ? 'Configuración guardada. El cierre de cantos será manual.'
+            : 'Configuración guardada correctamente.');
+        } catch(err){
+          console.error('No se pudo guardar los segundos para cierre de cantos',err);
+          alert('Ocurrió un error al guardar los segundos de cierre de cantos. Inténtalo nuevamente.');
+        }
+      });
+    }
+
+        botonGuardarLink.addEventListener('click',async ()=>{
+      const valor=campoLinkWhatsapp.value.trim();
+      if(!valor){
+        alert('El campo link de WhatsApp no puede estar vacío');
+        return;
+      }
+      const confirmar=await confirm('¿Deseas guardar este link para aplicar grupo de WhatsApp?');
+      if(!confirmar) return;
+      try {
+        await db.collection('Variablesglobales').doc('Parametros').set({linkwhatsapp:valor},{merge:true});
+        alert('Link de WhatsApp guardado correctamente.');
+      } catch(err){
+        console.error('No se pudo guardar el link de WhatsApp',err);
+        alert('Ocurrió un error al guardar el link de WhatsApp. Inténtalo nuevamente.');
+      }
+    });
+    async function guardarLinksPublicidadSorteos(){
+      const valorPrincipal=(campoLinkPublicidadSorteos?.value||'').trim();
+      const valorSecundario=(campoLinkPublicidadSorteosDos?.value||'').trim();
+      const hayAlMenosUno=Boolean(valorPrincipal||valorSecundario);
+      const mensajeConfirmacion=hayAlMenosUno
+        ? '¿Deseas guardar los links de publicidad para sorteos?'
+        : '¿Deseas eliminar los links de publicidad para sorteos?';
+      const confirmar=await confirm(mensajeConfirmacion);
+      if(!confirmar) return;
+      try {
+        await db.collection('Variablesglobales').doc('Parametros').set({
+          linkPublicidadSorteos1:valorPrincipal,
+          linkPublicidadSorteos:valorPrincipal,
+          linkPublicidadSorteos2:valorSecundario,
+        },{merge:true});
+        alert(hayAlMenosUno
+          ? 'Links de publicidad guardados correctamente.'
+          : 'Se eliminaron los links de publicidad para sorteos.');
+      } catch(err){
+        console.error('No se pudo guardar los links de publicidad',err);
+        alert('Ocurrió un error al guardar los links de publicidad. Inténtalo nuevamente.');
+      }
+    }
+
+    if(botonGuardarLinksPublicidad){
+      botonGuardarLinksPublicidad.addEventListener('click',guardarLinksPublicidadSorteos);
+    }
+    if(toggleMensajesWhatsapp){
+      toggleMensajesWhatsapp.addEventListener('change',()=>actualizarVisualizacionMensajes(toggleMensajesWhatsapp,mensajesWhatsappContent));
+    }
+    if(toggleMensajesReferidos){
+      toggleMensajesReferidos.addEventListener('change',()=>actualizarVisualizacionMensajes(toggleMensajesReferidos,mensajesReferidosContent));
+    }
+    botonGuardarLinkLive.addEventListener('click',async ()=>{
+      const valor=campoLinkLiveTiktok.value.trim();
+      const confirmar=await confirm(valor ? '¿Deseas guardar este enlace para la transmisión en vivo?' : '¿Deseas eliminar el link guardado para transmisiones en vivo?');
+      if(!confirmar) return;
+      try {
+        await db.collection('Variablesglobales').doc('Parametros').set({linkLiveTiktok:valor},{merge:true});
+        alert(valor ? 'Link de transmisión guardado correctamente.' : 'Se eliminó el link de transmisión en vivo.');
+      } catch(err){
+        console.error('No se pudo guardar el link de transmisión',err);
+        alert('Ocurrió un error al guardar el link de transmisión. Inténtalo nuevamente.');
+      }
+    });
+    cargarMensajesEditables();
+    cargarParametrosWhatsapp();
+    // ---- Sección de asignación de usuarios ----
+    const asignacionFiltros={texto:'',rol:''};
+    const asignacionUsuarios=[];
+    const asignacionMapa=new Map();
+    const asignacionEdicion=new Map();
+    const asignacionSeleccion=new Set();
+    const asignacionTemporales=new WeakMap();
+    const formatoAsignacionEntero=new Intl.NumberFormat('es-ES',{maximumFractionDigits:0,minimumFractionDigits:0});
+    const tablaAsignacion=document.getElementById('tabla-asignacion');
+    const inputMasivoCreditos=document.getElementById('asignacion-masivo-creditos');
+    const inputMasivoCartones=document.getElementById('asignacion-masivo-cartones');
+    let unsubscribeAsignacionUsuarios=null;
+    let asignacionInicializada=false;
+    let vistaCreditosActuales=false;
+    let vistaCartonesActuales=false;
+
+    function normalizarRolUsuario(valor){
+      const texto=(valor||'').toString().trim().toLowerCase();
+      if(texto.includes('super')) return {etiqueta:'Superadmin',clave:'superadmin'};
+      if(texto.includes('admin')) return {etiqueta:'Administrador',clave:'administrador'};
+      if(texto.includes('colab')) return {etiqueta:'Colaborador',clave:'colaborador'};
+      if(texto.includes('juga')) return {etiqueta:'Jugador',clave:'jugador'};
+      if(!texto) return {etiqueta:'Jugador',clave:'jugador'};
+      const etiqueta=texto.charAt(0).toUpperCase()+texto.slice(1);
+      return {etiqueta,clave:texto};
+    }
+
+    async function obtenerDatosBilleteraAsignacion(email){
+      if(!email) return {creditos:0,cartonesGratis:0};
+      try {
+        const snap=await db.collection('Billetera').doc(email).get();
+        if(!snap.exists) return {creditos:0,cartonesGratis:0};
+        const data=snap.data()||{};
+        return {
+          creditos:Number(data.creditos)||0,
+          cartonesGratis:Number(data.CartonesGratis??data.cartonesGratis??0)||0
+        };
+      } catch(err){
+        console.warn('No se pudo obtener la billetera de',email,err);
+        return {creditos:0,cartonesGratis:0};
+      }
+    }
+
+    function obtenerAsignacionFiltrada(){
+      const termino=asignacionFiltros.texto;
+      const rol=asignacionFiltros.rol;
+      return asignacionUsuarios.filter(usuario=>{
+        if(termino){
+          const base=termino;
+          const nombre=(usuario.nombre||'').toLowerCase();
+          const alias=(usuario.alias||'').toLowerCase();
+          if(!usuario.gmail.toLowerCase().includes(base) && !nombre.includes(base) && !alias.includes(base)) return false;
+        }
+        if(rol && usuario.rolClave!==rol) return false;
+        return true;
+      });
+    }
+
+    function crearCeldaBasica(texto,clase){
+      const td=document.createElement('td');
+      if(clase) td.className=clase;
+      td.textContent=texto;
+      return td;
+    }
+
+    function formatearCorreoBase(texto){
+      const correo=(texto||'').toString().trim();
+      if(correo.toLowerCase().endsWith('@gmail.com')){
+        return correo.slice(0,-10);
+      }
+      return correo;
+    }
+
+    function crearCeldaGmail(usuario){
+      const td=document.createElement('td');
+      td.className='col-gmail';
+      const correo=(usuario.gmail||'').toString();
+      const base=formatearCorreoBase(correo);
+      td.dataset.valorBase=base;
+      td.dataset.gmailCompleto=correo;
+      const nombrePreferido=(usuario.nombre||usuario.alias||'').toString().trim();
+      if(nombrePreferido) td.dataset.nombreUsuario=nombrePreferido;
+      td.textContent=base;
+      td.title=correo;
+      return td;
+    }
+
+    function obtenerClaseRolAsignacion(clave){
+      switch((clave||'').toString().toLowerCase()){ 
+        case 'colaborador': return 'colaborador';
+        case 'administrador': return 'administrador';
+        case 'superadmin': return 'superadmin';
+        default: return 'jugador';
+      }
+    }
+
+    function crearCeldaRol(usuario){
+      const td=document.createElement('td');
+      td.className='col-rol';
+      const span=document.createElement('span');
+      span.className=`rol-badge rol-badge--${obtenerClaseRolAsignacion(usuario.rolClave)}`;
+      span.textContent=(usuario.rol||'').toString().toUpperCase();
+      td.appendChild(span);
+      return td;
+    }
+
+    function sanitizarEntradaAsignacion(texto){
+      let valor=(texto||'').toString();
+      valor=valor.replace(/[^0-9-]/g,'');
+      if(!valor) return '';
+      const negativo=valor.startsWith('-');
+      valor=valor.replace(/-/g,'');
+      if(!valor) return negativo?'-':'';
+      return negativo?`-${valor}`:valor;
+    }
+
+    function registrarEdicionCampo(id,campo,valor){
+      if(!id) return;
+      const limpio=sanitizarEntradaAsignacion(valor);
+      if(!limpio){
+        const actual=asignacionEdicion.get(id);
+        if(actual){
+          delete actual[campo];
+          if(Object.keys(actual).length){
+            asignacionEdicion.set(id,actual);
+          }else{
+            asignacionEdicion.delete(id);
+          }
+        }
+        return;
+      }
+      const actual=asignacionEdicion.get(id)||{};
+      actual[campo]=limpio;
+      asignacionEdicion.set(id,actual);
+    }
+
+    function aplicarValorEnFila(fila,campo,valor){
+      if(!fila) return;
+      const valorLimpio=sanitizarEntradaAsignacion(valor);
+      if(valorLimpio==='') return;
+      const input=fila.querySelector(`.asignacion-input[data-campo="${campo}"]`);
+      if(!input) return;
+      input.value=valorLimpio;
+      input.disabled=false;
+      registrarEdicionCampo(input.dataset.id,campo,valorLimpio);
+    }
+
+    function aplicarValorMasivo(campo,valor){
+      const valorLimpio=sanitizarEntradaAsignacion(valor);
+      if(!valorLimpio || !tablaAsignacion) return;
+      const checks=tablaAsignacion.querySelectorAll('tbody input[type="checkbox"]:checked');
+      checks.forEach(chk=>{
+        const fila=chk.closest('tr');
+        aplicarValorEnFila(fila,campo,valorLimpio);
+      });
+    }
+
+    function crearCeldaInput(usuario,idCampo){
+      const td=document.createElement('td');
+      td.className=idCampo==='creditos'?'col-creditos':'col-cartones';
+      const input=document.createElement('input');
+      input.type='number';
+      input.step='1';
+      input.placeholder='0';
+      input.className='asignacion-input';
+      input.dataset.id=usuario.id;
+      input.dataset.campo=idCampo;
+      const edicion=asignacionEdicion.get(usuario.id)||{};
+      const valor=(edicion[idCampo]??'').toString();
+      if(valor) input.value=valor;
+      input.disabled=!asignacionSeleccion.has(usuario.id);
+      td.appendChild(input);
+      return td;
+    }
+
+    function obtenerValorAsignadoTemporal(celda){
+      if(!celda) return 0;
+      const input=celda.querySelector('.asignacion-input');
+      if(!input) return 0;
+      const texto=sanitizarEntradaAsignacion(input.value);
+      return texto===''?0:texto;
+    }
+
+    function renderAsignacionTabla(){
+      const cuerpo=document.querySelector('#tabla-asignacion tbody');
+      if(!cuerpo) return;
+      const lista=obtenerAsignacionFiltrada();
+      if(!lista.length){
+        cuerpo.innerHTML='<tr><td colspan="6"><div class="mensaje-tabla">No hay usuarios disponibles.</div></td></tr>';
+        return;
+      }
+      const frag=document.createDocumentFragment();
+      lista.forEach((usuario,indice)=>{
+        const tr=document.createElement('tr');
+        tr.dataset.id=usuario.id;
+        const tdNumero=crearCeldaBasica(String(indice+1));
+        const tdGmail=crearCeldaGmail(usuario);
+        const tdCreditos=crearCeldaInput(usuario,'creditos');
+        const tdCartones=crearCeldaInput(usuario,'cartones');
+        const tdRol=crearCeldaRol(usuario);
+        const tdCheck=document.createElement('td');
+        tdCheck.className='col-check';
+        const check=document.createElement('input');
+        check.type='checkbox';
+        check.dataset.id=usuario.id;
+        check.checked=asignacionSeleccion.has(usuario.id);
+        tdCheck.appendChild(check);
+        tr.append(tdNumero,tdGmail,tdCreditos,tdCartones,tdRol,tdCheck);
+        frag.appendChild(tr);
+      });
+      cuerpo.innerHTML='';
+      cuerpo.appendChild(frag);
+      actualizarVistaColumnasAsignacion();
+    }
+
+    function mostrarValorTemporal(celda,valor){
+      if(!celda) return;
+      if(!celda.isConnected) return;
+      celda.classList.remove('temporal-activo');
+      let aviso=celda.querySelector('.valor-temporal');
+      if(!aviso){
+        aviso=document.createElement('div');
+        aviso.className='valor-temporal';
+        celda.appendChild(aviso);
+      }
+      aviso.textContent=formatoAsignacionEntero.format(Math.round(Number(valor)||0));
+      aviso.classList.add('visible');
+      const input=celda.querySelector('.asignacion-input');
+      if(input){
+        const edicionActiva=!input.disabled && !celda.classList.contains('mostrar-valor-actual');
+        if(!edicionActiva){
+          if(!('valorTemporalBase' in input.dataset)){
+            input.dataset.valorTemporalBase=input.value;
+          }
+          input.classList.add('temporal-oculto');
+          input.dataset.temporalOculto='1';
+        }
+      }
+      if(celda.classList.contains('mostrar-valor-actual')){
+        celda.classList.add('temporal-activo');
+      }
+      if(asignacionTemporales.has(celda)){
+        clearTimeout(asignacionTemporales.get(celda));
+      }
+      const timeout=setTimeout(()=>{
+        if(celda.isConnected && aviso.parentNode===celda){
+          aviso.classList.remove('visible');
+        }
+        if(input && input.isConnected){
+          if('valorTemporalBase' in input.dataset){
+            input.value=input.dataset.valorTemporalBase;
+            delete input.dataset.valorTemporalBase;
+          }
+          if(input.dataset.temporalOculto==='1'){
+            input.classList.remove('temporal-oculto');
+          }
+          delete input.dataset.temporalOculto;
+        }
+        if(celda.isConnected){
+          celda.classList.remove('temporal-activo');
+        }
+        asignacionTemporales.delete(celda);
+      },3000);
+      asignacionTemporales.set(celda,timeout);
+    }
+
+    function mostrarNombreTemporal(celda,texto,alternativo){
+      if(!celda) return;
+      const base=celda.dataset.valorBase ?? celda.textContent ?? '';
+      const mostrar=(texto||'').toString().trim() || (alternativo||'').toString().trim() || base;
+      if(asignacionTemporales.has(celda)){
+        clearTimeout(asignacionTemporales.get(celda));
+      }
+      celda.textContent=mostrar;
+      const timeout=setTimeout(()=>{
+        if(celda.isConnected){
+          celda.textContent=celda.dataset.valorBase ?? base;
+        }
+        asignacionTemporales.delete(celda);
+      },3000);
+      asignacionTemporales.set(celda,timeout);
+    }
+
+    function ajustarCeldaVistaActual(celda,mostrar,valor){
+      if(!celda) return;
+      let capa=celda.querySelector('.valor-actual-fijo');
+      if(mostrar){
+        if(!capa){
+          capa=document.createElement('div');
+          capa.className='valor-actual-fijo';
+          celda.appendChild(capa);
+        }
+        capa.textContent=formatoAsignacionEntero.format(Math.round(Number(valor)||0));
+        celda.classList.add('mostrar-valor-actual');
+      } else {
+        if(capa){
+          capa.textContent='';
+        }
+        celda.classList.remove('mostrar-valor-actual');
+      }
+    }
+
+    function actualizarVistaColumnasAsignacion(){
+      if(!tablaAsignacion) return;
+      const cuerpo=tablaAsignacion.querySelector('tbody');
+      if(!cuerpo) return;
+      cuerpo.querySelectorAll('tr').forEach(fila=>{
+        const id=fila.dataset.id;
+        const registro=id?asignacionMapa.get(id):null;
+        const celdaCred=fila.querySelector('td.col-creditos');
+        const celdaCart=fila.querySelector('td.col-cartones');
+        ajustarCeldaVistaActual(celdaCred,vistaCreditosActuales,registro?.creditos);
+        ajustarCeldaVistaActual(celdaCart,vistaCartonesActuales,registro?.cartonesGratis);
+      });
+    }
+
+    function obtenerValorEditado(edicion,campo){
+      const texto=(edicion?.[campo]??'').toString().trim();
+      return sanitizarEntradaAsignacion(texto);
+    }
+
+    async function procesarAsignacionesUsuarios(ids){
+      if(!ids.length){
+        alert('Selecciona al menos un usuario.');
+        return;
+      }
+      for(const id of ids){
+        const edicion=asignacionEdicion.get(id)||{};
+        const creditosTexto=obtenerValorEditado(edicion,'creditos');
+        const cartonesTexto=obtenerValorEditado(edicion,'cartones');
+        const creditosValor=creditosTexto?Number(creditosTexto):0;
+        const cartonesValor=cartonesTexto?Number(cartonesTexto):0;
+        const sinCreditos=(!creditosTexto || !Number.isFinite(creditosValor) || creditosValor===0);
+        const sinCartones=(!cartonesTexto || !Number.isFinite(cartonesValor) || cartonesValor===0);
+        if(sinCreditos && sinCartones){
+          alert('para APROBAR no pueden estar vacios ambos valores: Créditos y Cartones en los registros seleccionados');
+          return;
+        }
+        if(creditosTexto && !Number.isFinite(creditosValor)){
+          alert('Ingresa un número válido en CREDITOS ASIGNADOS.');
+          return;
+        }
+        if(cartonesTexto && !Number.isFinite(cartonesValor)){
+          alert('Ingresa un número válido en CARTONES ASIGNADOS.');
+          return;
+        }
+      }
+      let procesados=0;
+      const procesadosIds=[];
+      for(const id of ids){
+        const registro=asignacionMapa.get(id);
+        if(!registro) continue;
+        const edicion=asignacionEdicion.get(id)||{};
+        const creditosTexto=obtenerValorEditado(edicion,'creditos');
+        const cartonesTexto=obtenerValorEditado(edicion,'cartones');
+        const creditosValor=creditosTexto?Number(creditosTexto):0;
+        const cartonesValor=cartonesTexto?Number(cartonesTexto):0;
+        const actualizarCreditos=Number.isFinite(creditosValor) && creditosValor!==0;
+        const actualizarCartones=Number.isFinite(cartonesValor) && cartonesValor!==0;
+        if(!actualizarCreditos && !actualizarCartones){
+          continue;
+        }
+        try {
+          await db.runTransaction(async tx=>{
+            const billeteraRef=db.collection('Billetera').doc(id);
+            const snap=await tx.get(billeteraRef);
+            const datos=snap.exists?(snap.data()||{}):{};
+            let creditosActuales=Number(datos.creditos)||0;
+            let cartonesActuales=Number(datos.CartonesGratis??datos.cartonesGratis??0)||0;
+            const payload={};
+            if(actualizarCreditos){
+              creditosActuales=Math.max(0,creditosActuales+creditosValor);
+              payload.creditos=creditosActuales;
+              registro.creditos=creditosActuales;
+            }
+            if(actualizarCartones){
+              cartonesActuales=Math.max(0,cartonesActuales+cartonesValor);
+              payload.CartonesGratis=cartonesActuales;
+              registro.cartonesGratis=cartonesActuales;
+            }
+            if(Object.keys(payload).length){
+              tx.set(billeteraRef,payload,{merge:true});
+            }
+          });
+          procesados++;
+          procesadosIds.push(id);
+        } catch(err){
+          console.error('No se pudo actualizar la billetera de',id,err);
+          alert('Ocurrió un error al actualizar un usuario. Revisa la consola para más detalles.');
+          return;
+        }
+      }
+      if(procesados){
+        alert(`Se actualizaron ${procesados} usuario(s) correctamente.`);
+        procesadosIds.forEach(id=>{
+          asignacionSeleccion.delete(id);
+          asignacionEdicion.delete(id);
+        });
+      } else {
+        alert('No se registraron cambios porque hay columnas sin completar.');
+      }
+      renderAsignacionTabla();
+    }
+
+    function iniciarSuscripcionAsignacion(){
+      if(unsubscribeAsignacionUsuarios) return;
+      unsubscribeAsignacionUsuarios=db.collection('users').onSnapshot(async snapshot=>{
+        asignacionMapa.clear();
+        const tareas=[];
+        const lista=[];
+        const ids=new Set();
+        snapshot.forEach(doc=>{
+          const data=doc.data()||{};
+          const email=(data.email||doc.id||'').toString().trim().toLowerCase();
+          if(!email) return;
+          const rolInfo=normalizarRolUsuario(data.role||data.rol||data.rolinterno||data.tipo||'');
+          const registro={
+            id:email,
+            gmail:email,
+            nombre:(data.nombre||data.name||'').toString(),
+            alias:(data.alias||'').toString(),
+            rol:rolInfo.etiqueta,
+            rolClave:rolInfo.clave,
+            creditos:0,
+            cartonesGratis:0
+          };
+          ids.add(registro.id);
+          asignacionMapa.set(registro.id,registro);
+          lista.push(registro);
+          tareas.push((async()=>{
+            const billetera=await obtenerDatosBilleteraAsignacion(email);
+            registro.creditos=billetera.creditos;
+            registro.cartonesGratis=billetera.cartonesGratis;
+          })());
+        });
+        asignacionUsuarios.length=0;
+        lista.sort((a,b)=>{
+          const textoA=(a.nombre||a.alias||a.gmail).toLowerCase();
+          const textoB=(b.nombre||b.alias||b.gmail).toLowerCase();
+          return textoA.localeCompare(textoB);
+        });
+        asignacionUsuarios.push(...lista);
+        asignacionSeleccion.forEach(id=>{ if(!ids.has(id)) asignacionSeleccion.delete(id); });
+        Array.from(asignacionEdicion.keys()).forEach(id=>{ if(!ids.has(id)) asignacionEdicion.delete(id); });
+        renderAsignacionTabla();
+        if(tareas.length){
+          try {
+            await Promise.all(tareas);
+          } catch(err){
+            console.warn('No se pudieron sincronizar algunas billeteras',err);
+          }
+          renderAsignacionTabla();
+        }
+      });
+    }
+
+    function marcarTodosAsignacion(){
+      const tabla=document.getElementById('tabla-asignacion');
+      if(!tabla) return;
+      const checks=tabla.querySelectorAll('tbody input[type="checkbox"]');
+      if(!checks.length) return;
+      const marcar=Array.from(checks).some(chk=>!chk.checked);
+      checks.forEach(chk=>{
+        chk.checked=marcar;
+        const id=chk.dataset.id;
+        if(!id) return;
+        if(marcar){
+          asignacionSeleccion.add(id);
+        } else {
+          asignacionSeleccion.delete(id);
+          asignacionEdicion.delete(id);
+        }
+        const fila=chk.closest('tr');
+        if(fila){
+          fila.querySelectorAll('.asignacion-input').forEach(input=>{
+            input.disabled=!marcar;
+            if(!marcar){ input.value=''; }
+          });
+        }
+      });
+    }
+
+    document.getElementById('asignacion-filtro-gmail').addEventListener('input',e=>{
+      asignacionFiltros.texto=e.target.value.toLowerCase().trim();
+      renderAsignacionTabla();
+    });
+    document.getElementById('asignacion-filtro-rol').addEventListener('change',e=>{
+      asignacionFiltros.rol=e.target.value;
+      renderAsignacionTabla();
+    });
+    document.getElementById('asignacion-marcar').addEventListener('click',marcarTodosAsignacion);
+    document.getElementById('asignacion-aprobar').addEventListener('click',()=>{
+      procesarAsignacionesUsuarios(Array.from(asignacionSeleccion));
+    });
+
+    function manejarEntradaMasiva(e){
+      if(!e.target) return;
+      const campo=e.target===inputMasivoCreditos?'creditos':'cartones';
+      const valor=sanitizarEntradaAsignacion(e.target.value);
+      e.target.value=valor;
+      if(valor) aplicarValorMasivo(campo,valor);
+    }
+
+    if(inputMasivoCreditos){
+      inputMasivoCreditos.addEventListener('input',manejarEntradaMasiva);
+    }
+    if(inputMasivoCartones){
+      inputMasivoCartones.addEventListener('input',manejarEntradaMasiva);
+    }
+
+    tablaAsignacion.addEventListener('change',e=>{
+      if(e.target.matches('tbody input[type="checkbox"]')){
+        const id=e.target.dataset.id;
+        const fila=e.target.closest('tr');
+        if(!id || !fila) return;
+        if(e.target.checked){
+          asignacionSeleccion.add(id);
+        }else{
+          asignacionSeleccion.delete(id);
+          asignacionEdicion.delete(id);
+        }
+        fila.querySelectorAll('.asignacion-input').forEach(input=>{
+          input.disabled=!e.target.checked;
+          if(!e.target.checked){
+            input.value='';
+            registrarEdicionCampo(input.dataset.id,input.dataset.campo,'');
+          }
+        });
+        if(e.target.checked){
+          const valorMasivoCred=inputMasivoCreditos?.value?.trim();
+          const valorMasivoCart=inputMasivoCartones?.value?.trim();
+          if(valorMasivoCred) aplicarValorEnFila(fila,'creditos',valorMasivoCred);
+          if(valorMasivoCart) aplicarValorEnFila(fila,'cartones',valorMasivoCart);
+        }
+      }
+    });
+
+    tablaAsignacion.addEventListener('input',e=>{
+      if(e.target.matches('.asignacion-input')){
+        const valor=sanitizarEntradaAsignacion(e.target.value);
+        e.target.value=valor;
+        registrarEdicionCampo(e.target.dataset.id,e.target.dataset.campo,valor);
+      }
+    });
+
+    tablaAsignacion.addEventListener('click',e=>{
+      const celdaCred=e.target.closest('td.col-creditos');
+      const celdaCart=e.target.closest('td.col-cartones');
+      if(celdaCred || celdaCart){
+        const celda=celdaCred||celdaCart;
+        const fila=celda.closest('tr');
+        const id=fila?.dataset.id;
+        if(id){
+          const registro=asignacionMapa.get(id);
+          if(celdaCred){
+            if(vistaCreditosActuales){
+              const valorAsignado=obtenerValorAsignadoTemporal(celdaCred);
+              mostrarValorTemporal(celdaCred,valorAsignado);
+            }else if(registro){
+              mostrarValorTemporal(celdaCred,registro.creditos);
+            }
+          }else if(celdaCart){
+            if(vistaCartonesActuales){
+              const valorAsignado=obtenerValorAsignadoTemporal(celdaCart);
+              mostrarValorTemporal(celdaCart,valorAsignado);
+            }else if(registro){
+              mostrarValorTemporal(celdaCart,registro.cartonesGratis);
+            }
+          }
+          const inputCelda=celda.querySelector('.asignacion-input');
+          if(inputCelda && !inputCelda.disabled && document.activeElement!==inputCelda){
+            setTimeout(()=>{
+              if(document.activeElement!==inputCelda && inputCelda.isConnected){
+                inputCelda.focus({preventScroll:true});
+              }
+            },0);
+          }
+        }
+        return;
+      }
+      const inputObjetivo=e.target.closest('.asignacion-input');
+      if(inputObjetivo && !inputObjetivo.disabled) return;
+      const celdaGmail=e.target.closest('td.col-gmail');
+      if(celdaGmail){
+        const fila=celdaGmail.closest('tr');
+        const id=fila?.dataset.id;
+        if(id){
+          const registro=asignacionMapa.get(id);
+          const nombrePreferido=(celdaGmail.dataset.nombreUsuario||'').toString().trim() || (registro?.nombre||'').toString().trim() || (registro?.alias||'').toString().trim();
+          mostrarNombreTemporal(celdaGmail,nombrePreferido,celdaGmail.dataset.gmailCompleto);
+        }
+        return;
+      }
+    });
+
+    const encabezadoCreditos=document.getElementById('asignacion-encabezado-creditos');
+    const encabezadoCartones=document.getElementById('asignacion-encabezado-cartones');
+
+    function actualizarEncabezadoCreditos(){
+      if(!encabezadoCreditos) return;
+      encabezadoCreditos.textContent=vistaCreditosActuales?'CREDITOS ACTUALES':'CREDITOS ASIGNADOS';
+      encabezadoCreditos.classList.toggle('vista-actual',vistaCreditosActuales);
+    }
+
+    function actualizarEncabezadoCartones(){
+      if(!encabezadoCartones) return;
+      encabezadoCartones.textContent=vistaCartonesActuales?'CARTONES GRATIS':'CARTONES ASIGNADOS';
+      encabezadoCartones.classList.toggle('vista-actual',vistaCartonesActuales);
+    }
+
+    encabezadoCreditos?.addEventListener('click',()=>{
+      vistaCreditosActuales=!vistaCreditosActuales;
+      actualizarEncabezadoCreditos();
+      actualizarVistaColumnasAsignacion();
+    });
+
+    encabezadoCartones?.addEventListener('click',()=>{
+      vistaCartonesActuales=!vistaCartonesActuales;
+      actualizarEncabezadoCartones();
+      actualizarVistaColumnasAsignacion();
+    });
+
+    actualizarEncabezadoCreditos();
+    actualizarEncabezadoCartones();
+
+    const toggleAsignacion=document.getElementById('toggle-asignacion');
+    const contenidoAsignacion=document.getElementById('asignacion-content');
+    toggleAsignacion.addEventListener('change',()=>{
+      const activo=toggleAsignacion.checked;
+      contenidoAsignacion.style.display=activo?'block':'none';
+      if(activo && !asignacionInicializada){
+        asignacionInicializada=true;
+        iniciarSuscripcionAsignacion();
+      }
+    });
+    contenidoAsignacion.style.display='none';
+    if(toggleAsignacion.checked){
+      contenidoAsignacion.style.display='block';
+      asignacionInicializada=true;
+      iniciarSuscripcionAsignacion();
+    }
+    window.addEventListener('beforeunload',()=>{
+      if(typeof unsubscribeAsignacionUsuarios==='function') unsubscribeAsignacionUsuarios();
+    });
+    document.getElementById('volver-btn').addEventListener('click',()=>{window.location.href='admin.html';});
+    function vincularEventosAuthConfiguraciones(){
+      if(!auth || typeof auth.onAuthStateChanged!=='function'){
+        return false;
+      }
+      auth.onAuthStateChanged(async user=>{
+        if(user){
+          const foto=document.getElementById('user-pic');
+          if(foto){
+            foto.src=user.photoURL;
+          }
+          const enlaceSalir=document.getElementById('logout-link');
+          if(enlaceSalir && !enlaceSalir.dataset.logoutBound){
+            enlaceSalir.addEventListener('click',e=>{e.preventDefault(); logout();});
+            enlaceSalir.dataset.logoutBound='true';
+          }
+          let rolActual=window.currentRole;
+          if(!rolActual){
+            try{
+              const infoRol=await getUserRole(user,{createIfMissing:false});
+              rolActual=infoRol?.role;
+            }catch(error){
+              console.error('No se pudo determinar el rol del usuario para notificaciones',error);
+            }
+          }
+          configurarPanelNotificaciones(rolActual||'Administrador');
+        }else{
+          rolNotificacionesActual=null;
+          if(panelNotificacionesAdministrador && typeof panelNotificacionesAdministrador.cleanup==='function'){
+            try{ panelNotificacionesAdministrador.cleanup(); }
+            catch(error){ console.error('No se pudo limpiar el panel de notificaciones',error); }
+          }
+          panelNotificacionesAdministrador=null;
+        }
+      });
+      return true;
+    }
+    if(!vincularEventosAuthConfiguraciones()){
+      initFirebase()
+        .then(()=>{ vincularEventosAuthConfiguraciones(); })
+        .catch(error=>{ console.error('No se pudo vincular los eventos de autenticación en configuraciones',error); });
+    }
+  </script>
+  <script src="js/backNavigation.js"></script>
+</body>
+</html>

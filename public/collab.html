@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <link rel="apple-touch-icon" sizes="180x180" href="img/apple-touch-icon.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="img/android-chrome-192x192.png">
+  <link rel="icon" type="image/png" sizes="512x512" href="img/android-chrome-512x512.png">
+  <link rel="icon" type="image/x-icon" href="img/favicon.ico">
+  <link rel="icon" type="image/x-icon" sizes="16x16" href="img/favicon-16x16.ico">
+  <link rel="icon" type="image/x-icon" sizes="32x32" href="img/favicon-32x32.ico">
+
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Colaborador - Bingo Online</title>
+  <link href="https://fonts.googleapis.com/css2?family=Bangers&display=swap" rel="stylesheet">
+  <style>
+    body {
+      background-image: linear-gradient(rgba(255, 255, 255, 0.7), rgba(255, 255, 255, 0.7)),
+                        url('img/fondo-dinero-porcentage.jpg');
+      background-repeat: repeat;
+      background-size: auto;
+      background-position: 0 0, 0 0;
+      animation: fondo-movimiento 120s linear infinite;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      text-align: center;
+      font-family: 'Bangers', cursive;
+      margin: 0;
+    }
+    @keyframes fondo-movimiento {
+      0% {
+        background-position: 0 0, 0 0;
+      }
+      100% {
+        background-position: 0 0, -600px 600px;
+      }
+    }
+
+    .menu-btn {
+      width: 250px;
+      height: 60px;
+      font-family: 'Bangers', cursive;
+      font-size: 1.4rem;
+      background: rgba(0, 170, 255, 0.8);
+      color: white;
+      border: 4px solid #FFD700;
+      border-radius: 10px;
+      text-shadow: 2px 2px 4px #000;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: transform 0.3s, box-shadow 0.3s, background 0.3s;
+      margin: 5px;
+    }
+    .view {
+      position: relative;
+      width: 100%;
+    }
+    .menu-btn:hover {
+      transform: scale(1.05);
+      box-shadow: 0 0 15px rgba(255, 215, 0, 0.8);
+    }
+    #logo-bingo {
+      width: 250px;
+      max-width: 80vw;
+      height: auto;
+      margin-bottom: 15px;
+    }
+    #session-info {
+      position: fixed;
+      top: 10px;
+      right: 10px;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      font-size: 0.7rem;
+    }
+    #user-line{
+      display:flex;
+      align-items:center;
+    }
+    #user-data {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      margin-right: 5px;
+    }
+    #user-name, #user-email {
+      font-family: Calibri, Arial, sans-serif;
+      color: #333;
+    }
+
+    #user-pic {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+    }
+    #logout-link {
+      font-family: Calibri, Arial, sans-serif;
+      margin-left: 5px;
+      font-size: 0.7rem;
+      color: #007bff;
+      text-decoration: underline;
+    }
+
+    .icon-square {
+      width: 30px;
+      height: 30px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1rem;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      margin-top: 4px;
+      cursor: pointer;
+    }
+    #config-btn {
+      width: 50px;
+      height: 50px;
+      font-size: 1.8rem;
+      margin-top: 16px;
+    }
+
+    .back-btn {
+      position: fixed;
+      top: 5px;
+      left: 5px;
+      width: 120px;
+      height: 40px;
+      background: orange;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      gap:5px;
+    }
+    #salir-super-btn { background: red; border:4px solid orange; }
+  </style>
+  <link rel="stylesheet" href="css/desktopFrame.css">
+</head>
+<body>
+  <img id="logo-bingo" src="img/Logo-BingOnline-nuevo500p.png" alt="logo" />
+  <h2>Menú Colaborador</h2>
+  <div id="session-info">
+    <div id="user-line">
+      <div id="user-data">
+        <div id="user-name"></div>
+        <div id="user-email"></div>
+      </div>
+      <img id="user-pic" referrerpolicy="no-referrer" crossorigin="anonymous" src="" alt="Usuario" />
+    </div>
+    <a href="#" id="logout-link">Cerrar sesión</a>
+    <button id="config-btn" class="icon-square" title="Configuraciones">&#9881;</button>
+  </div>
+  <button id="salir-super-btn" class="menu-btn back-btn" style="display:none;">Salir</button>
+  <div id="main-menu">
+    <button id="ver-recargas-btn" class="menu-btn">Gestionar transferencias</button>
+    <button id="ver-pagos-colab-btn" class="menu-btn">PAGOS</button>
+  </div>
+
+  <script src="https://www.gstatic.com/firebasejs/11.5.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/11.5.0/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/11.5.0/firebase-auth-compat.js"></script>
+  <script src="js/logoSwitcher.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/notificationCenter.js"></script>
+  <script>
+  ensureAuth('Colaborador');
+  setupSuperadminExit('#salir-super-btn');
+  document.getElementById('ver-recargas-btn').addEventListener('click',()=>{
+    window.location.href='transacciones.html';
+  });
+  document.getElementById('ver-pagos-colab-btn').addEventListener('click',()=>{
+    window.location.href='pagoscollab.html';
+  });
+  document.getElementById('config-btn').addEventListener('click',()=>{
+    window.location.href='configcollab.html';
+  });
+  </script>
+</body>
+</html>

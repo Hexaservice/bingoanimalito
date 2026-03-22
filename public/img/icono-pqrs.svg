@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-labelledby="title desc">
+  <title id="title">Icono Ayuda</title>
+  <desc id="desc">Signo de interrogación con sombra roja</desc>
+  <defs>
+    <filter id="red-shadow" x="-50%" y="-50%" width="200%" height="200%">
+      <feDropShadow dx="0" dy="0" stdDeviation="4" flood-color="#ff1a1a" flood-opacity="0.9" />
+    </filter>
+  </defs>
+  <circle cx="64" cy="64" r="54" fill="#1d4ed8" opacity="0.18" />
+  <text
+    x="64"
+    y="92"
+    text-anchor="middle"
+    font-size="96"
+    font-family="'Bangers', 'Arial Black', Arial, sans-serif"
+    fill="#ffffff"
+    filter="url(#red-shadow)">?</text>
+</svg>

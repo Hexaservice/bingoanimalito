@@ -1,0 +1,617 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <link rel="apple-touch-icon" sizes="180x180" href="img/apple-touch-icon.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="img/android-chrome-192x192.png">
+  <link rel="icon" type="image/png" sizes="512x512" href="img/android-chrome-512x512.png">
+  <link rel="icon" type="image/x-icon" href="img/favicon.ico">
+  <link rel="icon" type="image/x-icon" sizes="16x16" href="img/favicon-16x16.ico">
+  <link rel="icon" type="image/x-icon" sizes="32x32" href="img/favicon-32x32.ico">
+
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gestionar Usuarios - Bingo Online</title>
+  <link href="https://fonts.googleapis.com/css2?family=Bangers&display=swap" rel="stylesheet">
+  <style>
+    body {
+      background: linear-gradient(rgba(255, 255, 255, 0.7), rgba(255, 255, 255, 0.7)),
+                  url('https://img.freepik.com/vectores-premium/padrao-sem-costura-com-simbolos-de-dolar-e-porcentagem_637741-777.jpg');
+      background-repeat: repeat;
+      background-size: auto;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      min-height: 100vh;
+      text-align: center;
+      font-family: 'Bangers', cursive;
+      padding-top: 30px;
+      max-width: 900px;
+      margin: 0 auto;
+    }
+    .menu-btn {
+      width: 250px;
+      height: 60px;
+      font-family: 'Bangers', cursive;
+      font-size: 1.4rem;
+      background: rgba(0, 170, 255, 0.8);
+      color: white;
+      border: 4px solid #FFD700;
+      border-radius: 10px;
+      text-shadow: 2px 2px 4px #000;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: transform 0.3s, box-shadow 0.3s, background 0.3s;
+      margin: 5px;
+    }
+    .menu-btn:hover {
+      transform: scale(1.05);
+      box-shadow: 0 0 15px rgba(255, 215, 0, 0.8);
+    }
+    .icon-square {
+      width: 30px;
+      height: 30px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1rem;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      margin: 0 2px;
+      cursor: pointer;
+    }
+    #copiar-correo-btn{color:#0d6efd;border-color:#0d6efd;background:rgba(13,110,253,0.1);}
+    #copiar-correo-btn:hover{background:rgba(13,110,253,0.2);}
+    #session-info {
+      position: fixed;
+      top: 10px;
+      right: 10px;
+      display: flex;
+      align-items: center;
+      font-size: 0.7rem;
+    }
+    #user-data {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      margin-right: 5px;
+    }
+    #user-name, #user-email {
+      font-family: Calibri, Arial, sans-serif;
+      color: #333;
+    }
+    #user-pic {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+    }
+    #logout-link {
+      font-family: Calibri, Arial, sans-serif;
+      margin-left: 5px;
+      font-size: 0.7rem;
+      color: #007bff;
+      text-decoration: underline;
+    }
+    .back-btn {
+      position: fixed;
+      top: 5px;
+      left: 5px;
+      width: 40px;
+      height: 40px;
+      background: orange;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      gap:0;
+    }
+    #volver-btn .volver-text { display:none; }
+    table {
+      background: rgba(255,255,255,0.9);
+      border-collapse: collapse;
+      width: 95%;
+      margin-bottom: 10px;
+      font-size:0.75rem;
+      font-family: Calibri, Arial, sans-serif;
+      table-layout: fixed;
+    }
+    th, td {
+      border: 1px solid #ccc;
+      padding: 4px;
+      font-weight: normal;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    #tabla-usuarios th:nth-child(1), #tabla-usuarios td:nth-child(1){width:5%;}
+    #tabla-usuarios th:nth-child(2), #tabla-usuarios td:nth-child(2){width:15%;}
+    #tabla-usuarios th:nth-child(3), #tabla-usuarios td:nth-child(3){width:15%;}
+    #tabla-usuarios th:nth-child(4), #tabla-usuarios td:nth-child(4){width:30%;}
+    #tabla-usuarios th:nth-child(5), #tabla-usuarios td:nth-child(5){width:15%;}
+    #tabla-usuarios th:nth-child(6), #tabla-usuarios td:nth-child(6){width:15%;}
+    #tabla-usuarios th:nth-child(7),
+    #tabla-usuarios td:nth-child(7),
+    #tabla-persistentes th:nth-child(4),
+    #tabla-persistentes td:nth-child(4){
+      width:30px;
+      min-width:30px;
+      padding:3px;
+      text-align:center;
+      box-sizing:border-box;
+    }
+    #tabla-persistentes th:nth-child(1), #tabla-persistentes td:nth-child(1){width:5%;}
+    #tabla-usuarios td:nth-child(7), #tabla-persistentes td:nth-child(4){display:flex;justify-content:center;align-items:center;background:white;}
+    #tabla-usuarios td:nth-child(7) input, #tabla-persistentes td:nth-child(4) input{margin:0;}
+
+    #tabla-usuarios thead th,
+    #tabla-persistentes thead th{
+      position:sticky;
+      top:0;
+      background:white;
+      z-index:1;
+    }
+
+    .gmail-cell{cursor:pointer;}
+    input, select { font-family: Calibri, Arial, sans-serif; font-size:0.75rem; }
+    #formulario-usuario input { font-weight:bold; }
+    #pers-correo { font-weight:bold; }
+    .section-header{display:flex;justify-content:space-between;align-items:center;padding:2px 5px;background:rgba(255,255,255,0.4);margin:4px 0 3px;width:100%;}
+    .section-header label.switch{margin-left:3px;}
+    #usuarios-section, #persistentes-section{width:95%;margin:0 auto;}
+    #usuarios-section h3{color:brown;text-shadow:0 0 5px yellow;margin:0;}
+    #persistentes-section h3{color:green;text-shadow:0 0 5px white;margin:0;}
+    .role-jugador{color:orange;font-weight:bold;}
+    .role-administrador{color:blue;font-weight:bold;}
+    .role-colaborador{color:green;font-weight:bold;}
+    .role-superadmin{color:purple;font-weight:bold;}
+    select option[value="Jugador"]{color:orange;font-weight:bold;}
+    select option[value="Administrador"]{color:blue;font-weight:bold;}
+    select option[value="Colaborador"]{color:green;font-weight:bold;}
+    select option[value="Superadmin"]{color:purple;font-weight:bold;}
+    @media (max-width:600px){
+      table{width:calc(100% - 6px);margin-left:3px;margin-right:3px;}
+      #tabla-usuarios th:nth-child(4),#tabla-usuarios td:nth-child(4){max-width:120px;}
+    }
+    .switch{position:relative;display:inline-block;width:42px;height:24px;}
+    .switch input{display:none;}
+    .slider{position:absolute;cursor:pointer;top:0;left:0;right:0;bottom:0;background-color:#ccc;transition:.4s;border-radius:24px;}
+    .slider:before{position:absolute;content:"";height:18px;width:18px;left:3px;bottom:3px;background-color:white;transition:.4s;border-radius:50%;}
+    input:checked + .slider{background-color:#4caf50;}
+    input:checked + .slider:before{transform:translateX(18px);}
+  </style>
+  <link rel="stylesheet" href="css/desktopFrame.css">
+</head>
+<body>
+  <h2>Gestionar Usuarios</h2>
+  <div id="session-info">
+    <div id="user-data">
+      <div id="user-name"></div>
+      <div id="user-email"></div>
+    </div>
+    <img id="user-pic" referrerpolicy="no-referrer" crossorigin="anonymous" src="" alt="Usuario" />
+    <a href="#" id="logout-link">Cerrar sesión</a>
+  </div>
+  <button id="volver-btn" class="menu-btn back-btn" data-compact-back="true"><span class="arrow">&#9664;</span> <span class="volver-text">Volver</span></button>
+
+  <div id="usuarios-section">
+    <div class="section-header">
+      <h3>Usuarios</h3>
+      <label class="switch"><input type="checkbox" id="toggle-usuarios"><span class="slider"></span></label>
+    </div>
+    <div id="usuarios-content" style="display:none;">
+      <div id="formulario-usuario" style="width:95%;display:flex;flex-direction:column;align-items:center;">
+        <div style="display:flex;justify-content:center;flex-wrap:wrap;align-items:center;width:100%;gap:5px;">
+          <input type="text" id="usu-nombre" placeholder="Nombre" style="flex:1 0 110px;max-width:160px;padding:5px;text-align:center;border-radius:5px;border:1px solid #ccc;" />
+          <input type="text" id="usu-apellido" placeholder="Apellido" style="flex:1 0 110px;max-width:160px;padding:5px;text-align:center;border-radius:5px;border:1px solid #ccc;" />
+        </div>
+        <div style="display:flex;justify-content:center;flex-wrap:wrap;align-items:center;width:100%;gap:5px;margin-top:5px;">
+          <input type="email" id="usu-correo" placeholder="Gmail" style="flex:1 0 110px;max-width:160px;padding:5px;text-align:center;border-radius:5px;border:1px solid #ccc;" />
+          <input type="text" id="usu-alias" placeholder="Alias" style="flex:1 0 110px;max-width:160px;padding:5px;text-align:center;border-radius:5px;border:1px solid #ccc;" />
+        </div>
+        <select id="usu-rol" style="width:180px;padding:5px;margin-top:5px;text-align:center;border-radius:5px;border:1px solid #ccc;">
+          <option value="Administrador">Administrador</option>
+          <option value="Colaborador">Colaborador</option>
+          <option value="Jugador">Jugador</option>
+        </select>
+        <div style="text-align:center;margin-top:5px;">
+          <button id="consultar-btn" class="icon-square" title="Buscar">&#128269;</button>
+          <button id="actualizar-btn" class="icon-square" title="Actualizar" style="color:green;">&#9998;</button>
+          <button id="toggle-disable-btn" class="icon-square" title="Deshabilitar" style="color:red;">&#128683;</button>
+          <button id="eliminar-btn" class="icon-square" title="Eliminar" style="color:red;">&#128465;</button>
+        </div>
+      </div>
+
+      <table id="tabla-usuarios" style="max-height:50vh;overflow-y:auto;">
+        <thead>
+          <tr>
+            <th>N°</th>
+            <th><input id="filtro-nombre" type="text" placeholder="Nombre" style="width:100%;box-sizing:border-box;" /></th>
+            <th><input id="filtro-apellido" type="text" placeholder="Apellido" style="width:100%;box-sizing:border-box;" /></th>
+            <th><input id="filtro-correo" type="text" placeholder="Gmail" style="width:100%;box-sizing:border-box;" /></th>
+            <th><input id="filtro-alias" type="text" placeholder="Alias" style="width:100%;box-sizing:border-box;" /></th>
+            <th><select id="filtro-rol" style="width:100%;"><option value="">Rol</option><option value="Administrador">Administrador</option><option value="Colaborador">Colaborador</option><option value="Jugador">Jugador</option></select></th>
+            <th style="text-align:center;">&#10004;</th>
+          </tr>
+        </thead>
+        <tbody id="usuarios-body"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div id="persistentes-section">
+    <div class="section-header">
+      <h3>Usuarios Persistentes</h3>
+      <label class="switch"><input type="checkbox" id="toggle-persistentes"><span class="slider"></span></label>
+    </div>
+    <div id="persistentes-content" style="display:none;">
+      <div id="formulario-persistente" style="width:95%;display:flex;flex-direction:column;align-items:center;">
+        <div style="display:flex;justify-content:center;flex-wrap:wrap;align-items:center;width:100%;gap:5px;">
+          <input type="text" id="pers-correo" placeholder="Gmail" style="flex:1 0 120px;max-width:180px;padding:5px;text-align:center;border-radius:5px;border:1px solid #ccc;" />
+          <button id="copiar-correo-btn" class="icon-square" title="Copiar Gmail de usuario seleccionado">&#11015;</button>
+        </div>
+        <select id="pers-rol" style="width:180px;padding:5px;margin-top:5px;text-align:center;border-radius:5px;border:1px solid #ccc;">
+          <option value="Superadmin">Superadmin</option>
+          <option value="Administrador">Administrador</option>
+          <option value="Colaborador">Colaborador</option>
+        </select>
+        <div style="text-align:center;margin-top:5px;">
+          <button id="consultar-persistente-btn" class="icon-square" title="Buscar">&#128269;</button>
+          <button id="guardar-persistente-btn" class="icon-square" title="Guardar" style="color:green;">&#10010;</button>
+          <button id="eliminar-persistente-btn" class="icon-square" title="Eliminar" style="color:red;">&#128465;</button>
+        </div>
+      </div>
+      <table id="tabla-persistentes" style="max-height:40vh;overflow-y:auto;">
+        <thead>
+          <tr>
+            <th>N°</th>
+            <th><input id="filtro-pers-correo" type="text" placeholder="Gmail" style="width:100%;box-sizing:border-box;" /></th>
+            <th><select id="filtro-pers-rol" style="width:100%;"><option value="">Rol</option><option value="Superadmin">Superadmin</option><option value="Administrador">Administrador</option><option value="Colaborador">Colaborador</option></select></th>
+            <th style="text-align:center;">&#10004;</th>
+          </tr>
+        </thead>
+        <tbody id="persistentes-body"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div id="user-modal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);align-items:center;justify-content:center;z-index:1000;">
+    <div style="background:white;padding:15px;border-radius:8px;text-align:left;font-family:Calibri, Arial, sans-serif;font-size:0.9rem;">
+      <p id="modal-nombre" style="font-weight:bold;color:black;"></p>
+      <p id="modal-apellido" style="font-weight:bold;color:black;"></p>
+      <p id="modal-gmail" style="font-weight:bold;color:green;"></p>
+      <p id="modal-alias" style="font-weight:bold;color:orange;"></p>
+      <p id="modal-rol" style="font-weight:bold;"></p>
+      <div style="text-align:center;margin-top:10px;"><button id="modal-cerrar">Cerrar</button></div>
+    </div>
+  </div>
+
+  <script src="https://www.gstatic.com/firebasejs/11.5.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/11.5.0/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/11.5.0/firebase-auth-compat.js"></script>
+  <script src="js/logoSwitcher.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/notificationCenter.js"></script>
+  <script type="module">
+    import { UPLOAD_ENDPOINT } from './js/config.js';
+    const datos = [];
+    const bodyTabla = document.getElementById('usuarios-body');
+    const persistentes = [];
+    const bodyPersist = document.getElementById('persistentes-body');
+    const modal = document.getElementById('user-modal');
+    const modalNombre = document.getElementById('modal-nombre');
+    const modalApellido = document.getElementById('modal-apellido');
+    const modalGmail = document.getElementById('modal-gmail');
+    const modalAlias = document.getElementById('modal-alias');
+    const modalRol = document.getElementById('modal-rol');
+    const toggleBtn = document.getElementById('toggle-disable-btn');
+    const API_BASE = UPLOAD_ENDPOINT.replace(/\/upload$/, '');
+    const persCorreoInput = document.getElementById('pers-correo');
+    const copiarCorreoBtn = document.getElementById('copiar-correo-btn');
+    let unsubscribeUsuarios = null;
+    let unsubscribeRoles = null;
+    document.getElementById('modal-cerrar').addEventListener('click',()=>{modal.style.display='none';});
+
+    function mostrarModal(u){
+      modalNombre.textContent = `Nombre: ${u.name||''}`;
+      modalApellido.textContent = `Apellido: ${u.apellido||''}`;
+      modalGmail.textContent = `Gmail: ${u.id}`;
+      modalAlias.textContent = `Alias: ${u.alias||''}`;
+      modalRol.textContent = `Rol: ${u.role||''}`;
+      modalRol.className = '';
+      if(u.role) modalRol.classList.add('role-'+u.role.toLowerCase());
+      modal.style.display='flex';
+    }
+
+    function updateToggleButton(){
+      const sel=document.querySelector('input[name="seleccion"]:checked');
+      if(!sel){
+        toggleBtn.innerHTML='&#128683;';
+        toggleBtn.style.color='red';
+        toggleBtn.title='Deshabilitar';
+        return;
+      }
+      const u=datos.find(d=>d.id===sel.dataset.correo);
+      if(u && u.disabled){
+        toggleBtn.innerHTML='&#10004;';
+        toggleBtn.style.color='green';
+        toggleBtn.title='Habilitar';
+      }else{
+        toggleBtn.innerHTML='&#128683;';
+        toggleBtn.style.color='red';
+        toggleBtn.title='Deshabilitar';
+      }
+    }
+
+    function iniciarUsuariosRealtime(){
+      if(unsubscribeUsuarios) unsubscribeUsuarios();
+      unsubscribeUsuarios = db.collection('users').onSnapshot(snapshot=>{
+        datos.length = 0;
+        snapshot.forEach(doc=>{
+          const d = doc.data();
+          if(d.role === 'Superadmin') return;
+          datos.push({ id: doc.id, ...d });
+        });
+        datos.sort((a,b)=>{
+          const an=(a.name||'').localeCompare(b.name||'');
+          if(an!==0) return an;
+          return a.id.localeCompare(b.id);
+        });
+        filtrar();
+      },err=>{
+        console.error('Error al obtener usuarios en tiempo real', err);
+        alert('No se pudieron cargar los usuarios. Intenta nuevamente.');
+      });
+    }
+
+    function renderTabla(lista){
+      bodyTabla.innerHTML='';
+      let idx=1;
+      lista.forEach(u=>{
+        const tr=document.createElement('tr');
+        const gmail=u.id.replace('@gmail.com','');
+        const rolClase='role-'+(u.role||'').toLowerCase();
+        const color=u.disabled?'red':'green';
+        tr.innerHTML=`<td>${idx++}</td><td style="color:${color}">${u.name||''}</td><td style="color:${color}">${u.apellido||''}</td><td class='gmail-cell' style="color:${color}">${gmail}</td><td style="color:${color}">${u.alias||''}</td><td class='${rolClase}'>${u.role||''}</td><td style="text-align:center;"><input type='radio' name='seleccion' data-correo='${u.id}' value='${u.id}'></td>`;
+        tr.children[3].addEventListener('click',()=>mostrarModal(u));
+        const radio=tr.querySelector('input[name="seleccion"]');
+        radio.addEventListener('change', updateToggleButton);
+        bodyTabla.appendChild(tr);
+      });
+      updateToggleButton();
+    }
+
+    function filtrar(){
+      const nom=document.getElementById('filtro-nombre').value.trim().toLowerCase();
+      const ape=document.getElementById('filtro-apellido').value.trim().toLowerCase();
+      const cor=document.getElementById('filtro-correo').value.trim().toLowerCase();
+      const ali=document.getElementById('filtro-alias').value.trim().toLowerCase();
+      const rol=document.getElementById('filtro-rol').value;
+      let lista=datos;
+      if(nom) lista=lista.filter(u=>(u.name||'').toLowerCase().includes(nom));
+      if(ape) lista=lista.filter(u=>(u.apellido||'').toLowerCase().includes(ape));
+      if(cor) lista=lista.filter(u=>u.id.replace('@gmail.com','').toLowerCase().includes(cor));
+      if(ali) lista=lista.filter(u=>(u.alias||'').toLowerCase().includes(ali));
+      if(rol) lista=lista.filter(u=>(u.role||'')===rol);
+      renderTabla(lista);
+    }
+
+    document.getElementById('filtro-nombre').addEventListener('input', filtrar);
+    document.getElementById('filtro-apellido').addEventListener('input', filtrar);
+    document.getElementById('filtro-correo').addEventListener('input', filtrar);
+    document.getElementById('filtro-alias').addEventListener('input', filtrar);
+    document.getElementById('filtro-rol').addEventListener('change', filtrar);
+
+    function iniciarPersistentesRealtime(){
+      if(unsubscribeRoles) unsubscribeRoles();
+      unsubscribeRoles = db.collection('roles').onSnapshot(snapshot=>{
+        const mapa = new Map();
+        snapshot.forEach(doc=>{
+          const rol = doc.id;
+          (doc.data().emails||[]).forEach(email=>{
+            mapa.set(email, rol);
+          });
+        });
+        persistentes.length = 0;
+        Array.from(mapa.entries())
+          .sort((a,b)=>{
+            const comp=a[0].localeCompare(b[0]);
+            if(comp!==0) return comp;
+            return a[1].localeCompare(b[1]);
+          })
+          .forEach(([email, role])=>persistentes.push({ email, role }));
+        filtrarPersistentes();
+      },err=>{
+        console.error('Error al obtener roles persistentes en tiempo real', err);
+        alert('No se pudieron cargar los roles persistentes. Intenta nuevamente.');
+      });
+    }
+
+    function renderPersistentes(lista){
+      bodyPersist.innerHTML='';
+      let idx=1;
+      lista.forEach(p=>{
+        const gmail=p.email.replace('@gmail.com','');
+        const tr=document.createElement('tr');
+        const rolClase='role-'+p.role.toLowerCase();
+        tr.innerHTML=`<td>${idx++}</td><td>${gmail}</td><td class='${rolClase}'>${p.role}</td><td style="text-align:center;"><input type='radio' name='seleccion-persistente' data-email='${p.email}' data-rol='${p.role}'></td>`;
+        bodyPersist.appendChild(tr);
+      });
+    }
+
+    function filtrarPersistentes(){
+      const cor=document.getElementById('filtro-pers-correo').value.trim().toLowerCase();
+      const rol=document.getElementById('filtro-pers-rol').value;
+      let lista=persistentes;
+      if(cor) lista=lista.filter(p=>p.email.toLowerCase().includes(cor));
+      if(rol) lista=lista.filter(p=>p.role===rol);
+      renderPersistentes(lista);
+    }
+
+    document.getElementById('filtro-pers-correo').addEventListener('input', filtrarPersistentes);
+    document.getElementById('filtro-pers-rol').addEventListener('change', filtrarPersistentes);
+
+    document.getElementById('consultar-btn').addEventListener('click', async () => {
+      const sel = document.querySelector('input[name="seleccion"]:checked');
+      if(!sel){ alert('Debe seleccionar un usuario en la tabla'); return; }
+      const correo = sel.dataset.correo;
+      const docu = await db.collection('users').doc(correo).get();
+      if(docu.exists){
+        const d = docu.data();
+        document.getElementById('usu-nombre').value = d.name||'';
+        document.getElementById('usu-apellido').value = d.apellido||'';
+        document.getElementById('usu-correo').value = correo;
+        document.getElementById('usu-alias').value = d.alias||'';
+        document.getElementById('usu-rol').value = d.role||'';
+        actualizarColorSelect(document.getElementById('usu-rol'));
+      } else {
+        alert('Usuario no encontrado');
+      }
+    });
+
+    document.getElementById('actualizar-btn').addEventListener('click', async () => {
+      const correo = document.getElementById('usu-correo').value.trim();
+      const nombre = document.getElementById('usu-nombre').value.trim();
+      const apellido = document.getElementById('usu-apellido').value.trim();
+      const alias = document.getElementById('usu-alias').value.trim();
+      const rol = document.getElementById('usu-rol').value.trim();
+      if(!correo){ alert('Ingrese el correo'); return; }
+      if(!nombre){ alert('Ingrese el nombre'); return; }
+      if(!apellido){ alert('Ingrese el apellido'); return; }
+      if(!alias){ alert('Ingrese el alias'); return; }
+      if(!rol){ alert('Seleccione el rol'); return; }
+      const data = { name:nombre, apellido, alias, role:rol };
+      await db.collection('users').doc(correo).set(data, { merge: true });
+      alert('Datos actualizados');
+    });
+
+    document.getElementById('toggle-disable-btn').addEventListener('click', async () => {
+      const sel = document.querySelector('input[name="seleccion"]:checked');
+      if(!sel){ alert('Debe seleccionar un usuario en la tabla'); return; }
+      const correo = sel.dataset.correo;
+      const u = datos.find(d=>d.id===correo) || {};
+      const nuevoEstado = !(u.disabled);
+      if(!await confirm(`¿Esta seguro que desea ${nuevoEstado ? 'deshabilitar' : 'habilitar'} la cuenta ${correo}?`)) return;
+      try{
+        const token = await auth.currentUser.getIdToken();
+        const res = await fetch(`${API_BASE}/toggleUser`, {
+          method:'POST',
+          headers:{'Content-Type':'application/json', Authorization:'Bearer '+token},
+          body: JSON.stringify({ email: correo, disabled: nuevoEstado })
+        });
+        if(res.ok){
+          alert('Estado actualizado');
+          return;
+        }
+
+        if(res.status === 403){
+          alert('Acceso denegado: solo los roles Superadmin y Administrador pueden modificar el estado de otras cuentas.');
+          return;
+        }
+
+        const err = await res.json().catch(()=>({error:'Error'}));
+        if(res.status === 401){
+          alert('Autenticación requerida: vuelva a iniciar sesión.');
+          return;
+        }
+        alert('Error: '+(err.message||err.error));
+      }catch(e){
+        alert('No se pudo conectar con el servicio: '+e.message);
+      }
+    });
+
+    document.getElementById('eliminar-btn').addEventListener('click', async () => {
+      const sel = document.querySelector('input[name="seleccion"]:checked');
+      if(!sel){ alert('Debe seleccionar un usuario en la tabla'); return; }
+      const correo = sel.dataset.correo;
+      const docu = await db.collection('users').doc(correo).get();
+      if(!docu.exists){ alert('Usuario no encontrado'); return; }
+      const alias = docu.data().alias || '';
+      if(!await confirm(`¿Esta seguro que desea eliminar el usuario ${correo} Alias: ${alias}?`)) return;
+      await db.collection('users').doc(correo).delete();
+      alert('Usuario eliminado');
+    });
+
+    copiarCorreoBtn.addEventListener('click', () => {
+      const sel = document.querySelector('input[name="seleccion"]:checked');
+      if(!sel){ alert('Selecciona un usuario de arriba para poder asignarle un Rol'); return; }
+      const usuario = datos.find(d=>d.id===sel.dataset.correo);
+      if(!usuario){ alert('Selecciona un usuario de arriba para poder asignarle un Rol'); return; }
+      const valor = usuario.id.endsWith('@gmail.com') ? usuario.id.replace('@gmail.com','') : usuario.id;
+      persCorreoInput.value = valor;
+      persCorreoInput.focus();
+    });
+
+    document.getElementById('consultar-persistente-btn').addEventListener('click', () => {
+      const sel = document.querySelector('input[name="seleccion-persistente"]:checked');
+      if(!sel){ alert('Debe seleccionar un registro'); return; }
+      document.getElementById('pers-correo').value = sel.dataset.email;
+      document.getElementById('pers-rol').value = sel.dataset.rol;
+      actualizarColorSelect(document.getElementById('pers-rol'));
+    });
+
+    document.getElementById('guardar-persistente-btn').addEventListener('click', async () => {
+      const correo = document.getElementById('pers-correo').value.trim().toLowerCase();
+      const rol = document.getElementById('pers-rol').value;
+      if(!correo){ alert('Ingrese el Gmail'); return; }
+      const email = correo.includes('@') ? correo : `${correo}@gmail.com`;
+      const roles=['Superadmin','Administrador','Colaborador'];
+      for(const r of roles){
+        const ref=db.collection('roles').doc(r);
+        if(r===rol){
+          await ref.set({ emails: firebase.firestore.FieldValue.arrayUnion(email) }, { merge:true });
+        }else{
+          await ref.set({ emails: firebase.firestore.FieldValue.arrayRemove(email) }, { merge:true });
+        }
+      }
+      await db.collection('users').doc(email).set({ role: rol }, { merge:true });
+      alert('Registro guardado');
+    });
+
+    document.getElementById('eliminar-persistente-btn').addEventListener('click', async () => {
+      const sel = document.querySelector('input[name="seleccion-persistente"]:checked');
+      if(!sel){ alert('Debe seleccionar un registro'); return; }
+      const email = sel.dataset.email;
+      const rol = sel.dataset.rol;
+      await db.collection('roles').doc(rol).set({ emails: firebase.firestore.FieldValue.arrayRemove(email) }, { merge:true });
+      await db.collection('users').doc(email).set({ role:'Jugador' }, { merge:true });
+      alert('Registro eliminado');
+    });
+
+    document.getElementById('toggle-usuarios').addEventListener('change', e=>{
+      document.getElementById('usuarios-content').style.display = e.target.checked ? 'block' : 'none';
+    });
+    document.getElementById('toggle-persistentes').addEventListener('change', e=>{
+      document.getElementById('persistentes-content').style.display = e.target.checked ? 'block' : 'none';
+    });
+
+    const selects=['usu-rol','pers-rol','filtro-rol','filtro-pers-rol'];
+    const colores={Jugador:'orange',Administrador:'blue',Colaborador:'green',Superadmin:'purple'};
+    function actualizarColorSelect(sel){
+      const c=colores[sel.value]||'#000';
+      sel.style.color=c;
+      sel.style.fontWeight=colores[sel.value]?'bold':'normal';
+    }
+    selects.forEach(id=>{const s=document.getElementById(id);if(s){actualizarColorSelect(s);s.addEventListener('change',e=>actualizarColorSelect(e.target));}});
+
+    document.getElementById('volver-btn').addEventListener('click', ()=>{ window.location.href='super.html'; });
+
+    window.addEventListener('beforeunload', ()=>{
+      if(unsubscribeUsuarios) unsubscribeUsuarios();
+      if(unsubscribeRoles) unsubscribeRoles();
+    });
+
+    (async ()=>{
+      try{
+        await initFirebase();
+      }catch(err){
+        console.error('No se pudo inicializar Firebase en gestionarusuarios.html', err);
+        alert('No se pudieron cargar los datos de usuarios.');
+        return;
+      }
+      ensureAuth('Superadmin');
+      iniciarUsuariosRealtime();
+      iniciarPersistentesRealtime();
+    })();
+  </script>
+  <script src="js/backNavigation.js"></script>
+</body>
+</html>

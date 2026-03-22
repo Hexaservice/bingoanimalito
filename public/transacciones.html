@@ -1,0 +1,973 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <link rel="apple-touch-icon" sizes="180x180" href="img/apple-touch-icon.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="img/android-chrome-192x192.png">
+  <link rel="icon" type="image/png" sizes="512x512" href="img/android-chrome-512x512.png">
+  <link rel="icon" type="image/x-icon" href="img/favicon.ico">
+  <link rel="icon" type="image/x-icon" sizes="16x16" href="img/favicon-16x16.ico">
+  <link rel="icon" type="image/x-icon" sizes="32x32" href="img/favicon-32x32.ico">
+
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Transacciones</title>
+  <link href="https://fonts.googleapis.com/css2?family=Bangers&display=swap" rel="stylesheet">
+  <style>
+    body {background: linear-gradient(rgba(255,255,255,0.7),rgba(255,255,255,0.7)), url('https://img.freepik.com/vectores-premium/padrao-sem-costura-com-simbolos-de-dolar-e-porcentagem_637741-777.jpg'); background-repeat: repeat; text-align:center; font-family: 'Bangers', cursive; padding:5px; margin:0;}
+    .menu-btn{width:120px;height:40px;background:orange;border:4px solid #FFD700;border-radius:10px;color:#fff;text-shadow:2px 2px 4px #000;font-size:1rem;display:flex;align-items:center;justify-content:center;gap:5px;}
+    .back-btn{position:fixed;top:5px;left:5px;font-family:'Bangers',cursive;font-size:1.2rem;text-transform:uppercase;}
+    .icon-btn{display:inline-flex;align-items:center;gap:4px;font-size:0.7rem;border:1px solid #ccc;border-radius:4px;padding:4px 8px;margin:0 2px;cursor:pointer;}
+    .icon-btn .icon.check{color:green;}
+    .icon-btn .icon.edit{color:blue;}
+    .icon-only{padding:4px;width:24px;height:24px;justify-content:center;gap:0;}
+    .archivo-activo{background:#654321;color:#fff;}
+    #ver-arch-ret .archivo-text{display:none;}
+    table{margin:5px auto;border-collapse:collapse;width:100%;font-size:0.8rem;font-family:Calibri, Arial, sans-serif;background:rgba(255,255,255,0.6);table-layout:fixed;}
+    th,td{border:1px solid #ccc;padding:2px;white-space:nowrap;font-weight:bold;}
+    #tabla-recargas th:nth-child(3),#tabla-recargas td:nth-child(3),
+    #tabla-recargas th:nth-child(4),#tabla-recargas td:nth-child(4),
+    #tabla-retiros th:nth-child(3),#tabla-retiros td:nth-child(3),
+    #tabla-retiros th:nth-child(4),#tabla-retiros td:nth-child(4){white-space:normal;word-break:break-word;}
+    #tabla-recargas th:nth-child(4),#tabla-recargas td:nth-child(4),
+    #tabla-retiros th:nth-child(4),#tabla-retiros td:nth-child(4){padding:0 1px;}
+    th{position:sticky;top:40px;background:rgba(255,255,255,0.8);z-index:1;}
+    tbody tr{background:rgba(255,255,255,0.95);}
+    .anulado td:not(:first-child){color:red!important;}
+    .switch{position:relative;display:inline-block;width:42px;height:24px;}
+    .acciones{position:sticky;top:0;z-index:2;background:rgba(255,255,255,0.9);display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:4px;padding:4px 0;margin:0;}
+    .section-header{display:flex;justify-content:space-between;align-items:center;padding:2px 5px;background:rgba(255,255,255,0.4);margin-bottom:4px;}
+    .header-controls{display:flex;align-items:center;gap:5px;}
+    #recargas-section h3{margin:0;color:green;text-shadow:0 0 5px #fff,2px 2px 3px #000;font-size:1.4rem;}
+    #retiros-section h3{margin:0;color:red;text-shadow:0 0 5px #fff,2px 2px 3px #000;font-size:1.4rem;}
+    .switch input{display:none;}
+    .slider{position:absolute;cursor:pointer;top:0;left:0;right:0;bottom:0;background-color:#ccc;transition:.4s;border-radius:24px;}
+    .slider:before{position:absolute;content:"";height:18px;width:18px;left:3px;bottom:3px;background-color:white;transition:.4s;border-radius:50%;}
+    input:checked + .slider{background-color:#4caf50;}
+    input:checked + .slider:before{transform:translateX(18px);}
+    .badge{display:none;align-items:center;justify-content:center;min-width:25px;height:25px;background:red;color:#fff;border-radius:50%;font-size:0.9rem;animation:pulse 1s infinite;}
+    @keyframes pulse{0%{transform:scale(1);}50%{transform:scale(1.1);}100%{transform:scale(1);}}
+    @media (max-width:1023px) and (orientation:portrait){
+      body{padding:2px;}
+      table{font-size:0.6rem;width:100%;margin:2px 0;}
+      .acciones{margin:2px 0;}
+      .section-header{margin-bottom:2px;}
+      #recargas-content,#retiros-content{max-height:70vh;overflow:auto;}
+      #tabla-recargas col:nth-child(2),#tabla-retiros col:nth-child(2){width:calc(9% - 4px);}
+      #tabla-recargas col:nth-child(4),#tabla-retiros col:nth-child(4){width:calc(17% - 10px);}
+      #tabla-recargas col:nth-child(5),#tabla-retiros col:nth-child(5){width:calc(11% - 4px);}
+      #tabla-recargas col:nth-child(7),#tabla-retiros col:nth-child(7){width:19%;}
+      #tabla-recargas col:nth-child(8),#tabla-retiros col:nth-child(8){width:12%;}
+      #volver-btn{width:40px;}
+      #volver-btn .label{display:none;}
+      #ver-arch-ret{padding:4px;width:24px;height:24px;justify-content:center;gap:0;}
+    }
+    @media (min-width:1024px){
+      table{font-size:0.9rem;}
+      #volver-btn{width:120px;}
+      #volver-btn .label{display:inline;}
+      #ver-arch-ret{padding:4px 8px;width:auto;height:auto;gap:4px;}
+      #ver-arch-ret .archivo-text{display:inline;}
+    }
+    @media (min-width:1280px){table{font-size:1rem;}}
+
+    #tabla-recargas td:nth-child(5),#tabla-retiros td:nth-child(5){font-size:1rem;}
+    td.nota-estado{position:relative;cursor:pointer;}
+    td.nota-estado::before{
+      content:'';
+      position:absolute;
+      top:0;
+      left:0;
+      width:0;
+      height:0;
+      border-top:8px solid red;
+      border-right:8px solid transparent;
+    }
+  </style>
+  <link rel="stylesheet" href="css/desktopFrame.css">
+</head>
+<body>
+  <button id="volver-btn" class="menu-btn back-btn" data-compact-back="true"><span class="icon">&#9664;</span><span class="label">Volver</span></button>
+  <h2>Gestionar transferencias</h2>
+  <div id="recargas-section">
+    <div class="section-header">
+      <h3>Gestionar Recargas</h3>
+      <div class="header-controls">
+        <span id="badge-rec" class="badge"></span>
+        <label class="switch"><input type="checkbox" id="toggle-recargas"><span class="slider"></span></label>
+      </div>
+    </div>
+    <div id="recargas-content">
+      <div class="acciones">
+        <button id="aprobar-rec" class="icon-btn" title="Aprobar"><span class="icon check">&#10004;</span><span>Aprobar</span></button>
+        <button id="anular-rec" class="icon-btn" title="Anular"><span class="icon">&#10060;</span><span>Anular</span></button>
+        <button id="archivar-rec" class="icon-btn" title="Archivar"><span class="icon">&#128194;</span><span>Archivar</span></button>
+        <button id="ver-arch-rec" class="icon-btn" title="Archivo"><span class="icon">&#128193;</span><span>Archivo</span></button>
+      </div>
+      <table id="tabla-recargas">
+        <colgroup>
+          <col style="width:5%">
+          <col style="width:10%">
+          <col style="width:15%">
+          <col style="width:calc(20% - 10px)">
+          <col style="width:calc(15% - 4px)">
+          <col style="width:15%">
+          <col style="width:15%">
+          <col style="width:8%">
+        </colgroup>
+        <thead>
+          <tr>
+            <th>N°</th>
+            <th><input id="filtro-rec-monto" type="text" placeholder="Monto" inputmode="numeric" oninput="this.value=this.value.replace(/[^0-9]/g,'');" style="width:100%;box-sizing:border-box;"></th>
+            <th><input id="filtro-rec-nombre" type="text" placeholder="Gmail" oninput="this.value=this.value.replace(/[^a-zA-Z0-9áéíóúÁÉÍÓÚñÑ ]/g,'');" style="width:100%;box-sizing:border-box;"></th>
+            <th><select id="filtro-rec-banco" style="width:100%;"><option value="">Banco</option></select></th>
+            <th><input id="filtro-rec-ref" type="text" placeholder="Referencia" inputmode="numeric" maxlength="5" oninput="this.value=this.value.replace(/[^0-9]/g,'').slice(0,5);" style="width:100%;box-sizing:border-box;"></th>
+            <th><input id="filtro-rec-fecha" type="date" style="width:100%;box-sizing:border-box;"></th>
+            <th><select id="filtro-rec-estado" style="width:100%;"><option value="">Estado</option><option value="PENDIENTE">Pendiente</option><option value="APROBADO">Aprobado</option><option value="ACEPTADO">Aceptado</option><option value="ANULADO">Anulado</option></select></th>
+            <th style="text-align:center;"><span id="sel-rec" style="cursor:pointer;">&#10004;</span></th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+  <div id="retiros-section">
+    <div class="section-header">
+      <h3>Gestionar Retiros</h3>
+      <div class="header-controls">
+        <span id="badge-ret" class="badge"></span>
+        <label class="switch"><input type="checkbox" id="toggle-retiros"><span class="slider"></span></label>
+      </div>
+    </div>
+    <div id="retiros-content">
+      <div class="acciones">
+        <button id="aprobar-ret" class="icon-btn" title="Aprobar"><span class="icon check">&#10004;</span><span>Aprobar</span></button>
+        <button id="editar-ret" class="icon-btn" title="Editar"><span class="icon edit">&#9998;</span><span>Editar</span></button>
+        <button id="anular-ret" class="icon-btn" title="Anular"><span class="icon">&#10060;</span><span>Anular</span></button>
+        <button id="archivar-ret" class="icon-btn" title="Archivar"><span class="icon">&#128194;</span><span>Archivar</span></button>
+        <button id="ver-arch-ret" class="icon-btn" title="Archivo"><span class="icon">&#128230;</span><span class="archivo-text">Archivo</span></button>
+      </div>
+      <table id="tabla-retiros">
+        <colgroup>
+          <col style="width:5%">
+          <col style="width:10%">
+          <col style="width:15%">
+          <col style="width:calc(20% - 10px)">
+          <col style="width:calc(15% - 4px)">
+          <col style="width:15%">
+          <col style="width:15%">
+          <col style="width:8%">
+        </colgroup>
+        <thead>
+          <tr>
+            <th>N°</th>
+            <th><input id="filtro-ret-monto" type="text" placeholder="Monto" inputmode="numeric" oninput="this.value=this.value.replace(/[^0-9]/g,'');" style="width:100%;box-sizing:border-box;"></th>
+            <th><input id="filtro-ret-nombre" type="text" placeholder="Gmail" oninput="this.value=this.value.replace(/[^a-zA-Z0-9áéíóúÁÉÍÓÚñÑ ]/g,'');" style="width:100%;box-sizing:border-box;"></th>
+            <th><select id="filtro-ret-banco" style="width:100%;"><option value="">Banco</option></select></th>
+            <th><input id="filtro-ret-ref" type="text" placeholder="Referencia" inputmode="numeric" maxlength="5" oninput="this.value=this.value.replace(/[^0-9]/g,'').slice(0,5);" style="width:100%;box-sizing:border-box;"></th>
+            <th><input id="filtro-ret-fecha" type="date" style="width:100%;box-sizing:border-box;"></th>
+            <th><select id="filtro-ret-estado" style="width:100%;"><option value="">Estado</option><option value="PENDIENTE">Pendiente</option><option value="APROBADO">Aprobado</option><option value="ACEPTADO">Aceptado</option><option value="ANULADO">Anulado</option></select></th>
+            <th style="text-align:center;"><span id="sel-ret" style="cursor:pointer;">&#10004;</span></th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+  <script src="https://www.gstatic.com/firebasejs/11.5.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/11.5.0/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/11.5.0/firebase-auth-compat.js"></script>
+  <script src="js/logoSwitcher.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/estadoPagoPremio.js"></script>
+  <script src="js/notificationCenter.js"></script>
+  <script src="js/timezone.js"></script>
+  <script>
+    let transRef = null;
+    const datosRec = [];
+    const datosRet = [];
+    let unsubscribeTransacciones = null;
+    function volverConFallback(){
+      const role=(window.currentRole||'').trim();
+      if(role && typeof redirectByRole==='function'){
+        redirectByRole(role);
+        return;
+      }
+      if(window.history.length>1){
+        window.history.back();
+        return;
+      }
+      if(typeof redirectByRole==='function'){
+        redirectByRole('Colaborador');
+      }else{
+        window.location.href='collab.html';
+      }
+    }
+    function loadRefCookies(){
+      const m=document.cookie.match(/refVals=([^;]+)/);
+      if(m){
+        try{return JSON.parse(decodeURIComponent(m[1]));}
+        catch(e){}
+      }
+      return {};
+    }
+    function saveRefCookies(){
+      document.cookie=`refVals=${encodeURIComponent(JSON.stringify(refCookies))};path=/;max-age=31536000`;
+    }
+    let refCookies=loadRefCookies();
+    let mostrarRecArch=false;
+    let mostrarRetArch=false;
+
+    function normalizarTipoOperacion(transaccion){
+      const tipo=(transaccion.tipotrans||'').toLowerCase();
+      if(tipo==='retiro') return 'retiro';
+      if(tipo==='recarga' || tipo==='deposito') return 'recarga';
+      return tipo || 'recarga';
+    }
+    function actualizarArchivarRecBtn(){
+      const btn=document.getElementById('archivar-rec');
+      const icon=btn.querySelector('.icon');
+      const txt=btn.querySelector('span:last-child');
+      if(mostrarRecArch){
+        txt.textContent='Desarchivar';
+        icon.innerHTML='&#128193;';
+        icon.style.color='blue';
+      }else{
+        txt.textContent='Archivar';
+        icon.innerHTML='&#128194;';
+        icon.style.color='';
+      }
+    }
+    function actualizarArchivarRetBtn(){
+      const btn=document.getElementById('archivar-ret');
+      const icon=btn.querySelector('.icon');
+      const txt=btn.querySelector('span:last-child');
+      if(mostrarRetArch){
+        txt.textContent='Desarchivar';
+        icon.innerHTML='&#128193;';
+        icon.style.color='blue';
+      }else{
+        txt.textContent='Archivar';
+        icon.innerHTML='&#128194;';
+        icon.style.color='';
+      }
+    }
+    const filtrosRec={monto:'',nombre:'',banco:'',ref:'',fecha:'',estado:''};
+    const filtrosRet={monto:'',nombre:'',banco:'',ref:'',fecha:'',estado:''};
+    function fecha(){return fechaServidor();}
+    function hora(){return horaServidor();}
+
+    function solicitarMotivo(){
+      return new Promise(res=>{
+        const overlay=document.createElement('div');
+        Object.assign(overlay.style,{position:'fixed',top:0,left:0,right:0,bottom:0,background:'rgba(0,0,0,0.5)',display:'flex',alignItems:'center',justifyContent:'center'});
+        const box=document.createElement('div');
+        Object.assign(box.style,{background:'#fff',padding:'10px',borderRadius:'8px',display:'flex',flexDirection:'column',gap:'5px'});
+        const aviso=document.createElement('div');
+        aviso.textContent='Una vez ANULADO el registro no se puede revertir esta acción';
+        aviso.style.fontWeight='bold';
+        const sel=document.createElement('select');
+        sel.innerHTML='<option value="">Seleccione</option><option value="Monto de recarga no corresponde">Monto de recarga no corresponde</option><option value="No existe recarga solicitada">No existe recarga solicitada</option><option value="Otro">Otro</option>';
+        const inp=document.createElement('input');
+        inp.type='text';inp.placeholder='Motivo';inp.style.display='none';
+        const btnOk=document.createElement('button');btnOk.textContent='Aceptar';
+        const btnCan=document.createElement('button');btnCan.textContent='Cancelar';
+        sel.addEventListener('change',()=>{inp.style.display=sel.value==='Otro'?'block':'none';});
+        btnOk.addEventListener('click',()=>{
+          let val=sel.value;
+          if(!val){alert('Debes seleccionar un motivo');return;}
+          if(val==='Otro'){
+            val=inp.value.trim();
+            if(!val){alert('Debes colocar un motivo para anulación');return;}
+          }
+          document.body.removeChild(overlay);
+          res(val);
+        });
+        btnCan.addEventListener('click',()=>{document.body.removeChild(overlay);res(null);});
+        box.appendChild(aviso);
+        box.appendChild(sel);
+        box.appendChild(inp);
+        box.appendChild(btnOk);
+        box.appendChild(btnCan);
+        overlay.appendChild(box);
+        document.body.appendChild(overlay);
+        sel.focus();
+      });
+    }
+
+    function toggleView(id,content){
+      const el=document.getElementById(id);
+      el.addEventListener('change',()=>{content.style.display=el.checked?'block':'none';});
+      content.style.display='none';
+    }
+
+    async function cargarBancos(){
+      const selRec=document.getElementById('filtro-rec-banco');
+      const snapRec=await db.collection('Bancos').where('categoria','==','Bingo').where('estado','==','Activo').get();
+      snapRec.forEach(doc=>{
+        const nombre=doc.data().nombre||doc.id;
+        const opt=document.createElement('option');
+        opt.value=nombre;
+        opt.textContent=nombre;
+        selRec.appendChild(opt);
+      });
+      const selRet=document.getElementById('filtro-ret-banco');
+      const snapRet=await db.collection('Bancos').where('categoria','==','Jugadores').where('estado','==','Activo').get();
+      snapRet.forEach(doc=>{
+        const nombre=doc.data().nombre||doc.id;
+        const opt=document.createElement('option');
+        opt.value=nombre;
+        opt.textContent=nombre;
+        selRet.appendChild(opt);
+      });
+    }
+
+    function procesarTransacciones(snap){
+      datosRec.length=0;
+      datosRet.length=0;
+      snap.forEach(d=>{
+        const dt={id:d.id,...d.data()};
+        dt.Condicion = dt.Condicion || (dt.estado==='ARCHIVADO'?'ARCHIVADA':'VISIBLE');
+        const tipo=normalizarTipoOperacion(dt);
+        const dtNormalizado={...dt, tipotrans:tipo};
+        if(tipo==='recarga') datosRec.push(dtNormalizado);
+        else if(tipo==='retiro') datosRet.push(dtNormalizado);
+      });
+      datosRec.sort(sortTrans);
+      datosRet.sort(sortTrans);
+      renderRec();
+      renderRet();
+      actualizarPendientes();
+      actualizarEditable();
+    }
+    function actualizarPendientes(){
+      const pendientesRec=datosRec.filter(t=>t.estado==='PENDIENTE').length;
+      const pendientesRet=datosRet.filter(t=>t.estado==='PENDIENTE').length;
+      const badgeRec=document.getElementById('badge-rec');
+      badgeRec.textContent=pendientesRec;
+      badgeRec.style.display=pendientesRec?'inline-flex':'none';
+      const badgeRet=document.getElementById('badge-ret');
+      badgeRet.textContent=pendientesRet;
+      badgeRet.style.display=pendientesRet?'inline-flex':'none';
+    }
+    function abreviar(mail){return mail.split('@')[0];}
+    function estadoNormalizadoComparable(valor){
+      const texto=(valor||'').toString().trim().toUpperCase();
+      if(window.EstadosPagoPremio && typeof window.EstadosPagoPremio.normalizarLectura==='function'){
+        return window.EstadosPagoPremio.normalizarLectura(texto, texto || 'PENDIENTE');
+      }
+      return texto==='REALIZADO'?'APROBADO':texto;
+    }
+    function estadoEsAprobado(valor){
+      const estado=estadoNormalizadoComparable(valor);
+      return estado==='APROBADO' || estado==='ACEPTADO';
+    }
+    function estadoColor(e){
+      if((e||'').toString().toUpperCase()==='ACEPTADO') return '#fff';
+      if(estadoEsAprobado(e)) return 'green';
+      return e==='ANULADO'?'red':'orange';
+    }
+    function notificacionLeida(transaccion){
+      const interna=transaccion && transaccion.notificacionInterna ? transaccion.notificacionInterna : {};
+      return Boolean((interna && interna.aceptada) || transaccion.mensajeLeido===true);
+    }
+    async function mostrarInfoGmail(mail){
+      const overlay=document.createElement('div');
+      Object.assign(overlay.style,{position:'fixed',top:0,left:0,right:0,bottom:0,background:'rgba(0,0,0,0.5)',display:'flex',alignItems:'center',justifyContent:'center'});
+      const box=document.createElement('div');
+      Object.assign(box.style,{background:'#fff',padding:'15px',borderRadius:'8px',display:'flex',flexDirection:'column',gap:'8px',minWidth:'260px',fontFamily:'Calibri, Arial, sans-serif',fontSize:'1.1rem',fontWeight:'bold'});
+      box.textContent='Cargando...';
+      overlay.appendChild(box);
+      document.body.appendChild(overlay);
+      const [uDoc,bDoc]=await Promise.all([
+        db.collection('users').doc(mail).get(),
+        db.collection('Billetera').doc(mail).get()
+      ]);
+      const u=uDoc.data()||{};
+      const b=bDoc.data()||{};
+      box.innerHTML = `
+        <div><span style="color:black;">Nombre:</span> <span style="color:#555;">${u.name||''}</span></div>
+        <div><span style="color:black;">Alias:</span> <span style="color:#006400;">${u.alias||''}</span></div>
+        <div><span style="color:black;">Cédula:</span> <span style="color:#FF8C00;">${b.cedula||''}</span></div>
+        <div><span style="color:black;">Pago Movil:</span> <span style="color:#0000FF;">${b.pagomovil||''}</span></div>
+        <div><span style="color:black;">Banco:</span> <span style="color:#800080;">${b.banco||''}</span></div>
+        <div><span style="color:black;">Cuenta:</span> <span style="color:#A52A2A;">${b.cuenta||''}</span></div>
+        <div><span style="color:black;">Créditos:</span> <span style="color:#800080;">${b.creditos||0}</span></div>
+        <div><span style="color:black;">Cartones gratis:</span> <span style="color:#008000;">${b.CartonesGratis||0}</span></div>
+      `;
+      const btn=document.createElement('button');
+      btn.textContent='Cerrar';
+      btn.addEventListener('click',()=>document.body.removeChild(overlay));
+      box.appendChild(btn);
+    }
+    function mostrarDatosTransaccion(t){
+      const overlay=document.createElement('div');
+      Object.assign(overlay.style,{position:'fixed',top:0,left:0,right:0,bottom:0,background:'rgba(0,0,0,0.5)',display:'flex',alignItems:'center',justifyContent:'center'});
+      const box=document.createElement('div');
+      Object.assign(box.style,{background:'#fff',padding:'15px',borderRadius:'8px',display:'flex',flexDirection:'column',gap:'8px',minWidth:'260px',fontFamily:'Calibri, Arial, sans-serif',fontWeight:'bold'});
+      overlay.appendChild(box);
+      document.body.appendChild(overlay);
+      const fs=formatearFecha(t.fechasolicitud||'');
+      const hs=formatearHora(t.horasolicitud||'');
+      const fg=formatearFecha(t.fechagestion||'');
+      const hg=formatearHora(t.horagestion||'');
+      box.innerHTML=`<div style="color:black;font-weight:normal;">Datos Transacción</div>`+
+        `<div style="color:#00008B;">Referencia: ${t.referencia||''}</div>`+
+        `<div style="color:orange;">Fecha de solicitud: ${fs}</div>`+
+        `<div style="color:orange;">Hora de solicitud: ${hs}</div>`+
+        `<div style="color:green;">Fecha de gestión: ${fg}</div>`+
+        `<div style="color:green;">Hora de gestión: ${hg}</div>`+
+        `<div style="color:#555;font-weight:bold;">Usuario Gestor: ${t.usuariogestor||''}</div>`;
+      const btn=document.createElement('button');
+      btn.textContent='Cerrar';
+      btn.addEventListener('click',()=>document.body.removeChild(overlay));
+      box.appendChild(btn);
+    }
+    function formatearFecha(f){
+      if(!f) return '';
+      if(f.includes('-')){
+        const[y,m,d]=f.split('-');
+        return `${d.padStart(2,'0')}/${m.padStart(2,'0')}/${y}`;
+      }
+      const[d,m,y]=f.split('/');
+      return `${d.padStart(2,'0')}/${m.padStart(2,'0')}/${y}`;
+    }
+    function parseFecha(f){
+      if(!f) return 0;
+      if(f.includes('-')){
+        const[y,m,d]=f.split('-');
+        return new Date(`${y}-${m}-${d}`).getTime();
+      }
+      const[d,m,y]=f.split('/');
+      return new Date(`${y}-${m}-${d}`).getTime();
+    }
+    function aHora24(str){
+      if(!str) return '00:00';
+      str=str.toLowerCase().replace(/\./g,'').replace(/\s+/g,'');
+      const m=str.match(/(\d{1,2}):(\d{2})(?::(\d{2}))?(a|p)?m?/);
+      if(!m) return str;
+      let h=parseInt(m[1],10);
+      const min=m[2];
+      const ap=m[4];
+      if(ap==='p'&&h<12)h+=12;
+      if(ap==='a'&&h===12)h=0;
+      return `${String(h).padStart(2,'0')}:${min}`;
+    }
+    function formatearHora(str){
+      if(!str) return '';
+      const [h24,min]=aHora24(str).split(':');
+      let h=parseInt(h24,10);
+      const ampm=h>=12?'pm':'am';
+      h=h%12;
+      if(h===0)h=12;
+      return `${h}:${min} ${ampm}`;
+    }
+    function formatearMonto(valor){
+      const num=parseFloat(valor);
+      if(isNaN(num))return valor;
+      return num%1===0?num.toString():num.toFixed(2);
+    }
+    function sortTrans(a,b){
+      if(a.estado==='PENDIENTE'&&b.estado!=='PENDIENTE')return -1;
+      if(a.estado!=='PENDIENTE'&&b.estado==='PENDIENTE')return 1;
+      return parseFecha(b.fechasolicitud)-parseFecha(a.fechasolicitud);
+    }
+    function renderRec(){
+      const tb=document.querySelector('#tabla-recargas tbody');
+      tb.innerHTML='';
+      const visibles=datosRec.filter(t=>{
+        const cond=t.Condicion||'VISIBLE';
+        if(mostrarRecArch?cond!=='ARCHIVADA':cond==='ARCHIVADA')return false;
+        const fecha=formatearFecha(t.fechasolicitud);
+        const montoNum=parseFloat(t.Monto);
+        const montoStr=montoNum.toFixed(2);
+        if(filtrosRec.monto && !montoStr.includes(filtrosRec.monto))return false;
+        const monto=formatearMonto(montoNum);
+        if(filtrosRec.nombre && !abreviar(t.IDbilletera).toLowerCase().includes(filtrosRec.nombre))return false;
+        if(filtrosRec.banco && (t.bancoreceptor||'')!==filtrosRec.banco)return false;
+        if(filtrosRec.ref && !(t.referencia||'').toString().includes(filtrosRec.ref))return false;
+        if(filtrosRec.fecha && fecha!==filtrosRec.fecha)return false;
+        if(filtrosRec.estado && estadoNormalizadoComparable(t.estado)!==estadoNormalizadoComparable(filtrosRec.estado))return false;
+        return true;
+      });
+      let i=visibles.length;
+      visibles.forEach(t=>{
+        const fecha=formatearFecha(t.fechasolicitud);
+        const montoNum=parseFloat(t.Monto);
+        const monto=formatearMonto(montoNum);
+        const tr=document.createElement('tr');
+        tr.innerHTML=`<td>${i}</td><td style='color:#4b0082;'>${monto}</td><td class='gmail' data-mail='${t.IDbilletera}'>${abreviar(t.IDbilletera)}</td><td>${t.bancoreceptor||''}</td><td style='color:#4b0082;'>${t.referencia}</td><td style='color:#A52A2A;'>${fecha}</td><td>${t.estado}</td><td style='text-align:center;'><input type='checkbox' data-id='${t.id}' data-estado='${t.estado}'></td>`;
+        const estadoTd=tr.children[6];
+        if(t.estado==='ANULADO'){
+          tr.classList.add('anulado');
+        }else if((t.estado||'').toUpperCase()==='ACEPTADO'){
+          estadoTd.style.color='#fff';
+          estadoTd.style.background='#16a34a';
+        }else{
+          estadoTd.style.color=estadoColor(t.estado);
+        }
+        if(t.nota){
+          estadoTd.classList.add('nota-estado');
+          estadoTd.addEventListener('click',e=>{e.stopPropagation();alert(t.nota);});
+        }
+        const mailTd=tr.children[2];
+        mailTd.style.cursor='pointer';
+        mailTd.addEventListener('click',()=>mostrarInfoGmail(t.IDbilletera));
+        const fechaTd=tr.children[5];
+        fechaTd.style.cursor='pointer';
+        fechaTd.addEventListener('click',()=>mostrarDatosTransaccion(t));
+        tb.appendChild(tr);
+        i--;
+      });
+    }
+    function renderRet(){
+      const tb=document.querySelector('#tabla-retiros tbody');
+      tb.innerHTML='';
+      const visibles=datosRet.filter(t=>{
+        const cond=t.Condicion||'VISIBLE';
+        if(mostrarRetArch?cond!=='ARCHIVADA':cond==='ARCHIVADA')return false;
+        const fecha=formatearFecha(t.fechasolicitud);
+        const montoNum=parseFloat(t.Monto);
+        const montoStr=montoNum.toFixed(2);
+        if(filtrosRet.monto && !montoStr.includes(filtrosRet.monto))return false;
+        if(filtrosRet.nombre && !abreviar(t.IDbilletera).toLowerCase().includes(filtrosRet.nombre))return false;
+        if(filtrosRet.banco && (t.bancoreceptor||'')!==filtrosRet.banco)return false;
+        if(filtrosRet.ref && !(t.referencia||'').toString().includes(filtrosRet.ref))return false;
+        if(filtrosRet.fecha && fecha!==filtrosRet.fecha)return false;
+        if(filtrosRet.estado && estadoNormalizadoComparable(t.estado)!==estadoNormalizadoComparable(filtrosRet.estado))return false;
+        return true;
+      });
+      let i=visibles.length;
+      visibles.forEach(t=>{
+        const fecha=formatearFecha(t.fechasolicitud);
+        const montoNum=parseFloat(t.Monto);
+        const monto=formatearMonto(montoNum);
+        const tr=document.createElement('tr');
+        const refValue=refCookies[t.id]!==undefined?refCookies[t.id]:(t.referencia||'');
+        tr.innerHTML=`<td>${i}</td><td style='color:#4b0082;'>${monto}</td><td class='gmail' data-mail='${t.IDbilletera}'>${abreviar(t.IDbilletera)}</td><td>${(t.bancoreceptor||'').split(':')[0]}</td><td style='color:#4b0082;' contenteditable='false' inputmode='numeric'>${refValue}</td><td style='color:#A52A2A;'>${fecha}</td><td>${t.estado}</td><td style='text-align:center;'><input type='checkbox' data-id='${t.id}' data-estado='${t.estado}'></td>`;
+        const estadoTd=tr.children[6];
+        if(t.estado==='ANULADO'){
+          tr.classList.add('anulado');
+        }else if((t.estado||'').toUpperCase()==='ACEPTADO'){
+          estadoTd.style.color='#fff';
+          estadoTd.style.background='#16a34a';
+        }else{
+          estadoTd.style.color=estadoColor(t.estado);
+        }
+        if(t.nota){
+          estadoTd.classList.add('nota-estado');
+          estadoTd.addEventListener('click',e=>{e.stopPropagation();alert(t.nota);});
+        }
+        const chk=tr.querySelector('input[type=checkbox]');
+        const refTd=tr.children[4];
+        refTd.dataset.original=t.referencia||'';
+        chk.addEventListener('change',actualizarEditable);
+        refTd.addEventListener('input',()=>{
+          refTd.textContent=refTd.textContent.replace(/[^0-9]/g,'').slice(0,5);
+          const nuevo=refTd.textContent.trim();
+          refCookies[t.id]=nuevo;
+          saveRefCookies();
+        });
+        const mailTd=tr.children[2];
+        mailTd.style.cursor='pointer';
+        mailTd.addEventListener('click',()=>mostrarInfoGmail(t.IDbilletera));
+        const fechaTd=tr.children[5];
+        fechaTd.style.cursor='pointer';
+        fechaTd.addEventListener('click',()=>mostrarDatosTransaccion(t));
+        tb.appendChild(tr);
+        i--;
+      });
+    }
+    function actualizarEditable(){
+      const checks=Array.from(document.querySelectorAll('#tabla-retiros tbody input[type=checkbox]'));
+      checks.forEach(c=>{
+        const refTd=c.closest('tr').children[4];
+        const id=c.dataset.id;
+        const estado=c.dataset.estado;
+        if(c.checked && (estado==='PENDIENTE' || estadoEsAprobado(estado))){
+          refTd.contentEditable=true;
+        }else{
+          refTd.contentEditable=false;
+          refTd.textContent=refCookies[id]!==undefined?refCookies[id]:refTd.dataset.original;
+        }
+      });
+    }
+    function seleccionados(tb){
+      return Array.from(tb.querySelectorAll('input[type=checkbox]:checked')).map(c=>c.dataset.id);
+    }
+    function toNumberSafe(valor,defecto=0){
+      const numero=parseFloat(valor);
+      return Number.isFinite(numero)?numero:defecto;
+    }
+
+    const MENSAJES_RESULTADOS_INTERNOS_DEFAULT = Object.freeze({
+      mensajeRecargaAprobada:'✅ *RECARGA APROBADA* Tu recarga por <monto> Créditos en <app> ha sido aprobada.',
+      mensajeRecargaAnulada:'🚫 *RECARGA ANULADA* Tu recarga por <monto> Créditos en <app> fue anulada. Motivo: <motivo>.',
+      mensajeRetiroAprobado:'✅ *RETIRO APROBADO* Tu retiro por <monto> Créditos en <app> ha sido aprobado. Referencia: <referencia>. Comisión bancaria: <comisionBancaria>. Comisión por gestión: <comisionGestion>. Total transferidos: <totalTransferido> Créditos.',
+      mensajeRetiroAnulado:'🚫 *RETIRO ANULADO* Tu retiro por <monto> Créditos en <app> fue anulado. Motivo: <motivo>.'
+    });
+    let mensajesInternosCache={...MENSAJES_RESULTADOS_INTERNOS_DEFAULT};
+    let mensajesInternosCargados=false;
+
+    function obtenerMensajePersistido(data,key){
+      const grupo=data && typeof data.mensajesWhatsapp==='object' ? data.mensajesWhatsapp : {};
+      return grupo?.[key] || data?.[key] || '';
+    }
+
+    async function cargarPlantillasMensajesInternos(){
+      if(mensajesInternosCargados) return mensajesInternosCache;
+      try{
+        const snap=await db.collection('Variablesglobales').doc('Parametros').get();
+        const data=snap.exists?(snap.data()||{}):{};
+        mensajesInternosCache={
+          ...MENSAJES_RESULTADOS_INTERNOS_DEFAULT,
+          mensajeRecargaAprobada:obtenerMensajePersistido(data,'mensajeRecargaAprobada')||MENSAJES_RESULTADOS_INTERNOS_DEFAULT.mensajeRecargaAprobada,
+          mensajeRecargaAnulada:obtenerMensajePersistido(data,'mensajeRecargaAnulada')||MENSAJES_RESULTADOS_INTERNOS_DEFAULT.mensajeRecargaAnulada,
+          mensajeRetiroAprobado:obtenerMensajePersistido(data,'mensajeRetiroAprobado')||MENSAJES_RESULTADOS_INTERNOS_DEFAULT.mensajeRetiroAprobado,
+          mensajeRetiroAnulado:obtenerMensajePersistido(data,'mensajeRetiroAnulado')||MENSAJES_RESULTADOS_INTERNOS_DEFAULT.mensajeRetiroAnulado
+        };
+      }catch(err){
+        console.error('No se pudieron cargar las plantillas de notificación interna',err);
+        mensajesInternosCache={...MENSAJES_RESULTADOS_INTERNOS_DEFAULT};
+      }
+      mensajesInternosCargados=true;
+      return mensajesInternosCache;
+    }
+
+    function aplicarPlantillaMensaje(plantilla,valores){
+      return (plantilla||'').replace(/<([a-zA-Z0-9_]+)>/g,(_,clave)=>{
+        const valor=valores[clave];
+        return valor===undefined || valor===null ? '' : String(valor);
+      }).trim();
+    }
+
+    async function construirMensajeResultado(transaccion,estadoFinal,nota){
+      const plantillas=await cargarPlantillasMensajesInternos();
+      const tipo=normalizarTipoOperacion(transaccion);
+      const montoSolicitadoNum=toNumberSafe(transaccion.MontoSolicitado??transaccion.Monto,transaccion.Monto);
+      const montoTransferidoNum=toNumberSafe(transaccion.Monto,transaccion.MontoSolicitado??transaccion.Monto);
+      const comisionTotal=Math.max(0,montoSolicitadoNum-montoTransferidoNum);
+      const formatearEnteroSeguro=valor=>Math.trunc(toNumberSafe(valor,0)).toString();
+      const montoSolicitado=formatearEnteroSeguro(montoSolicitadoNum);
+      const montoTransferido=formatearEnteroSeguro(montoTransferidoNum);
+      const referenciaTexto=(transaccion.referencia||'').toString().trim();
+      const nombreUsuario=((transaccion.Usuario||transaccion.Nombre||transaccion.usuario||transaccion.IDbilletera)||'').toString().trim()||'Jugador';
+      const valoresBase={
+        monto:montoSolicitado,
+        app:'BingOnline',
+        usuario:nombreUsuario,
+        fecha:fecha(),
+        motivo:(nota||'No especificado').toString().trim(),
+        referencia:referenciaTexto||'pendiente',
+        totalTransferido:montoTransferido,
+        comisionBancaria:formatearEnteroSeguro(transaccion.comisionBancaria ?? transaccion.ComisionBancaria ?? comisionTotal),
+        comisionGestion:formatearEnteroSeguro(transaccion.comisionGestion ?? transaccion.ComisionGestion ?? 0)
+      };
+      const clavePlantilla=(tipo==='retiro')
+        ? (estadoFinal==='APROBADO'?'mensajeRetiroAprobado':'mensajeRetiroAnulado')
+        : (estadoFinal==='APROBADO'?'mensajeRecargaAprobada':'mensajeRecargaAnulada');
+      const plantilla=plantillas[clavePlantilla]||MENSAJES_RESULTADOS_INTERNOS_DEFAULT[clavePlantilla]||'';
+      return aplicarPlantillaMensaje(plantilla,valoresBase);
+    }
+
+    async function actualizar(ids,estado,nota,ref,condicion){
+      await initServerTime();
+      for(const id of ids){
+        const doc=await transRef.doc(id).get();
+        const data=doc.data();
+        if(!data) continue;
+        const upd={
+          usuariogestor:auth.currentUser.email,
+          rolusuario:window.currentRole,
+          fechagestion:fecha(),
+          horagestion:hora()
+        };
+        if(estado)upd.estado=estado;
+        if(nota)upd.nota=nota;
+        if(ref)upd.referencia=ref;
+        if(condicion)upd.Condicion=condicion;
+        else if(!data.Condicion)upd.Condicion='VISIBLE';
+
+        const tipo=normalizarTipoOperacion(data);
+        const billeteraId=((data && data.IDbilletera)||'').toString();
+        const esRetiro=tipo==='retiro';
+        const esRecarga=tipo==='recarga';
+
+        if(billeteraId && estado==='ANULADO' && esRetiro){
+          const billeteraRef=db.collection('Billetera').doc(billeteraId);
+          await db.runTransaction(async t=>{
+            const bdoc=await t.get(billeteraRef);
+            const billeteraData=bdoc.exists?(bdoc.data()||{}):{};
+            const montoTransaccion=toNumberSafe((data.MontoSolicitado ?? data.Monto),0);
+            const transitoActual=Math.max(0,toNumberSafe(billeteraData.creditostransito,0));
+            const payload={ creditostransito: Math.max(0,transitoActual-montoTransaccion) };
+            t.set(billeteraRef,payload,{merge:true});
+          });
+        }
+
+        if(billeteraId && estado==='APROBADO' && esRecarga && !estadoEsAprobado(data.estado)){
+          const billeteraRef=db.collection('Billetera').doc(billeteraId);
+          await db.runTransaction(async t=>{
+            const bdoc=await t.get(billeteraRef);
+            const billeteraData=bdoc.exists?(bdoc.data()||{}):{};
+            const montoTransaccion=toNumberSafe((data.Monto ?? data.MontoSolicitado),0);
+            const creditosActual=toNumberSafe(billeteraData.creditos,0);
+            t.set(billeteraRef,{ creditos: creditosActual+montoTransaccion },{merge:true});
+          });
+          upd.acreditacionAplicada=true;
+        }
+
+        if(estado==='APROBADO' || estado==='ANULADO'){
+          const mensajeInterno=await construirMensajeResultado({...data, referencia:ref||data.referencia||''},estado,nota);
+          upd.notificacionInterna={
+            mensaje:mensajeInterno,
+            estadoObjetivo:estado,
+            estadoPrevio:data.estado||'',
+            pendienteMostrar:true,
+            aceptada:false,
+            creadaEn:firebase.firestore.FieldValue.serverTimestamp()
+          };
+          upd.mensajeLeido=false;
+        }
+
+        await transRef.doc(id).update(upd);
+        delete refCookies[id];
+      }
+      saveRefCookies();
+    }
+
+    function marcarTodos(id){
+      const tb=document.getElementById(id);
+      const checks=tb.querySelectorAll('tbody input[type=checkbox]');
+      const all=Array.from(checks).every(c=>c.checked);
+      checks.forEach(c=>{
+        c.checked=!all;
+        c.dispatchEvent(new Event('change'));
+      });
+    }
+
+    function iniciarApp(){
+      toggleView('toggle-recargas',document.getElementById('recargas-content'));
+      toggleView('toggle-retiros',document.getElementById('retiros-content'));
+
+      document.getElementById('aprobar-rec').addEventListener('click',async()=>{
+        const tb=document.getElementById('tabla-recargas');
+        const sel=Array.from(tb.querySelectorAll('input[type=checkbox]:checked'));
+        if(!sel.length) return;
+        const ids=[];
+        let hasAprobado=false;
+        sel.forEach(chk=>{
+          const t=datosRec.find(x=>x.id===chk.dataset.id);
+          if(estadoEsAprobado(t.estado)){
+            hasAprobado=true;
+            chk.checked=false;
+            return;
+          }
+          ids.push(chk.dataset.id);
+        });
+        if(hasAprobado) alert('No se pueden aprobar las transacciones APROBADAS');
+        if(ids.length){
+          await actualizar(ids,'APROBADO');
+        }
+      });
+
+      document.getElementById('anular-rec').addEventListener('click',async()=>{
+        const ids=seleccionados(document.getElementById('tabla-recargas'));
+        if(!ids.length) return;
+        const registros=ids.map(id=>datosRec.find(t=>t.id===id));
+        const invalid=registros.filter(t=>t.estado!=='PENDIENTE');
+        if(invalid.length){
+          invalid.forEach(t=>document.querySelector(`#tabla-recargas input[data-id="${t.id}"]`).checked=false);
+          const hasAprobado=invalid.some(t=>estadoEsAprobado(t.estado));
+          alert(hasAprobado?'No se pueden Anular Transacciones APROBADAS':'Solo se pueden Anular Transacciones PENDIENTES');
+          return;
+        }
+        const motivo=await solicitarMotivo();
+        if(!motivo) return;
+        await actualizar(ids,'ANULADO',motivo);
+      });
+
+      document.getElementById('archivar-rec').addEventListener('click',()=>{
+        const checks=document.querySelectorAll('#tabla-recargas tbody input[type=checkbox]:checked');
+        if(!checks.length)return;
+        const ids=[];
+        let invalido=false;
+        checks.forEach(ch=>{
+          const estado=(ch.dataset.estado||'').toUpperCase();
+          if(estado==='ACEPTADO'){
+            ids.push(ch.dataset.id);
+            return;
+          }
+          invalido=true;
+          ch.checked=false;
+        });
+        if(invalido)alert('Solo se pueden archivar transacciones en estado ACEPTADO');
+        if(!ids.length)return;
+        if(mostrarRecArch) actualizar(ids,null,null,null,'VISIBLE');
+        else actualizar(ids,null,null,null,'ARCHIVADA');
+      });
+
+      document.getElementById('ver-arch-rec').addEventListener('click',()=>{
+        mostrarRecArch=!mostrarRecArch;
+        document.getElementById('ver-arch-rec').classList.toggle('archivo-activo',mostrarRecArch);
+        actualizarArchivarRecBtn();
+        renderRec();
+      });
+
+      document.getElementById('aprobar-ret').addEventListener('click',async()=>{
+        const tb=document.getElementById('tabla-retiros');
+        const sel=Array.from(tb.querySelectorAll('input[type=checkbox]:checked'));
+        if(!sel.length) return;
+        const invalidSel=[];
+        for(const chk of sel){
+          const ref=chk.closest('tr').children[4].textContent.trim();
+          if(!/^[0-9]{5}$/.test(ref)) invalidSel.push(chk);
+        }
+        if(invalidSel.length){
+          invalidSel.forEach(chk=>chk.checked=false);
+          alert('Debes colocar una Referencia válida de los ultimos 5 digitos de la Referencia');
+          actualizarEditable();
+          return;
+        }
+        if(sel.length>1){
+          const conf=await confirm('¿Deseas APROBAR todos los registros seleccionados?');
+          if(!conf) return;
+        }
+        for(const chk of sel){
+          const ref=chk.closest('tr').children[4].textContent.trim();
+          const t=datosRet.find(x=>x.id===chk.dataset.id);
+          if(estadoEsAprobado(t.estado)){
+            alert('No se pueden aprobar las transacciones APROBADAS');
+            chk.checked=false;
+            continue;
+          }
+          if(t.estado==='PENDIENTE' || t.estado==='ANULADO'){
+            await actualizar([chk.dataset.id],'APROBADO',null,ref);
+          }
+        }
+        actualizarEditable();
+      });
+
+      document.getElementById('editar-ret').addEventListener('click',async()=>{
+        const tb=document.getElementById('tabla-retiros');
+        const sel=Array.from(tb.querySelectorAll('input[type=checkbox]:checked'));
+        if(!sel.length) return;
+        let edited=false;
+        for(const chk of sel){
+          const tr=chk.closest('tr');
+          const refTd=tr.children[4];
+          const nuevo=refTd.textContent.trim();
+          const orig=refTd.dataset.original||'';
+          if(nuevo===orig) continue;
+          if(!/^[0-9]{5}$/.test(nuevo)){
+            alert('Debes colocar una Referencia válida de los ultimos 5 digitos de la Referencia');
+            chk.checked=false;
+            continue;
+          }
+          const conf=await confirm(`¿Estas seguro de querer editar a este nuevo valor de Referencia ${nuevo}?`);
+          if(conf){
+            await actualizar([chk.dataset.id],null,null,nuevo);
+            edited=true;
+          }
+        }
+        if(edited) alert('Se ha editado correctamente la Referencia');
+        actualizarEditable();
+      });
+
+      document.getElementById('anular-ret').addEventListener('click',async()=>{
+        const ids=seleccionados(document.getElementById('tabla-retiros'));
+        if(!ids.length) return;
+        const registros=ids.map(id=>datosRet.find(t=>t.id===id));
+        const invalid=registros.filter(t=>t.estado!=='PENDIENTE');
+        if(invalid.length){
+          invalid.forEach(t=>document.querySelector(`#tabla-retiros input[data-id="${t.id}"]`).checked=false);
+          const hasAprobado=invalid.some(t=>estadoEsAprobado(t.estado));
+          alert(hasAprobado?'No se pueden Anular Transacciones APROBADAS':'Solo se pueden Anular Transacciones PENDIENTES');
+          actualizarEditable();
+          return;
+        }
+        const nota=await prompt('Motivo');
+        if(nota===null) return;
+        if(!nota.trim()){
+          alert('Debes colocar un motivo para anulación');
+          return;
+        }
+        const motivo=nota.trim();
+        await actualizar(ids,'ANULADO',motivo);
+      });
+
+      document.getElementById('archivar-ret').addEventListener('click',()=>{
+        const checks=document.querySelectorAll('#tabla-retiros tbody input[type=checkbox]:checked');
+        if(!checks.length)return;
+        const ids=[];
+        let invalido=false;
+        checks.forEach(ch=>{
+          const estado=(ch.dataset.estado||'').toUpperCase();
+          if(estado==='ACEPTADO'){
+            ids.push(ch.dataset.id);
+            return;
+          }
+          invalido=true;
+          ch.checked=false;
+        });
+        if(invalido)alert('Solo se pueden archivar transacciones en estado ACEPTADO');
+        if(!ids.length)return;
+        if(mostrarRetArch)actualizar(ids,null,null,null,'VISIBLE');
+        else actualizar(ids,null,null,null,'ARCHIVADA');
+      });
+
+      document.getElementById('ver-arch-ret').addEventListener('click',()=>{
+        mostrarRetArch=!mostrarRetArch;
+        document.getElementById('ver-arch-ret').classList.toggle('archivo-activo',mostrarRetArch);
+        actualizarArchivarRetBtn();
+        renderRet();
+      });
+
+      document.getElementById('sel-rec').addEventListener('click',()=>marcarTodos('tabla-recargas'));
+      document.getElementById('sel-ret').addEventListener('click',()=>marcarTodos('tabla-retiros'));
+
+      document.getElementById('filtro-rec-monto').addEventListener('input',e=>{filtrosRec.monto=e.target.value;renderRec();});
+      document.getElementById('filtro-rec-nombre').addEventListener('input',e=>{filtrosRec.nombre=e.target.value.toLowerCase();renderRec();});
+      document.getElementById('filtro-rec-banco').addEventListener('change',e=>{filtrosRec.banco=e.target.value;renderRec();});
+      document.getElementById('filtro-rec-ref').addEventListener('input',e=>{filtrosRec.ref=e.target.value;renderRec();});
+      document.getElementById('filtro-rec-fecha').addEventListener('change',e=>{filtrosRec.fecha=e.target.value?formatearFecha(e.target.value):'';renderRec();});
+      document.getElementById('filtro-rec-estado').addEventListener('change',e=>{filtrosRec.estado=e.target.value;renderRec();});
+
+      document.getElementById('filtro-ret-monto').addEventListener('input',e=>{filtrosRet.monto=e.target.value;renderRet();});
+      document.getElementById('filtro-ret-nombre').addEventListener('input',e=>{filtrosRet.nombre=e.target.value.toLowerCase();renderRet();});
+      document.getElementById('filtro-ret-banco').addEventListener('change',e=>{filtrosRet.banco=e.target.value;renderRet();});
+      document.getElementById('filtro-ret-ref').addEventListener('input',e=>{filtrosRet.ref=e.target.value;renderRet();});
+      document.getElementById('filtro-ret-fecha').addEventListener('change',e=>{filtrosRet.fecha=e.target.value?formatearFecha(e.target.value):'';renderRet();});
+      document.getElementById('filtro-ret-estado').addEventListener('change',e=>{filtrosRet.estado=e.target.value;renderRet();});
+
+      document.getElementById('volver-btn').addEventListener('click',volverConFallback);
+      actualizarArchivarRecBtn();
+      actualizarArchivarRetBtn();
+      cargarBancos().catch(err=>console.error('Error cargando bancos',err));
+
+      auth.onAuthStateChanged(user=>{
+        if(unsubscribeTransacciones){
+          unsubscribeTransacciones();
+          unsubscribeTransacciones=null;
+        }
+        if(!user) return;
+        unsubscribeTransacciones=transRef.onSnapshot(procesarTransacciones,err=>{
+          console.error('Error al escuchar transacciones',err);
+        });
+      });
+    }
+
+  initFirebase()
+    .then(()=>{
+        ensureAuth(['Colaborador','Administrador']);
+      initServerTime();
+      transRef=db.collection('transacciones');
+      iniciarApp();
+    })
+      .catch(err=>{
+        console.error('No se pudo iniciar la vista de transacciones',err);
+        alert('Error al conectar con los servicios. Intente nuevamente más tarde.');
+      });
+  </script>
+  <script src="js/backNavigation.js"></script>
+</body>
+</html>

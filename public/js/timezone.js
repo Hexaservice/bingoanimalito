@@ -1,0 +1,374 @@
+// Datos globales de la hora del servidor
+const serverTime = {
+  Pais: '',
+  locale: 'es-ES',
+  zonaIana: '',
+  diferencia: 0,
+  offsetMinutos: null,
+  baseEpochMs: null,
+  baseMonotonicMs: null,
+  ultimaSync: null,
+  origen: 'desconocido',
+  intervaloSync: null
+};
+
+const IANA_OVERRIDES = {
+  Venezuela: 'America/Caracas',
+  Colombia: 'America/Bogota',
+  Mexico: 'America/Mexico_City',
+  México: 'America/Mexico_City',
+  España: 'Europe/Madrid',
+  Argentina: 'America/Argentina/Buenos_Aires'
+};
+
+function obtenerOffsetMinutos(zona) {
+  if (typeof zona !== 'string') return null;
+  const match = zona.match(/UTC([+-])(\d{2}):(\d{2})/i);
+  if (!match) return null;
+  const horas = parseInt(match[2], 10);
+  const minutos = parseInt(match[3], 10);
+  if (Number.isNaN(horas) || Number.isNaN(minutos)) return null;
+  const signo = match[1] === '-' ? 1 : -1;
+  return signo * (horas * 60 + minutos);
+}
+
+function diferenciaPorOffset(offsetMinutos) {
+  if (typeof offsetMinutos !== 'number' || Number.isNaN(offsetMinutos)) return 0;
+  const localOffset = new Date().getTimezoneOffset();
+  return (localOffset - offsetMinutos) * 60000;
+}
+
+function monotonicNow() {
+  if (typeof performance !== 'undefined' && typeof performance.now === 'function') {
+    return performance.now();
+  }
+  return Date.now();
+}
+
+function fijarBaseTemporal(epochMs) {
+  if (typeof epochMs !== 'number' || Number.isNaN(epochMs)) return;
+  serverTime.baseEpochMs = epochMs;
+  serverTime.baseMonotonicMs = monotonicNow();
+  serverTime.ultimaSync = Date.now();
+  serverTime.diferencia = epochMs - Date.now();
+}
+
+function obtenerEpochActual() {
+  if (typeof serverTime.baseEpochMs === 'number' && typeof serverTime.baseMonotonicMs === 'number') {
+    const transcurrido = monotonicNow() - serverTime.baseMonotonicMs;
+    return serverTime.baseEpochMs + transcurrido;
+  }
+  return Date.now() + (serverTime.diferencia || 0);
+}
+
+function obtenerFechaServidor() {
+  const epoch = obtenerEpochActual();
+  return new Date(epoch);
+}
+
+async function obtenerEpochDesdeFirestore(database) {
+  if (typeof firebase === 'undefined') return null;
+  const fieldValue = firebase?.firestore?.FieldValue;
+  if (!fieldValue || typeof fieldValue.serverTimestamp !== 'function') return null;
+  try {
+    const ref = database.collection('Variablesglobales').doc('HoraServidor');
+    await ref.set({ ultimaSync: fieldValue.serverTimestamp() }, { merge: true });
+    const snap = await ref.get({ source: 'server' });
+    if (!snap.exists) return null;
+    const data = snap.data() || {};
+    const marca = data.ultimaSync;
+    if (marca && typeof marca.toMillis === 'function') {
+      return marca.toMillis();
+    }
+  } catch (err) {
+    console.error('No se pudo obtener la hora del servidor desde Firestore', err);
+  }
+  return null;
+}
+
+async function obtenerEpochServidor(database) {
+  const epochFirestore = await obtenerEpochDesdeFirestore(database);
+  if (typeof epochFirestore === 'number' && !Number.isNaN(epochFirestore)) {
+    serverTime.origen = 'firestore';
+    return epochFirestore;
+  }
+  serverTime.origen = 'offset';
+  return null;
+}
+
+function parseZona(zona) {
+  const match = zona.match(/^UTC([+-])(\d{2}):(\d{2})$/);
+  if (match) {
+    const sign = match[1] === '-' ? '+' : '-';
+    const h = String(parseInt(match[2], 10));
+    return `Etc/GMT${sign}${h}`;
+  }
+  return zona;
+}
+
+function obtenerOffsetDesdeIana(zona) {
+  if (typeof zona !== 'string' || !zona) return null;
+  try {
+    const formato = new Intl.DateTimeFormat('en-US', {
+      timeZone: zona,
+      hour: '2-digit',
+      minute: '2-digit',
+      timeZoneName: 'short'
+    });
+    const partes = formato.formatToParts(new Date());
+    const nombreZona = partes.find(p => p.type === 'timeZoneName')?.value || '';
+    const coincidencia = nombreZona.match(/GMT([+-])(\d{1,2})(?::(\d{2}))?/i);
+    if (!coincidencia) return null;
+    const signo = coincidencia[1] === '-' ? 1 : -1;
+    const horas = parseInt(coincidencia[2], 10);
+    const minutos = coincidencia[3] ? parseInt(coincidencia[3], 10) : 0;
+    if (Number.isNaN(horas) || Number.isNaN(minutos)) return null;
+    return signo * (horas * 60 + minutos);
+  } catch (err) {
+    console.error('No se pudo calcular el offset de la zona IANA', err);
+    return null;
+  }
+}
+
+async function sincronizarHora() {
+  let offsetUsado = serverTime.offsetMinutos;
+  if (serverTime.zonaIana) {
+    const offsetZona = obtenerOffsetDesdeIana(serverTime.zonaIana);
+    if (offsetZona !== null) {
+      offsetUsado = offsetZona;
+      serverTime.offsetMinutos = offsetZona;
+    }
+  }
+  const fallback = diferenciaPorOffset(offsetUsado);
+
+  try {
+    const database = await asegurarDb();
+    const epochServidor = await obtenerEpochServidor(database);
+    if (typeof epochServidor === 'number' && !Number.isNaN(epochServidor)) {
+      fijarBaseTemporal(epochServidor);
+      return;
+    }
+  } catch (err) {
+    console.error('No se pudo sincronizar la hora con el servidor', err);
+  }
+
+  serverTime.diferencia = fallback;
+  fijarBaseTemporal(Date.now() + fallback);
+}
+
+async function asegurarDb() {
+  if (typeof db !== 'undefined' && db) {
+    return db;
+  }
+  if (typeof initFirebase === 'function') {
+    try {
+      await initFirebase();
+    } catch (err) {
+      console.error('No se pudo inicializar Firebase antes de obtener la hora del servidor', err);
+      throw err;
+    }
+  }
+  if (typeof db === 'undefined' || !db) {
+    throw new Error('Firestore no está disponible para obtener la hora del servidor');
+  }
+  return db;
+}
+
+async function initServerTime() {
+  if (serverTime.zonaIana) return; // ya inicializado
+  try {
+    const database = await asegurarDb();
+    const doc = await database.collection('Variablesglobales').doc('Parametros').get();
+    if (!doc.exists) throw new Error('Documento Parametros no existe');
+    const { Pais = '', ZonaHoraria = '' } = doc.data();
+    aplicarParametrosZona(Pais, ZonaHoraria);
+  } catch (e) {
+    console.error('Error obteniendo parámetros', e);
+    aplicarParametrosZona();
+  }
+  await sincronizarHora();
+  if (!serverTime.intervaloSync) {
+    serverTime.intervaloSync = setInterval(sincronizarHora, 300000);
+  }
+}
+
+function quitarDiacriticos(valor = '') {
+  if (typeof valor !== 'string') return valor;
+  return valor.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+}
+
+function aplicarParametrosZona(Pais = 'Venezuela', ZonaHoraria = 'UTC-04:00') {
+  const locales = {
+    Venezuela: 'es-VE',
+    España: 'es-ES',
+    Mexico: 'es-MX',
+    México: 'es-MX',
+    Colombia: 'es-CO',
+    Argentina: 'es-AR'
+  };
+  const paisNormalizado = typeof Pais === 'string' && Pais.trim() ? Pais : 'Venezuela';
+  serverTime.Pais = paisNormalizado;
+  serverTime.locale = locales[paisNormalizado] || 'es-ES';
+
+  const zona = typeof ZonaHoraria === 'string' && ZonaHoraria.trim() ? ZonaHoraria : 'UTC-04:00';
+  const paisSinDiacriticos = quitarDiacriticos(paisNormalizado);
+  const override = IANA_OVERRIDES[paisNormalizado] || IANA_OVERRIDES[paisSinDiacriticos];
+  const zonaNormalizada = override || parseZona(zona);
+  serverTime.zonaIana = typeof zonaNormalizada === 'string' && zonaNormalizada ? zonaNormalizada : override || 'America/Caracas';
+
+  const offset = obtenerOffsetMinutos(zona);
+  if (typeof offset === 'number' && !Number.isNaN(offset)) {
+    serverTime.offsetMinutos = offset;
+  } else if (serverTime.zonaIana) {
+    const offsetZona = obtenerOffsetDesdeIana(serverTime.zonaIana);
+    if (offsetZona !== null) {
+      serverTime.offsetMinutos = offsetZona;
+    }
+  }
+
+  if (serverTime.offsetMinutos === null) {
+    serverTime.offsetMinutos = obtenerOffsetMinutos('UTC-04:00');
+  }
+}
+
+function obtenerFecha() {
+  const opciones = {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric'
+  };
+  const fechaBase = obtenerFechaServidor();
+  const formatter = new Intl.DateTimeFormat(serverTime.locale || 'es-ES', {
+    ...opciones,
+    ...(serverTime.zonaIana ? { timeZone: serverTime.zonaIana } : {})
+  });
+  return formatter.format(fechaBase);
+}
+
+function limpiarMeridiano(valor = '') {
+  return valor.replace(/\s*a\.?\s*m\.?/ig, ' AM').replace(/\s*p\.?\s*m\.?/ig, ' PM');
+}
+
+function obtenerHora() {
+  const opciones = {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true
+  };
+  if (serverTime.zonaIana) opciones.timeZone = serverTime.zonaIana;
+  const d = obtenerFechaServidor();
+  const hora = d.toLocaleTimeString(serverTime.locale, opciones);
+  return limpiarMeridiano(hora);
+}
+
+async function initFechaHora(idElemento = "fecha-hora", opciones = {}) {
+  let config = opciones;
+  let elementoObjetivo = idElemento;
+
+  const idEsElemento = typeof HTMLElement !== 'undefined' && idElemento instanceof HTMLElement;
+
+  if (idEsElemento) {
+    elementoObjetivo = idElemento;
+  } else if (typeof idElemento === 'object' && idElemento !== null) {
+    config = idElemento;
+    elementoObjetivo = idElemento?.idElemento || idElemento?.elemento || "fecha-hora";
+  }
+
+  if (!config || typeof config !== 'object') {
+    config = {};
+  }
+
+  await initServerTime();
+  const el = typeof elementoObjetivo === 'string'
+    ? document.getElementById(elementoObjetivo)
+    : (typeof HTMLElement !== 'undefined' && elementoObjetivo instanceof HTMLElement)
+      ? elementoObjetivo
+      : null;
+  if (!el) return;
+
+  const ocultarHora = typeof config.ocultarHora === 'boolean'
+    ? config.ocultarHora
+    : el.dataset?.ocultarHora === 'true';
+
+  const ocultarFecha = typeof config.ocultarFecha === 'boolean'
+    ? config.ocultarFecha
+    : el.dataset?.ocultarFecha === 'true';
+
+  function mostrar() {
+    try {
+      const partes = [];
+
+      if (serverTime.Pais) {
+        const paisSpan = document.createElement('span');
+        paisSpan.className = 'pais-actual';
+        paisSpan.textContent = `País: ${serverTime.Pais}`;
+        partes.push(paisSpan);
+      }
+
+      if (!ocultarFecha) {
+        const fechaSpan = document.createElement('span');
+        fechaSpan.className = 'fecha-actual-icono';
+        fechaSpan.textContent = `Fecha: ${obtenerFecha()}`;
+        partes.push(fechaSpan);
+      }
+
+      if (!ocultarHora) {
+        const horaSpan = document.createElement('span');
+        horaSpan.className = 'hora-actual-icono';
+        horaSpan.textContent = `Hora: ${obtenerHora()}`;
+        partes.push(horaSpan);
+      }
+
+      el.textContent = '';
+      partes.forEach((nodo, indice) => {
+        if (indice > 0) {
+          el.appendChild(document.createTextNode(' · '));
+        }
+        el.appendChild(nodo);
+      });
+    } catch (err) {
+      console.error('Error formateando fecha/hora', err);
+      el.textContent = '';
+    }
+  }
+
+  mostrar();
+  setInterval(mostrar, 1000);
+}
+
+if (typeof window !== 'undefined') {
+  window.serverTime = serverTime;
+}
+
+window.initServerTime = initServerTime;
+window.fechaServidor = obtenerFecha;
+window.horaServidor = obtenerHora;
+window.initFechaHora = initFechaHora;
+serverTime.now = function () {
+  return obtenerFechaServidor();
+};
+serverTime.nowMs = function () {
+  return obtenerEpochActual();
+};
+serverTime.serverTimestamp = function () {
+  if (typeof firebase === 'undefined') return null;
+  const fieldValue = firebase?.firestore?.FieldValue;
+  if (fieldValue && typeof fieldValue.serverTimestamp === 'function') {
+    return fieldValue.serverTimestamp();
+  }
+  return null;
+};
+
+function actualizarAnioFooter() {
+  const yearEl = document.querySelector('#derechos .current-year');
+  if (!yearEl) return;
+  yearEl.textContent = new Date().getFullYear();
+}
+
+if (typeof document !== 'undefined') {
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', actualizarAnioFooter);
+  } else {
+    actualizarAnioFooter();
+  }
+}

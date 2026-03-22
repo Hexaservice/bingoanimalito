@@ -1,0 +1,727 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <link rel="apple-touch-icon" sizes="180x180" href="img/apple-touch-icon.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="img/android-chrome-192x192.png">
+  <link rel="icon" type="image/png" sizes="512x512" href="img/android-chrome-512x512.png">
+  <link rel="icon" type="image/x-icon" href="img/favicon.ico">
+  <link rel="icon" type="image/x-icon" sizes="16x16" href="img/favicon-16x16.ico">
+  <link rel="icon" type="image/x-icon" sizes="32x32" href="img/favicon-32x32.ico">
+
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Registrarse</title>
+  <link href="https://fonts.googleapis.com/css2?family=Bangers&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
+  <style>
+    body {
+      background: linear-gradient(rgba(255,255,255,0.7), rgba(255,255,255,0.7)), url('https://img.freepik.com/vectores-premium/padrao-sem-costura-com-simbolos-de-dolar-e-porcentagem_637741-777.jpg');
+      background-repeat: repeat;
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+      justify-content:center;
+      min-height:100vh;
+      text-align:center;
+      margin:0;
+      position:relative;
+    }
+    h2{
+      font-family:'Bangers',cursive;
+      color:#ff6600;
+      text-shadow:2px 2px 4px #000;
+      margin-bottom:10px;
+    }
+    input{
+      font-size:1rem;
+      padding:5px;
+      margin:5px;
+      width:250px;
+      text-align:center;
+      background:#fff;
+      font-weight:bold;
+      box-sizing:border-box;
+    }
+    input[type="checkbox"]{width:auto;margin:0;}
+    select{
+      font-size:0.95rem;
+      padding:6px;
+      border-radius:8px;
+      border:1px solid #ccc;
+      background:#fff;
+      font-weight:bold;
+    }
+    #alias{color:#ff6600;}
+    #email{
+      margin:10px;
+      font-weight:bold;
+      color:#006400;
+      font-family:'Poppins',sans-serif;
+    }
+    .provider-row{
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      gap:10px;
+      margin:4px 0 12px;
+    }
+    .provider-btn{
+      border:2px solid #d1d5db;
+      border-radius:10px;
+      background:#fff;
+      padding:6px 12px;
+      display:flex;
+      align-items:center;
+      gap:6px;
+      cursor:pointer;
+      font-family:'Poppins',sans-serif;
+      font-weight:600;
+      font-size:0.85rem;
+      color:#111827;
+      box-shadow:0 2px 6px rgba(0,0,0,0.12);
+    }
+    .provider-btn.provider-attention{
+      animation:provider-attention 0.8s ease-in-out infinite;
+      transform-origin:center;
+    }
+    .provider-btn svg{
+      width:18px;
+      height:18px;
+      display:block;
+    }
+    #logo-bingo{width:200px;max-width:80vw;height:auto;margin-bottom:5px;}
+    .action-btn{
+      font-family:'Bangers',cursive;
+      background:linear-gradient(#0a8800,#ffffff);
+      color:white;
+      border:3px solid #FFD700;
+      border-radius:8px;
+      text-shadow:2px 2px 4px #000;
+      cursor:pointer;
+      width:200px;
+      height:40px;
+      font-size:1.2rem;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      margin:5px auto;
+    }
+    .action-btn[disabled]{
+      background:linear-gradient(#9ca3af,#e5e7eb);
+      border-color:#9ca3af;
+      color:#f9fafb;
+      cursor:not-allowed;
+      filter:grayscale(1);
+      box-shadow:none;
+    }
+    #terms-container{margin:10px;font-size:0.8rem;display:flex;align-items:center;justify-content:center;gap:5px;font-family:'Poppins',sans-serif;}
+    #terms-container label{display:flex;align-items:center;gap:4px;font-family:'Poppins',sans-serif;}
+    #terms-container a{font-family:'Poppins',sans-serif;}
+    #login-footer{position:absolute;bottom:0;left:0;right:0;text-align:center;font-family:'Poppins',sans-serif;}
+    .nota-registro{
+      font-family:'Poppins',sans-serif;
+      font-size:0.7rem;
+      color:#000;
+      margin:4px 0 10px;
+      max-width:260px;
+      text-align:center;
+      text-shadow:0 0 6px rgba(255,255,255,0.9);
+      font-weight:400;
+    }
+    #fecha-hora,#derechos{font-size:0.7rem;font-family:'Poppins',sans-serif;}
+    #derechos{font-size:0.6rem;}
+    .celular-row{
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      gap:6px;
+      width:260px;
+      max-width:90vw;
+      margin:0 auto;
+    }
+    #codigo-pais{
+      width:115px;
+      flex:0 0 115px;
+    }
+    #celular{
+      flex:1;
+      width:100%;
+      margin:5px 0;
+    }
+    .small-label{
+      font-size:0.55rem;
+      font-family:'Poppins',sans-serif;
+      text-transform:uppercase;
+      color:#444;
+      letter-spacing:0.5px;
+      margin-top:6px;
+    }
+    .stepper{display:flex;gap:8px;margin:8px 0 12px;flex-wrap:wrap;justify-content:center;font-family:'Poppins',sans-serif;}
+    .step-pill{border:1px solid #d1d5db;border-radius:999px;padding:4px 10px;font-size:0.72rem;color:#4b5563;background:#fff;}
+    .step-pill.active{background:#ffedd5;border-color:#fb923c;color:#9a3412;font-weight:600;}
+    .step-pill.done{background:#dcfce7;border-color:#22c55e;color:#166534;}
+    .step-panel{display:none;max-width:320px;}
+    .step-panel.active{display:block;}
+    .field-msg{min-height:14px;margin:-2px 0 6px;font-family:'Poppins',sans-serif;font-size:0.68rem;color:#dc2626;text-align:center;}
+    .field-msg.ok{color:#166534;}
+    #status-cuenta{font-family:'Poppins',sans-serif;font-size:0.72rem;min-height:16px;margin:4px 0;color:#b45309;}
+    #resumen-confirmacion{font-family:'Poppins',sans-serif;font-size:0.74rem;text-align:left;background:#fffbeb;border:1px solid #f59e0b;border-radius:10px;padding:10px;margin:6px auto 8px;max-width:290px;}
+    .step-nav{display:flex;justify-content:center;gap:8px;margin-top:6px;}
+    .secondary-btn{font-family:'Poppins',sans-serif;border:1px solid #9ca3af;background:#fff;border-radius:8px;padding:7px 10px;cursor:pointer;font-size:0.78rem;}
+    .toast{
+      position:fixed;
+      left:50%;
+      bottom:80px;
+      transform:translateX(-50%);
+      background:rgba(0,128,0,0.92);
+      color:#fff;
+      padding:10px 16px;
+      border-radius:12px;
+      font-size:0.9rem;
+      font-family:'Poppins',sans-serif;
+      box-shadow:0 6px 18px rgba(0,0,0,0.35);
+      opacity:0;
+      pointer-events:none;
+      transition:opacity 0.3s ease, transform 0.3s ease;
+      z-index:12000;
+    }
+    .toast.mostrar{
+      opacity:1;
+      transform:translateX(-50%) translateY(-8px);
+    }
+    #registro-hand{
+      position:fixed;
+      width:52px;
+      height:auto;
+      display:none;
+      z-index:14000;
+      pointer-events:none;
+      filter:drop-shadow(0 6px 10px rgba(0, 0, 0, 0.35));
+      transform-origin:center;
+      --registro-hand-shift: 0px;
+    }
+    #registro-hand.registro-hand-pulse{
+      animation:registro-hand-pulse 0.7s ease-in-out infinite;
+    }
+    #registro-hand.registro-hand-sweep{
+      animation:registro-hand-sweep 1.4s ease-in-out infinite;
+    }
+    @keyframes registro-hand-pulse{
+      0%{transform:scale(1);}
+      45%{transform:scale(1.18);}
+      100%{transform:scale(1);}
+    }
+    @keyframes registro-hand-sweep{
+      0%{transform:translateX(0);}
+      50%{transform:translateX(var(--registro-hand-shift));}
+      100%{transform:translateX(0);}
+    }
+    @keyframes provider-attention{
+      0%{transform:scale(1);}
+      50%{transform:scale(1.08);}
+      100%{transform:scale(1);}
+    }
+    @media (min-width:1024px){
+      body{font-size:1.02rem;}
+      input,select{font-size:clamp(1rem,1vw,1.05rem);}
+      input{width:clamp(280px,34vw,420px);}
+      .step-panel{max-width:min(560px,78vw);}
+      .action-btn{width:clamp(220px,28vw,320px);font-size:clamp(1.2rem,1.8vw,1.45rem);}
+      .secondary-btn{font-size:0.9rem;min-width:clamp(130px,20vw,190px);}
+      #terms-container,.step-pill,#status-cuenta,#resumen-confirmacion,.field-msg,.small-label,.nota-registro,#fecha-hora,#derechos{font-size:max(0.85rem,1vw);}
+      #terms-container{gap:8px;}
+      .step-pill{padding:6px 14px;}
+      #resumen-confirmacion{max-width:min(520px,74vw);padding:12px 14px;}
+      .celular-row{width:min(520px,78vw);}
+      #codigo-pais{width:clamp(130px,18vw,180px);flex:0 0 clamp(130px,18vw,180px);}
+    }
+  </style>
+  <link rel="stylesheet" href="css/desktopFrame.css">
+</head>
+<body>
+  <img id="logo-bingo" src="img/Logo-BingOnline-nuevo500p.png" />
+  <h2>Registro de Jugador</h2>
+  <div class="stepper" aria-label="Pasos del registro">
+    <div id="step-pill-1" class="step-pill active">Paso 1 · Datos</div>
+    <div id="step-pill-2" class="step-pill">Paso 2 · Cuenta</div>
+    <div id="step-pill-3" class="step-pill">Paso 3 · Confirmación</div>
+  </div>
+  <img id="registro-hand" alt="Guía visual del registro" loading="lazy" />
+  <div id="step-panel-1" class="step-panel active">
+    <input type="text" id="nombre" placeholder="Nombre">
+    <div id="msg-nombre" class="field-msg"></div>
+    <input type="text" id="apellido" placeholder="Apellido">
+    <div id="msg-apellido" class="field-msg"></div>
+    <input type="text" id="alias" placeholder="Alias">
+    <div id="msg-alias" class="field-msg"></div>
+    <div class="celular-row">
+      <select id="codigo-pais" aria-label="Código de país" required></select>
+      <input type="tel" id="celular" placeholder="Número Celular" aria-label="Número celular" inputmode="numeric" pattern="[0-9]+" title="Ingresa solo números" required>
+    </div>
+    <div id="msg-celular" class="field-msg"></div>
+    <div class="step-nav">
+      <button id="btn-step-1-next" class="secondary-btn" type="button">Continuar a paso 2</button>
+    </div>
+  </div>
+  <div id="step-panel-2" class="step-panel">
+    <div id="email"></div>
+    <div id="status-cuenta"></div>
+    <div class="provider-row" aria-label="Métodos de inicio de sesión">
+      <button id="login-google" class="provider-btn" type="button" aria-label="Continuar con Google">Google</button>
+      <button id="login-apple" class="provider-btn" type="button" aria-label="Continuar con Apple">Apple</button>
+    </div>
+    <div id="msg-cuenta" class="field-msg"></div>
+    <div class="small-label">CÓDIGO REFERIDO</div>
+    <input type="text" id="codigo-referido" placeholder="Opcional" maxlength="12" style="text-transform:uppercase;">
+    <div id="terms-container"><input type="checkbox" id="accept-terms"> <label for="accept-terms">Acepto <a href="terminos.html" target="_blank">términos y condiciones</a></label></div>
+    <div id="msg-terminos" class="field-msg"></div>
+    <div class="step-nav">
+      <button id="btn-step-2-back" class="secondary-btn" type="button">Volver</button>
+      <button id="btn-step-2-next" class="secondary-btn" type="button">Continuar a paso 3</button>
+    </div>
+  </div>
+  <div id="step-panel-3" class="step-panel">
+    <div id="resumen-confirmacion">Completa los pasos previos para ver tu resumen.</div>
+    <div id="msg-confirmacion" class="field-msg"></div>
+    <div class="step-nav">
+      <button id="btn-step-3-back" class="secondary-btn" type="button">Volver</button>
+    </div>
+    <button id="registrar" class="action-btn" disabled>Registrarse</button>
+  </div>
+  <p class="nota-registro">Nota: Sólo tu Alias será visible para los otros Jugadores, Tu nombre, Apellido, Número celular o Gmail serán confidenciales.</p>
+  <div id="login-footer">
+    <div id="fecha-hora"></div>
+    <div id="derechos">Todos los derechos reservados ® Hexaservice <span class="current-year"></span></div>
+  </div>
+
+  <script src="https://www.gstatic.com/firebasejs/11.5.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/11.5.0/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/11.5.0/firebase-auth-compat.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/libphonenumber-js@1.11.16/bundle/libphonenumber-max.js"></script>
+  <script src="js/logoSwitcher.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/notificationCenter.js"></script>
+  <script src="js/timezone.js"></script>
+  <script>
+    const codigosPais=[
+      {codigo:'VE',nombre:'Venezuela',prefijo:'+58',bandera:'🇻🇪'},
+      {codigo:'CO',nombre:'Colombia',prefijo:'+57',bandera:'🇨🇴'},
+      {codigo:'MX',nombre:'México',prefijo:'+52',bandera:'🇲🇽'},
+      {codigo:'US',nombre:'Estados Unidos',prefijo:'+1',bandera:'🇺🇸'},
+      {codigo:'AR',nombre:'Argentina',prefijo:'+54',bandera:'🇦🇷'},
+      {codigo:'CL',nombre:'Chile',prefijo:'+56',bandera:'🇨🇱'},
+      {codigo:'PE',nombre:'Perú',prefijo:'+51',bandera:'🇵🇪'}
+    ];
+
+    function poblarSelectCodigos(select){
+      if(!select) return;
+      codigosPais.forEach(pais=>{
+        const opcion=document.createElement('option');
+        opcion.value=pais.prefijo;
+        opcion.textContent=`${pais.bandera||''} ${pais.nombre} (${pais.prefijo})`;
+        select.appendChild(opcion);
+      });
+      select.value='+58';
+    }
+
+    function separarPrefijo(numero){
+      const limpio=(numero||'').toString().replace(/[^0-9+]/g,'');
+      const candidatos=[...codigosPais].sort((a,b)=>b.prefijo.length-a.prefijo.length);
+      for(const pais of candidatos){
+        const pref=pais.prefijo;
+        if(limpio.startsWith(pref)){
+          return {prefijo:pref,local:limpio.slice(pref.length)};
+        }
+        const prefSinMas=pref.replace('+','');
+        if(prefSinMas && limpio.startsWith(prefSinMas)){
+          return {prefijo:pref,local:limpio.slice(prefSinMas.length)};
+        }
+      }
+      return {prefijo:selectCodigoPais ? selectCodigoPais.value || '+58' : '+58',local:limpio};
+    }
+
+    function obtenerNumeroCompleto(){
+      const prefijo=selectCodigoPais ? (selectCodigoPais.value || '') : '';
+      const local=document.getElementById('celular').value.trim().replace(/\D/g,'');
+      return (prefijo||'')+local;
+    }
+
+    function generarCodigoPromocional(email, telefono){
+      const local = (email || '').split('@')[0] || '';
+      const letras = local.replace(/[^a-zA-Z]/g,'');
+      let prefijo = letras.slice(0,2).toUpperCase();
+      if(prefijo.length < 2){
+        prefijo = (local.replace(/[^a-zA-Z0-9]/g,'').slice(0,2) || '').toUpperCase();
+      }
+      const digitos = (telefono || '').toString().replace(/\D/g,'');
+      const sufijo = digitos.slice(-4);
+      return `${prefijo}${sufijo}`.trim();
+    }
+
+    function parseFecha(valor){
+      if(!valor) return null;
+      const base = new Date(`${valor}T00:00:00`);
+      if(Number.isNaN(base.getTime())) return null;
+      return base;
+    }
+
+    function hoySinHora(){
+      const ahora = new Date();
+      return new Date(ahora.getFullYear(), ahora.getMonth(), ahora.getDate());
+    }
+
+    function mostrarToast(texto){
+      let toast = document.getElementById('toast-referral');
+      if(!toast){
+        toast = document.createElement('div');
+        toast.id = 'toast-referral';
+        toast.className = 'toast';
+        document.body.appendChild(toast);
+      }
+      toast.textContent = texto;
+      toast.classList.add('mostrar');
+      setTimeout(()=>toast.classList.remove('mostrar'), 3500);
+    }
+
+    async function obtenerCampanaActiva(){
+      const snapshot = await db.collection('campanasReferidos').where('estado','==','ACTIVA').get();
+      const hoy = hoySinHora();
+      let activa = null;
+      const batch = db.batch();
+      let cambios = 0;
+      snapshot.forEach(doc => {
+        const data = doc.data() || {};
+        const fin = parseFecha(data.fechaFin);
+        if(fin && fin < hoy){
+          batch.update(db.collection('campanasReferidos').doc(doc.id), { estado:'INACTIVA' });
+          cambios += 1;
+          return;
+        }
+        const inicio = parseFecha(data.fechaInicio);
+        if(inicio && fin && inicio <= hoy && hoy <= fin && !activa){
+          activa = { id: doc.id, ...data };
+        }
+      });
+      if(cambios){ await batch.commit(); }
+      return activa;
+    }
+
+    async function buscarUsuarioPorCodigo(codigo){
+      const snapshot = await db.collection('users').where('codigoPromocional','==',codigo).limit(1).get();
+      if(snapshot.empty) return null;
+      const doc = snapshot.docs[0];
+      return { id: doc.id, ...doc.data() };
+    }
+
+    async function actualizarBilletera(email, cartonesAgregar){
+      if(!cartonesAgregar || cartonesAgregar <= 0) return;
+      const ref = db.collection('Billetera').doc(email);
+      await db.runTransaction(async tx => {
+        const doc = await tx.get(ref);
+        const data = doc.exists ? doc.data() || {} : {};
+        const actuales = Number(data.CartonesGratis ?? data.cartonesGratis ?? 0) || 0;
+        const nuevos = actuales + cartonesAgregar;
+        tx.set(ref, { CartonesGratis: nuevos }, { merge:true });
+      });
+    }
+
+    async function registrarReferido({campana, nuevoEmail, referidoEmail}){
+      if(!campana || !referidoEmail || !nuevoEmail) return { premioReferidor: 0 };
+      const ref = db.collection('Referidos').doc(referidoEmail).collection('campanas').doc(campana.id);
+      let premioReferidor = 0;
+      await db.runTransaction(async tx => {
+        const doc = await tx.get(ref);
+        const data = doc.exists ? doc.data() || {} : {};
+        const total = Number(data.totalReferidos || 0) + 1;
+        const premiosEntregados = Number(data.premiosEntregados || 0);
+        const meta = Number(campana.referidosMin || 0);
+        const premiosNuevoTotal = meta > 0 ? Math.floor(total / meta) : 0;
+        const premiosPorDar = Math.max(premiosNuevoTotal - premiosEntregados, 0);
+        if(premiosPorDar > 0){
+          premioReferidor = premiosPorDar * (Number(campana.cartonesPremio || 0));
+        }
+        tx.set(ref, {
+          totalReferidos: total,
+          premiosEntregados: premiosEntregados + premiosPorDar,
+          ultimoReferido: nuevoEmail,
+          actualizadoEn: new Date().toISOString()
+        }, { merge:true });
+      });
+      return { premioReferidor };
+    }
+
+    const selectCodigoPais=document.getElementById('codigo-pais');
+    poblarSelectCodigos(selectCodigoPais);
+    const REGISTRO_PENDIENTE_KEY = 'registroPendienteBingoOnline';
+    let registroEnProceso = false;
+    let loginEnProceso = false;
+    let pasoActual = 1;
+    const registrarBtn = document.getElementById('registrar');
+    const emailLabel = document.getElementById('email');
+    const statusCuenta = document.getElementById('status-cuenta');
+    const codigoReferidoInputEl = document.getElementById('codigo-referido');
+
+    const phoneByCountry = {
+      '+58':'VE', '+57':'CO', '+52':'MX', '+1':'US', '+54':'AR', '+56':'CL', '+51':'PE'
+    };
+
+    function trackEvent(nombre, payload={}){
+      const evento = { event:nombre, pagina:'registrarse', paso:pasoActual, ...payload, ts:new Date().toISOString() };
+      window.dataLayer = window.dataLayer || [];
+      window.dataLayer.push(evento);
+      console.info('[analytics]', evento);
+    }
+
+    function setFieldMessage(campo, texto='', ok=false){
+      const el=document.getElementById(`msg-${campo}`);
+      if(!el) return;
+      el.textContent=texto;
+      el.classList.toggle('ok', !!ok);
+      if(texto && !ok){ trackEvent('registro_error_campo', {campo, mensaje:texto}); }
+    }
+
+    function obtenerDatosFormulario(){
+      return {
+        nombre: document.getElementById('nombre').value.trim(),
+        apellido: document.getElementById('apellido').value.trim(),
+        alias: document.getElementById('alias').value.trim(),
+        celularLocal: document.getElementById('celular').value.trim().replace(/\D/g,''),
+        codigoPais: selectCodigoPais ? selectCodigoPais.value || '' : '',
+        codigoReferido: (codigoReferidoInputEl?.value || '').trim().toUpperCase(),
+        aceptoTerminos: document.getElementById('accept-terms').checked
+      };
+    }
+
+    function aplicarDatosFormulario(datos){
+      if(!datos) return;
+      if(datos.nombre) document.getElementById('nombre').value = datos.nombre;
+      if(datos.apellido) document.getElementById('apellido').value = datos.apellido;
+      if(datos.alias) document.getElementById('alias').value = datos.alias;
+      if(selectCodigoPais && datos.codigoPais){ selectCodigoPais.value = datos.codigoPais; }
+      if(typeof datos.celularLocal === 'string'){ document.getElementById('celular').value = datos.celularLocal; }
+      if(codigoReferidoInputEl && datos.codigoReferido){ codigoReferidoInputEl.value = datos.codigoReferido; }
+      if(typeof datos.aceptoTerminos === 'boolean'){ document.getElementById('accept-terms').checked = datos.aceptoTerminos; }
+    }
+
+    function guardarRegistroPendiente(datos){ sessionStorage.setItem(REGISTRO_PENDIENTE_KEY, JSON.stringify(datos)); }
+    function cargarRegistroPendiente(){
+      const raw = sessionStorage.getItem(REGISTRO_PENDIENTE_KEY);
+      if(!raw) return null;
+      try{ return JSON.parse(raw); }catch{ sessionStorage.removeItem(REGISTRO_PENDIENTE_KEY); return null; }
+    }
+    function limpiarRegistroPendiente(){ sessionStorage.removeItem(REGISTRO_PENDIENTE_KEY); }
+
+    function validarTexto(txt,max){ return txt && txt.length<=max && /^[A-Za-zÁÉÍÓÚáéíóúñÑ\s]+$/.test(txt); }
+
+    function validarTelefono(datos){
+      if(!datos.codigoPais || !datos.celularLocal){
+        return {ok:false, mensaje:'Debes completar código y número de celular.'};
+      }
+      const region=phoneByCountry[datos.codigoPais];
+      if(!region || !window.libphonenumber){
+        return {ok:datos.celularLocal.length>=7 && datos.celularLocal.length<=15, mensaje:'No se pudo validar el país del número.'};
+      }
+      try{
+        const numero=window.libphonenumber.parsePhoneNumberFromString(`${datos.codigoPais}${datos.celularLocal}`, region);
+        if(!numero || !numero.isValid()){
+          return {ok:false, mensaje:`El teléfono no es válido para ${region}. Revisa longitud y formato.`};
+        }
+        return {ok:true, e164:numero.number, nacional:numero.formatNational()};
+      }catch{
+        return {ok:false, mensaje:'Formato de teléfono inválido.'};
+      }
+    }
+
+    function validarPaso1(mostrarErrores=true){
+      const d=obtenerDatosFormulario();
+      let ok=true;
+      if(!d.nombre || !validarTexto(d.nombre,40)){ ok=false; if(mostrarErrores) setFieldMessage('nombre','Nombre inválido (solo letras, hasta 40).'); } else if(mostrarErrores) setFieldMessage('nombre','Correcto',true);
+      if(!d.apellido || !validarTexto(d.apellido,40)){ ok=false; if(mostrarErrores) setFieldMessage('apellido','Apellido inválido (solo letras, hasta 40).'); } else if(mostrarErrores) setFieldMessage('apellido','Correcto',true);
+      if(!d.alias || d.alias.length>60){ ok=false; if(mostrarErrores) setFieldMessage('alias','Alias obligatorio (máx. 60 caracteres).'); } else if(mostrarErrores) setFieldMessage('alias','Correcto',true);
+      const tel=validarTelefono(d);
+      if(!tel.ok){ ok=false; if(mostrarErrores) setFieldMessage('celular',tel.mensaje); } else if(mostrarErrores) setFieldMessage('celular',`Teléfono válido: ${tel.nacional || tel.e164}`,true);
+      return ok;
+    }
+
+    function validarPaso2(mostrarErrores=true){
+      const d=obtenerDatosFormulario();
+      let ok=true;
+      if(!auth?.currentUser?.email){ ok=false; if(mostrarErrores) setFieldMessage('cuenta','Selecciona una cuenta Google o Apple.'); } else if(mostrarErrores) setFieldMessage('cuenta','Cuenta autenticada.',true);
+      if(!d.aceptoTerminos){ ok=false; if(mostrarErrores) setFieldMessage('terminos','Debes aceptar términos y condiciones.'); } else if(mostrarErrores) setFieldMessage('terminos','Términos aceptados.',true);
+      return ok;
+    }
+
+    function pintarPaso(){
+      [1,2,3].forEach(n=>{
+        document.getElementById(`step-panel-${n}`)?.classList.toggle('active',n===pasoActual);
+        const pill=document.getElementById(`step-pill-${n}`);
+        if(!pill) return;
+        pill.classList.toggle('active', n===pasoActual);
+        pill.classList.toggle('done', n<pasoActual);
+      });
+      actualizarResumen();
+      actualizarEstadoRegistro();
+    }
+
+    function irPaso(nuevo){
+      if(nuevo===pasoActual) return;
+      trackEvent('registro_abandono_paso',{pasoAbandonado:pasoActual,pasoDestino:nuevo});
+      pasoActual=nuevo;
+      pintarPaso();
+    }
+
+    function actualizarResumen(){
+      const d=obtenerDatosFormulario();
+      const resumen=document.getElementById('resumen-confirmacion');
+      if(!resumen) return;
+      const tel=validarTelefono(d);
+      resumen.innerHTML = `
+        <strong>Revisa antes de guardar:</strong><br>
+        Nombre: ${d.nombre || '-'} ${d.apellido || '-'}<br>
+        Alias visible: ${d.alias || '-'}<br>
+        Teléfono: ${tel.e164 || (d.codigoPais+d.celularLocal) || '-'}<br>
+        Correo de cuenta: ${auth?.currentUser?.email || 'No autenticada'}<br>
+        Código referido: ${d.codigoReferido || 'No aplica'}
+      `;
+    }
+
+    async function validarCuentaRegistrada(email){
+      if(!email){ statusCuenta.textContent=''; return false; }
+      const doc=await db.collection('users').doc(email).get();
+      if(doc.exists){
+        statusCuenta.textContent='⚠️ Esta cuenta ya está registrada. Al continuar se iniciará sesión.';
+        statusCuenta.style.color='#b91c1c';
+        return true;
+      }
+      statusCuenta.textContent='✅ Cuenta disponible para registrarse.';
+      statusCuenta.style.color='#166534';
+      return false;
+    }
+
+    async function completarRegistroConDatos(user, datos){
+      if(registroEnProceso) return;
+      registroEnProceso = true;
+      try{
+        const existente = await db.collection('users').doc(user.email).get();
+        if(existente.exists){
+          mostrarToast('Esta cuenta ya está registrada, se iniciará sesión.');
+          limpiarRegistroPendiente();
+          await new Promise(resolve => setTimeout(resolve, 1200));
+          window.location.href='player.html';
+          return;
+        }
+        const tel=validarTelefono(datos);
+        if(!tel.ok){ setFieldMessage('celular', tel.mensaje); throw new Error('telefono_invalido'); }
+        const numeroCompleto = tel.e164 || `${datos.codigoPais || ''}${datos.celularLocal || ''}`;
+        const codigoPromocional = generarCodigoPromocional(user.email, numeroCompleto);
+        const codigoReferido = (datos.codigoReferido || '').trim().toUpperCase();
+        let campanaActiva = null;
+        let usuarioReferidor = null;
+        if(codigoReferido){
+          usuarioReferidor = await buscarUsuarioPorCodigo(codigoReferido);
+          if(!usuarioReferidor){
+            setFieldMessage('confirmacion','Este código promocional no existe.');
+            throw new Error('codigo_referido_invalido');
+          }
+          if(usuarioReferidor.email === user.email || usuarioReferidor.id === user.email){
+            setFieldMessage('confirmacion','No puedes usar tu propio código promocional.');
+            throw new Error('codigo_propio');
+          }
+          campanaActiva = await obtenerCampanaActiva();
+        }
+        await db.collection('users').doc(user.email).set({
+          name:datos.nombre, apellido:datos.apellido, alias:datos.alias,
+          celular:numeroCompleto, numerocel:numeroCompleto, email:user.email,
+          photoURL:user.photoURL, role:'Jugador', aceptoNotificaciones:'NO',
+          codigoPromocional, codigoReferidoUsado: codigoReferido || '',
+          referidoPorEmail: usuarioReferidor ? (usuarioReferidor.email || usuarioReferidor.id || '') : '',
+          campanaReferidosId: campanaActiva ? campanaActiva.id : '',
+          fechaRegistro: new Date().toISOString()
+        });
+        if(codigoReferido && usuarioReferidor && campanaActiva){
+          const cartonesNuevo = Number(campanaActiva.cartonesNuevo || 0) || 0;
+          if(cartonesNuevo > 0){
+            await actualizarBilletera(user.email, cartonesNuevo);
+            mostrarToast(`¡Código exitoso! ganaste ${cartonesNuevo} cartones GRATIS`);
+          }
+          const { premioReferidor } = await registrarReferido({ campana: campanaActiva, nuevoEmail: user.email, referidoEmail: usuarioReferidor.email || usuarioReferidor.id });
+          if(premioReferidor > 0){ await actualizarBilletera(usuarioReferidor.email || usuarioReferidor.id, premioReferidor); }
+        }
+        limpiarRegistroPendiente();
+        trackEvent('registro_exito',{email:user.email});
+        window.location.href='player.html';
+      }catch(err){
+        limpiarRegistroPendiente();
+        if(err?.message!=='telefono_invalido'){ setFieldMessage('confirmacion','No se pudo completar el registro. Revisa tus datos.'); }
+      }finally{
+        registroEnProceso = false;
+      }
+    }
+
+    async function actualizarEstadoRegistro(){
+      const d=obtenerDatosFormulario();
+      guardarRegistroPendiente(d);
+      const requisitos = validarPaso1(false) && validarPaso2(false);
+      registrarBtn.disabled = !requisitos;
+      actualizarResumen();
+    }
+
+    if(codigoReferidoInputEl){
+      codigoReferidoInputEl.addEventListener('input', e=>{ e.target.value=(e.target.value||'').toUpperCase(); actualizarEstadoRegistro(); });
+      const params = new URLSearchParams(window.location.search);
+      const codigoParam=(params.get('codigo')||'').trim().toUpperCase();
+      if(codigoParam){ codigoReferidoInputEl.value=codigoParam; }
+    }
+
+    ['nombre','apellido','alias','celular','accept-terms'].forEach(id=>{
+      const el=document.getElementById(id); if(!el) return;
+      el.addEventListener(id==='accept-terms'?'change':'input', actualizarEstadoRegistro);
+    });
+    selectCodigoPais?.addEventListener('change', actualizarEstadoRegistro);
+
+    async function iniciarLoginConProveedor(tipo){
+      loginEnProceso = true;
+      guardarRegistroPendiente(obtenerDatosFormulario());
+      if(auth?.currentUser){ await auth.signOut(); }
+      try{ if(tipo === 'google'){ await loginGoogle(); } else { await loginApple(); } }
+      finally{ loginEnProceso = false; await actualizarEstadoRegistro(); }
+    }
+
+    document.getElementById('login-google').addEventListener('click', ()=>iniciarLoginConProveedor('google'));
+    document.getElementById('login-apple').addEventListener('click', ()=>iniciarLoginConProveedor('apple'));
+    document.getElementById('btn-step-1-next').addEventListener('click', ()=>{ if(validarPaso1(true)){ irPaso(2); } });
+    document.getElementById('btn-step-2-back').addEventListener('click', ()=>irPaso(1));
+    document.getElementById('btn-step-2-next').addEventListener('click', ()=>{ if(validarPaso2(true)){ irPaso(3); } });
+    document.getElementById('btn-step-3-back').addEventListener('click', ()=>irPaso(2));
+
+    document.getElementById('registrar').addEventListener('click', async ()=>{
+      if(!validarPaso1(true) || !validarPaso2(true)){ return; }
+      const user = auth.currentUser;
+      if(!user){ setFieldMessage('cuenta','Selecciona una cuenta de Google o Apple.'); return; }
+      await completarRegistroConDatos(user, obtenerDatosFormulario());
+    });
+
+    (async()=>{
+      try{ await initFirebase(); }
+      catch(err){
+        console.error('No se pudo inicializar Firebase en registrarse.html', err);
+        alert('No se pudo preparar el registro. Intenta nuevamente.');
+        window.location.href='index.html';
+        return;
+      }
+      const pendienteInicial = cargarRegistroPendiente();
+      if(pendienteInicial){ aplicarDatosFormulario(pendienteInicial); }
+      auth.onAuthStateChanged(async user=>{
+        emailLabel.textContent = user?.email || 'Selecciona una cuenta de Google o Apple para completar el registro.';
+        if(user?.email){ await validarCuentaRegistrada(user.email); }
+        else { statusCuenta.textContent=''; }
+        await actualizarEstadoRegistro();
+      });
+      await actualizarEstadoRegistro();
+      initFechaHora('fecha-hora');
+      window.addEventListener('beforeunload', ()=>trackEvent('registro_abandono_paso',{pasoAbandonado:pasoActual,cierrePagina:true}));
+      pintarPaso();
+    })();
+  </script>
+</body>
+</html>

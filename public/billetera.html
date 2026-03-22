@@ -1,0 +1,2535 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <link rel="apple-touch-icon" sizes="180x180" href="img/apple-touch-icon.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="img/android-chrome-192x192.png">
+  <link rel="icon" type="image/png" sizes="512x512" href="img/android-chrome-512x512.png">
+  <link rel="icon" type="image/x-icon" href="img/favicon.ico">
+  <link rel="icon" type="image/x-icon" sizes="16x16" href="img/favicon-16x16.ico">
+  <link rel="icon" type="image/x-icon" sizes="32x32" href="img/favicon-32x32.ico">
+
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Billetera</title>
+  <link href="https://fonts.googleapis.com/css2?family=Bangers&display=swap" rel="stylesheet">
+  <style>
+    html{
+      scrollbar-gutter: stable;
+      max-width: 100%;
+      overflow-x: hidden;
+    }
+    *,
+    *::before,
+    *::after{
+      box-sizing: border-box;
+    }
+    :root{
+      --vv-offset-top: 0px;
+      --vv-offset-left: 0px;
+    }
+    body {
+      font-family: Arial, sans-serif;
+      background: linear-gradient(rgba(255,255,255,0.7), rgba(255,255,255,0.7)), url('https://img.freepik.com/vectores-premium/padrao-sem-costura-com-simbolos-de-dolar-e-porcentagem_637741-777.jpg');
+      background-repeat: repeat;
+      text-align: center;
+      padding: 20px;
+      margin: 0;
+      overflow-x: hidden;
+      max-width: 100%;
+      min-height: 100svh;
+      overscroll-behavior-x: none;
+    }
+    .menu-btn {
+      width: 250px;
+      height: 60px;
+      font-family: 'Bangers', cursive;
+      font-size: 1.4rem;
+      background: rgba(0, 170, 255, 0.8);
+      color: white;
+      border: 4px solid #FFD700;
+      border-radius: 10px;
+      text-shadow: 2px 2px 4px #000;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: transform 0.3s, box-shadow 0.3s, background 0.3s;
+      margin: 5px;
+    }
+    .menu-btn:hover {
+      transform: scale(1.05);
+      box-shadow: 0 0 15px rgba(255, 215, 0, 0.8);
+    }
+
+    .back-btn {
+      position: fixed;
+      top: 5px;
+      left: 5px;
+      width: 120px;
+      height: 40px;
+      background: orange;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      gap:5px;
+      z-index:1000;
+    }
+    #creditos-container{margin:10px auto;}
+    #creditos-title,#creditos-valor{font-family:"Bangers",cursive;color:#fff;}
+    #creditos-title{font-size:2rem;text-shadow:0 0 8px #ff8c00;animation:pulse 1s infinite;}
+    #creditos-valor{font-size:2.4rem;animation:pulse 1s infinite;}
+    #creditos-info{display:flex;align-items:center;justify-content:center;gap:15px;}
+    #cartones-gratis{font-family:"Bangers",cursive;color:#fff;font-size:2rem;text-shadow:0 0 8px #00008B;animation:pulse 1s infinite;display:flex;align-items:center;gap:3px;}
+    #carton-icon{width:24px;height:24px;}
+    #creditos-valor.verde{text-shadow:0 0 5px #006600;}
+    #creditos-valor.rojo{text-shadow:0 0 5px red;}
+    @keyframes pulse{0%{transform:scale(1);}50%{transform:scale(1.1);}100%{transform:scale(1);}}
+    table {
+      margin: 10px auto;
+      border-collapse: collapse;
+      width:100%;
+      overflow-x:auto;
+    }
+    th, td {
+      border: 1px solid #ccc;
+      padding: 4px 8px;
+      font-size:0.8rem;
+      word-break:break-word;
+    }
+    #tabla-transacciones{width:100%;background:#fff;font-family:Calibri, Arial, sans-serif;margin:5px 0;}
+    #tabla-transacciones th,#tabla-transacciones td{font-size:0.9rem;padding:4px 6px;font-weight:bold;}
+    #tabla-transacciones th:nth-child(1),#tabla-transacciones td:nth-child(1){width:40px;font-size:0.8rem;}
+    #tabla-transacciones th:nth-child(2),#tabla-transacciones td:nth-child(2){width:120px;}
+    #tabla-transacciones th:nth-child(3),#tabla-transacciones td:nth-child(3){width:100px;}
+    #tabla-transacciones th:nth-child(4),#tabla-transacciones td:nth-child(4){width:140px;}
+    #tabla-transacciones th:nth-child(5),#tabla-transacciones td:nth-child(5){width:120px;}
+    #tabla-transacciones select,#tabla-transacciones input{font-size:0.9rem;width:100px;}
+    #tabla-transacciones th:nth-child(3) input{width:100px;}
+    #tabla-transacciones thead th{position:sticky;top:0;background:#f7f7f7;z-index:2;}
+    #datos-content{display:none;}
+    #transacciones-content{overflow-x:auto;display:block;max-height:70vh;overflow-y:auto;position:relative;}
+    #tabla-bancos{background:rgba(255,255,255,0.95);}
+    #tabla-bancos th,#tabla-bancos td{
+      font-weight:bold;
+      color:#00008B;
+      text-shadow:0 0 4px #fff;
+      text-align:center;
+    }
+    #banco-retiro{font-weight:bold;color:#00008B;text-shadow:0 0 4px #fff;}
+    td.nota-estado{position:relative;cursor:pointer;}
+    td.nota-estado::before{
+      content:'';
+      position:absolute;
+      top:0;
+      left:0;
+      width:0;
+      height:0;
+      border-top:8px solid red;
+      border-right:8px solid transparent;
+    }
+    .modal-overlay{
+      position:fixed;
+      inset:0;
+      width:100%;
+      height:100%;
+      background:rgba(0,0,0,0.6);
+      display:none;
+      align-items:center;
+      justify-content:center;
+      z-index:20000;
+      padding:18px;
+      box-sizing:border-box;
+      backdrop-filter: blur(1px);
+    }
+    .modal-card{
+      background:linear-gradient(160deg, #ffffff, #f3f5ff);
+      border:2px solid rgba(85, 70, 192, 0.45);
+      border-radius:14px;
+      box-shadow:0 14px 26px rgba(0,0,0,0.25);
+      font-family:'Poppins', sans-serif;
+      font-weight:800;
+      color:#1f1f1f;
+      text-align:center;
+      padding:18px 18px 14px;
+      min-width:260px;
+      max-width:min(520px, 94vw);
+      display:flex;
+      flex-direction:column;
+      gap:10px;
+    }
+    .modal-card h4{margin:0;color:#4936c2;font-size:1.05rem;letter-spacing:0.4px;}
+    .modal-card p{margin:0;font-size:0.95rem;font-weight:700;line-height:1.3;}
+    .modal-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:6px;flex-wrap:wrap;}
+    .modal-actions button,
+    #modal-detalle button{
+      font-family:'Poppins', sans-serif;
+      font-weight:800;
+      border-radius:10px;
+      border:2px solid #ffb347;
+      padding:10px 14px;
+      cursor:pointer;
+      background:linear-gradient(160deg, #fff3df, #ffd699);
+      color:#8a4c00;
+      box-shadow:0 6px 14px rgba(0,0,0,0.18);
+      transition:transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+    }
+    .modal-actions button:hover,
+    #modal-detalle button:hover{transform:translateY(-1px);box-shadow:0 8px 18px rgba(0,0,0,0.22);}
+    .modal-actions .btn-primario{background:linear-gradient(160deg, #ffe1b5, #ff9f1a);color:#5b2e00;border-color:#ff8c00;}
+    .modal-actions .btn-secundario{background:linear-gradient(160deg, #ecf1ff, #d9e1ff);color:#2d3c91;border-color:#5f73ff;}
+    #modal-detalle .contenido{display:flex;flex-direction:column;gap:8px;font-family:'Poppins',sans-serif;font-weight:800;text-align:left;color:#1f1f1f;}
+    @media (max-width:480px) and (orientation:portrait){
+      body{padding:2px;}
+      #tabla-transacciones{margin:2px 0;width:100%;}
+      #tabla-transacciones th,#tabla-transacciones td{font-size:0.8rem;padding:1px 2px;}
+      #tabla-transacciones th:nth-child(1),#tabla-transacciones td:nth-child(1){width:40px;font-size:0.7rem;}
+      #tabla-transacciones th:nth-child(2),#tabla-transacciones td:nth-child(2){width:70px;}
+      #tabla-transacciones th:nth-child(3),#tabla-transacciones td:nth-child(3){width:50px;}
+      #tabla-transacciones th:nth-child(4),#tabla-transacciones td:nth-child(4){width:80px;}
+      #tabla-transacciones th:nth-child(5),#tabla-transacciones td:nth-child(5){width:90px;}
+      #tabla-transacciones select,#tabla-transacciones input{width:80px;font-size:0.8rem;}
+      #tabla-transacciones th:nth-child(3) input{width:50px;}
+    }
+
+    @media (orientation:landscape){
+      #tabla-transacciones th,#tabla-transacciones td{font-size:0.9rem;}
+      #tabla-transacciones th:nth-child(1),#tabla-transacciones td:nth-child(1){width:40px;font-size:0.8rem;}
+    }
+    .tabs {
+      margin-top:20px;
+    }
+    .tab-buttons{display:flex;justify-content:center;}
+
+    .tab-buttons button {
+      flex:1;max-width:150px;padding:12px 0;margin:0 2px;font-family:"Bangers",cursive;font-size:1.2rem;border:1px solid #333;border-bottom:none;border-radius:10px 10px 0 0;color:white;cursor:pointer;text-shadow:2px 2px 4px #000;
+    }
+    .tab-buttons button[data-tab="depositar"] { background:#0a8800; }
+    .tab-buttons button[data-tab="retirar"] { background:#cc0000; }
+    .tab-buttons button.active { filter:brightness(1.2); position:relative; top:1px; }
+    .tab-content { display:none; margin-top:0; border:1px solid #333; border-radius:0 10px 10px 10px; padding:10px; }
+    .tab-content.active { display:block; }
+    .tab-content.tab-foco { box-shadow: 0 0 14px rgba(0,0,0,0.25); }
+    .tab-buttons button.tab-animada { animation: pestaña-respira 1s ease-in-out infinite; filter: none; }
+    #depositar.tab-foco { background: rgba(10,136,0,0.08); }
+    #retirar.tab-foco { background: rgba(204,0,0,0.08); }
+    #tabla-bancos:focus-visible { outline: 3px solid rgba(10,136,0,0.6); box-shadow: 0 0 12px rgba(255,255,255,0.85); }
+    #titulo-bancos.resaltado { color: #0a8800; text-shadow: 0 0 10px #fff, 0 0 18px rgba(255,255,255,0.9); }
+    input, select, textarea {
+      font-size:1rem;
+      padding:5px;
+      margin:5px auto;
+      display:block;
+      width:250px;
+      text-align:center;
+    }
+    #banco-deposito,#monto-deposito,#referencia,#comentario-deposito{background:#fff;}
+    #banco-deposito,#monto-deposito,#referencia{font-weight:bold;}
+    #monto-deposito{color:#006400;}
+    #referencia{color:#4B0082;}
+    #comentario-deposito{color:#333;font-weight:normal;}
+    #mis-datos input, #mis-datos select {
+      width:260px;
+    }
+    #banco,#cuenta,#cedula,#pagomovil{font-weight:bold;background:#fff !important;}
+    #banco{color:#00008B;width:100%;box-sizing:border-box;}
+    #cuenta{color:#006400;width:100%;box-sizing:border-box;}
+    #cedula{color:#4B0082;}
+    #pagomovil{color:#FF8C00;}
+    .campo{display:flex;flex-direction:column;align-items:center;width:260px;margin:0 auto;}
+    .cuenta-opcional{display:flex;align-items:center;gap:8px;width:100%;justify-content:center;}
+    .cuenta-opcional input[type="checkbox"]{width:auto;margin:0;}
+    .cuenta-opcional.desactivado input[type="text"]{background:#e0e0e0 !important;color:#888;}
+    #tipo-cuenta.desactivado{opacity:0.7;}
+    #tipo-cuenta.desactivado label{color:#888;}
+    #session-info {
+      position: fixed;
+      top: max(10px, env(safe-area-inset-top));
+      right: max(10px, env(safe-area-inset-right));
+      display: flex;
+      align-items: center;
+      font-size: 0.7rem;
+      transform: none;
+    }
+    #user-pic {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+    }
+    #logout-link {
+      font-family: Calibri, Arial, sans-serif;
+      margin-left: 5px;
+      font-size: 0.7rem;
+      color: #007bff;
+      text-decoration: underline;
+    }
+    #mis-datos h3{
+      font-size:1.3rem;
+      margin:0 0 5px;
+    }
+    #depositar h3{
+      margin:0 0 5px;
+    }
+    #depositar table{
+      margin:5px auto;
+    }
+    #datos-pm{display:flex;justify-content:center;flex-wrap:wrap;gap:10px;}
+    #datos-pm .campo{flex:1 0 120px;max-width:150px;width:auto;}
+    #datos-pm .campo input{width:100%;}
+    #tipo-cuenta{display:flex;justify-content:center;gap:5px;}
+    #tipo-cuenta label{display:flex;align-items:center;gap:3px;}
+    #tipo-cuenta input{width:auto;margin:0;}
+    .switch{
+      position:relative;
+      display:inline-block;
+      width:42px;
+      height:24px;
+    }
+    .switch input{display:none;}
+    .slider{
+      position:absolute;
+      cursor:pointer;
+      top:0;left:0;right:0;bottom:0;
+      background-color:#ccc;
+      transition:.4s;
+      border-radius:24px;
+    }
+    .slider:before{
+      position:absolute;
+      content:"";
+      height:18px;width:18px;left:3px;bottom:3px;
+      background-color:white;
+      transition:.4s;
+      border-radius:50%;
+    }
+    input:checked + .slider{background-color:#4caf50;}
+    input:checked + .slider:before{transform:translateX(18px);}
+    #guardar-datos {
+      font-family: 'Bangers', cursive;
+      font-size: 1.2rem;
+      background: #0a8800;
+      color: white;
+      border: 3px solid #FFD700;
+      border-radius: 8px;
+      text-shadow: 2px 2px 4px #000;
+      width: 200px;
+      cursor:pointer;
+    }
+    #btn-depositar {
+      font-family: 'Bangers', cursive;
+      background: linear-gradient(#0a8800, #ffffff);
+      color: white;
+      border: 3px solid #FFD700;
+      border-radius: 8px;
+      text-shadow:2px 2px 4px #000;
+      font-size:1.2rem;
+      width:200px;
+      cursor:pointer;
+    }
+    #btn-retirar {
+      font-family: 'Bangers', cursive;
+      background: linear-gradient(#cc0000, #ffffff);
+      color: white;
+      border: 3px solid #FFD700;
+      border-radius: 8px;
+      text-shadow:2px 2px 4px #000;
+      font-size:1.2rem;
+      width:200px;
+      cursor:pointer;
+    }
+
+    /* Controles del modo tutorial */
+    #tutorial-controls {
+      position: fixed;
+      left: max(14px, env(safe-area-inset-left));
+      bottom: max(18px, env(safe-area-inset-bottom));
+      top: auto;
+      right: auto;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      z-index: 17000;
+      transform: none;
+    }
+    #tutorial-toggle {
+      width: 62px;
+      height: 62px;
+      border-radius: 50%;
+      border: 2px solid #0f0f0f;
+      background: radial-gradient(circle at 30% 30%, #aab2ff, #4b3fae 65%);
+      color: #f7f9ff;
+      font-family: 'Poppins', sans-serif;
+      font-weight: 800;
+      font-size: 8.5px;
+      line-height: 1.1;
+      letter-spacing: 0.4px;
+      text-shadow: 0 2px 6px rgba(0, 0, 0, 0.55);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      cursor: pointer;
+      box-shadow: 0 10px 20px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.3);
+      transition: transform 0.22s ease, box-shadow 0.22s ease, background 0.22s ease, opacity 0.22s ease;
+    }
+    #tutorial-toggle.activo {
+      background: radial-gradient(circle at 30% 30%, #63e68a, #0b9a2e 70%);
+      box-shadow: 0 12px 20px rgba(0, 128, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.35);
+    }
+    #tutorial-toggle:hover { transform: translateY(-1px) scale(1.03); box-shadow: 0 12px 22px rgba(0, 0, 0, 0.4); }
+    #tutorial-nav { display: none; gap: 8px; align-items: center; transform: translateX(-10px); opacity: 0; }
+    #tutorial-toggle.activo + #tutorial-nav,
+    #tutorial-nav.activo { display: flex; animation: tutorial-nav-surge 0.42s ease forwards; }
+    #tutorial-nav.saliendo { display: flex; animation: tutorial-nav-exit 0.32s ease forwards; }
+    .tutorial-nav-btn { min-width: 38px; height: auto; border: none; background: transparent; color: #1f1f1f; font-size: 26px; cursor: pointer; box-shadow: none; display: grid; place-items: center; padding: 6px 4px; transition: transform 0.2s ease, color 0.2s ease; animation: tutorial-nav-surge 0.42s ease forwards; opacity: 0; }
+    #tutorial-nav.saliendo .tutorial-nav-btn { animation: tutorial-nav-exit 0.32s ease forwards; }
+    #tutorial-nav.activo .tutorial-nav-btn:nth-child(1) { animation-delay: 0.05s; }
+    #tutorial-nav.activo .tutorial-nav-btn:nth-child(2) { animation-delay: 0.12s; }
+    .tutorial-nav-btn:hover { transform: scale(1.08); color: #5546c0; }
+    .tutorial-nav-btn:active { transform: scale(0.95); }
+    #tutorial-overlay { position: fixed; inset: 0; pointer-events: none; z-index: 12000; background: transparent; transition: opacity 0.25s ease, background 0.25s ease; opacity: 0; }
+    #tutorial-overlay.sin-mascara{ background: transparent; }
+    #tutorial-overlay.activo { opacity: 1; }
+    #tutorial-hand { position: fixed; width: 44px; height: auto; display: none; filter: drop-shadow(0 6px 10px rgba(0, 0, 0, 0.35)); transform-origin: center; z-index: 16000; pointer-events: none; }
+    .tutorial-hand-pulse { animation: tutorial-hand-pulse 0.65s ease-in-out infinite; }
+    #tutorial-label { position: fixed; left: 50%; display: none; padding: 14px 18px; background: linear-gradient(160deg, rgba(255, 255, 255, 0.98), rgba(237, 241, 255, 0.98)); border: 2px solid rgba(85, 70, 192, 0.45); border-radius: 14px; font-family: 'Poppins', sans-serif; font-size: clamp(16px, 2.4vw, 22px); font-weight: 800; box-shadow: 0 12px 26px rgba(0, 0, 0, 0.3); text-align: center; line-height: 1.35; transform: translate(-50%, -100%); width: fit-content; max-width: min(480px, 90vw); min-width: 200px; z-index: 15000; pointer-events: none; box-sizing: border-box; max-height: 78vh; overflow: auto; align-items: center; justify-content: center; word-break: break-word; }
+    #tutorial-label.adaptado { transition: top 0.2s ease, left 0.2s ease; }
+    @media (max-width:480px) and (orientation:portrait){
+      #tutorial-controls{
+        left: max(12px, env(safe-area-inset-left));
+        bottom: max(16px, env(safe-area-inset-bottom));
+      }
+      #session-info{
+        top: max(8px, env(safe-area-inset-top));
+        right: max(8px, env(safe-area-inset-right));
+      }
+      #tutorial-label{
+        max-height: min(70svh, 78vh);
+      }
+    }
+    .tutorial-elemento-activo { position: relative; z-index: 13000 !important; filter: none !important; }
+    body.tutorial-activo * { pointer-events: none !important; filter: none; }
+    body.tutorial-activo #tutorial-controls *,
+    body.tutorial-activo #tutorial-controls,
+    body.tutorial-activo #tutorial-overlay,
+    body.tutorial-activo #tutorial-hand,
+    body.tutorial-activo #tutorial-label,
+    body.tutorial-activo .tutorial-elemento-activo,
+    body.tutorial-activo .tutorial-elemento-activo * { pointer-events: auto !important; filter: none; }
+    body.tutorial-activo .tutorial-modal-activa,
+    body.tutorial-activo .tutorial-modal-activa * { pointer-events: auto !important; filter: none !important; }
+    #tipo-cuenta label.tutorial-glow,
+    #mis-datos h3.tutorial-glow,
+    #transacciones-section h3.tutorial-glow { text-shadow: 0 0 8px #fff, 0 0 12px rgba(255,255,255,0.85); font-weight: 800; }
+    @keyframes tutorial-hand-pulse { 0% { transform: scale(1); } 45% { transform: scale(1.17); } 100% { transform: scale(1); } }
+    @keyframes tutorial-nav-surge { 0% { transform: translateX(-12px); opacity: 0; } 100% { transform: translateX(0); opacity: 1; } }
+    @keyframes tutorial-nav-exit { 0% { transform: translateX(0); opacity: 1; } 100% { transform: translateX(-16px); opacity: 0; } }
+    @keyframes pestaña-respira { 0% { transform: scale(1); } 50% { transform: scale(1.06); } 100% { transform: scale(1); } }
+  </style>
+  <link rel="stylesheet" href="css/desktopFrame.css">
+</head>
+<body>
+  <div id="session-info" style="display:none;">
+    <img id="user-pic" referrerpolicy="no-referrer" crossorigin="anonymous" src="" alt="Usuario" />
+    <a href="#" id="logout-link">Cerrar sesión</a>
+  </div>
+  <button id="volver-btn" class="menu-btn back-btn" data-compact-back="true">&#9664; Volver</button>
+  <div id="creditos-container">
+    <div id="creditos-title">CREDITOS</div>
+    <div id="creditos-info">
+      <div id="creditos-valor" class="rojo">0</div>
+      <div id="cartones-gratis">
+        <img id="carton-icon" src="https://cdn-icons-png.flaticon.com/32/5065/5065890.png" alt="Ticket">
+        <span id="cartones-valor">0</span>
+      </div>
+    </div>
+  </div>
+
+  <div id="mis-datos">
+    <div style="display:flex;align-items:center;justify-content:center;gap:10px;">
+      <h3 id="mis-datos-label" style="margin:0;">Mis datos bancarios</h3>
+      <label class="switch" id="switch-datos-wrapper">
+        <input type="checkbox" id="toggle-datos">
+        <span class="slider"></span>
+      </label>
+    </div>
+    <div id="datos-content">
+      <div class="campo">
+        <select id="banco">
+          <option value="" disabled selected>Banco</option>
+        </select>
+      </div>
+      <div id="datos-pm">
+        <div class="campo">
+          <input type="text" id="cedula" placeholder="Cédula" inputmode="numeric">
+        </div>
+        <div class="campo">
+          <input type="text" id="pagomovil" placeholder="Número Pago móvil" inputmode="tel">
+        </div>
+      </div>
+      <div class="campo">
+        <div class="cuenta-opcional desactivado" id="cuenta-opcional">
+          <input type="checkbox" id="cuenta-toggle" aria-label="Agregar cuenta bancaria">
+          <input type="text" id="cuenta" placeholder="N° Cuenta Bancaria" inputmode="numeric" disabled>
+        </div>
+      </div>
+      <div id="tipo-cuenta" class="desactivado">
+        <label><input type="radio" name="tipo-cuenta" value="Ahorro" disabled> Ahorro</label>
+        <label for="tipo-cuenta-corriente-input" id="tipo-cuenta-corriente">
+          <input id="tipo-cuenta-corriente-input" type="radio" name="tipo-cuenta" value="Corriente" disabled> Corriente
+        </label>
+      </div>
+      <button id="guardar-datos">Guardar Datos</button>
+    </div>
+  </div>
+
+  <div class="tabs">
+    <div class="tab-buttons">
+      <button id="tab-depositar" data-tab="depositar" class="active">RECARGAS</button>
+      <button id="tab-retirar" data-tab="retirar">RETIROS</button>
+    </div>
+    <div id="depositar" class="tab-content active">
+      <h3 id="titulo-bancos">Bancos habilitados para recargas</h3>
+      <table id="tabla-bancos" tabindex="0">
+        <thead>
+          <tr><th>Banco</th><th>N° Pago Móvil</th><th>Cédula</th></tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+      <select id="banco-deposito">
+        <option value="" disabled selected>Banco donde transferiste</option>
+      </select>
+      <input type="number" id="monto-deposito" placeholder="Monto">
+        <input type="text" id="referencia" placeholder="Referencia (últimos 5 dígitos)" inputmode="numeric" pattern="\d*" maxlength="5" oninput="this.value=this.value.replace(/\D/g,"");">
+      <textarea id="comentario-deposito" placeholder="Comentario (opcional)"></textarea>
+      <button id="btn-depositar">Solicitar Recarga</button>
+    </div>
+    <div id="retirar" class="tab-content">
+      <label id="banco-retiro"></label>
+      <input type="number" id="monto-retiro" placeholder="Monto" step="0.01">
+      <div id="descuentos-retiro">
+        <div id="descuento-bancario" style="font-weight:bold;">
+          Descuento Bancario <span id="porcentaje-retiro" style="color:#00008B;"></span>% por retiro bancario
+        </div>
+        <div id="descuento-admin" style="font-weight:bold;">
+          Descuento del <span id="porcentaje-admin" style="color:#00008B;"></span>% por gestión administrativa
+        </div>
+      </div>
+      <input type="number" id="monto-retiro-neto" placeholder="Monto a recibir" readonly>
+      <textarea id="comentario-retiro" placeholder="Comentario (opcional)"></textarea>
+      <button id="btn-retirar">Retirar</button>
+    </div>
+  </div>
+  <div id="transacciones-section">
+    <div style="display:flex;align-items:center;justify-content:center;gap:10px;">
+      <h3 id="mis-transacciones-label" style="margin:0;">Mis transacciones</h3>
+    </div>
+    <div id="transacciones-content">
+      <table id="tabla-transacciones">
+        <thead>
+          <tr>
+            <th>N°</th>
+            <th>
+              <select id="filtro-tipo">
+                <option value="">TIPO</option>
+                <option value="recarga">RECARGA</option>
+                <option value="retiro">RETIRO</option>
+                <option value="premio">PREMIO</option>
+              </select>
+            </th>
+            <th><input id="filtro-monto" type="number" placeholder="MONTO"></th>
+            <th><input id="filtro-fecha" type="date"></th>
+            <th>
+              <select id="filtro-estado">
+                <option value="">ESTADO</option>
+                <option value="PENDIENTE">Pendiente</option>
+                <option value="APROBADO">Aprobado</option>
+                <option value="ACEPTADO">Aceptado</option>
+                <option value="ANULADO">Anulado</option>
+              </select>
+            </th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div id="modal-detalle" class="modal-overlay" aria-hidden="true" role="dialog" aria-label="Detalle de transacción">
+    <div class="modal-card">
+      <div class="contenido"></div>
+    </div>
+  </div>
+  <div id="modal-confirm" class="modal-overlay" aria-hidden="true" role="dialog" aria-label="Confirmar acción">
+    <div class="modal-card">
+      <h4 id="modal-confirm-title">Confirmar acción</h4>
+      <p id="modal-confirm-text"></p>
+      <div class="modal-actions">
+        <button id="modal-confirm-cancel" class="btn-secundario" type="button">Cancelar</button>
+        <button id="modal-confirm-accept" class="btn-primario" type="button">Aceptar</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="modal-alert" class="modal-overlay" aria-hidden="true" role="alertdialog" aria-label="Aviso importante">
+    <div class="modal-card">
+      <h4 id="modal-alert-title">Aviso</h4>
+      <p id="modal-alert-text"></p>
+      <div class="modal-actions" style="justify-content:center;">
+        <button id="modal-alert-accept" class="btn-primario" type="button">Entendido</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="tutorial-overlay" aria-hidden="true"></div>
+  <img id="tutorial-hand" alt="Guía visual del tutorial" loading="lazy" />
+  <div id="tutorial-label" role="status"></div>
+
+  <div id="tutorial-controls" aria-label="Controles del modo tutorial">
+    <button id="tutorial-toggle" type="button">MODO<br/>TUTORIAL</button>
+    <div id="tutorial-nav" aria-hidden="true">
+      <button id="tutorial-prev" class="tutorial-nav-btn" type="button" aria-label="Paso anterior del tutorial">⏪</button>
+      <button id="tutorial-play" class="tutorial-nav-btn" type="button" aria-label="Reproducir tutorial automáticamente">▶️</button>
+      <button id="tutorial-next" class="tutorial-nav-btn" type="button" aria-label="Siguiente paso del tutorial">⏩</button>
+    </div>
+  </div>
+
+  <script src="https://www.gstatic.com/firebasejs/11.5.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/11.5.0/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/11.5.0/firebase-auth-compat.js"></script>
+  <script src="js/logoSwitcher.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/estadoPagoPremio.js"></script>
+  <script src="js/notificationCenter.js"></script>
+  <script src="js/timezone.js"></script>
+  <script>
+    ensureAuth();
+    initServerTime();
+    const transacciones=[];
+    let porcentajeRetiro=0, porcentajeAdministra=0;
+    let creditosTotales=0, creditosTransito=0, creditosDisponibles=0;
+    let numeroWhatsappDestino='';
+    let numeroWhatsappCargado=false;
+    let unsubscribeBilletera=null;
+    let unsubscribeBilleteraProyeccion=null;
+    let unsubscribeTransacciones=null;
+    let unsubscribePremiosProyeccion=null;
+    const transaccionesPremioProyeccion=new Map();
+    const transaccionesGlobales=new Map();
+
+    function toNumberSafe(valor, defecto=0){
+      const numero=parseFloat(valor);
+      return Number.isFinite(numero)?numero:defecto;
+    }
+
+    function formatearMontoPantalla(valor){
+      const numero=toNumberSafe(valor,0);
+      return numero.toFixed(2).replace(/\.00$/,'').replace(/(\.\d)0$/,'$1');
+    }
+
+    function actualizarResumenCreditos(data){
+      const total=toNumberSafe(data?.creditos,0);
+      const enTransito=Math.max(0,toNumberSafe(data?.creditostransito,0));
+      const disponibles=Math.max(0,total-enTransito);
+      creditosTotales=total;
+      creditosTransito=enTransito;
+      creditosDisponibles=disponibles;
+      const valorEl=document.getElementById('creditos-valor');
+      if(valorEl){
+        valorEl.textContent=formatearMontoPantalla(disponibles);
+        valorEl.className=disponibles>0?'verde':'rojo';
+        valorEl.dataset.total=total.toString();
+        valorEl.dataset.transito=enTransito.toString();
+        valorEl.dataset.disponibles=disponibles.toString();
+      }
+      return disponibles;
+    }
+
+    async function refrescarResumenBilletera(){
+      const user=auth.currentUser;
+      if(!user) return;
+      const proyeccionRef=db.collection('users').doc(user.email).collection('billeteraProyeccion').doc('resumen');
+      const proyeccionSnap=await proyeccionRef.get();
+      if(proyeccionSnap.exists){
+        actualizarResumenCreditos(proyeccionSnap.data()||{});
+        return;
+      }
+      const billeteraRef=db.collection('Billetera').doc(user.email);
+      const snap=await billeteraRef.get();
+      if(snap.exists){
+        actualizarResumenCreditos(snap.data()||{});
+      }
+    }
+
+    function aplicarDatosBilleteraEnPantalla(data){
+      const datos=data||{};
+      actualizarResumenCreditos(datos);
+      document.getElementById('cartones-valor').textContent = datos.CartonesGratis || 0;
+      const cedulaEl=document.getElementById('cedula');
+      cedulaEl.value=normalizarSoloNumeros(datos.cedula);
+      const pagomovilEl=document.getElementById('pagomovil');
+      pagomovilEl.value=normalizarPagoMovil(datos.pagomovil);
+      document.getElementById('banco').value = datos.banco || '';
+      const cuentaEl=document.getElementById('cuenta');
+      cuentaEl.value=normalizarSoloNumeros(datos.cuenta);
+      if(datos.tipoCuenta){
+        const r=document.querySelector(`input[name='tipo-cuenta'][value='${datos.tipoCuenta}']`);
+        if(r) r.checked=true;
+      }
+      const cuentaToggle=document.getElementById('cuenta-toggle');
+      const cuentaActiva=Boolean((datos.cuenta||'').toString().trim()) || Boolean((datos.tipoCuenta||'').toString().trim());
+      cuentaToggle.checked=cuentaActiva;
+      actualizarEstadoCuentaOpcional(cuentaActiva);
+      document.getElementById('banco-retiro').textContent = 'Banco donde recibirás: '+(datos.banco||'');
+    }
+
+    function suscribirBilleteraUsuario(){
+      if(unsubscribeBilleteraProyeccion){
+        unsubscribeBilleteraProyeccion();
+        unsubscribeBilleteraProyeccion=null;
+      }
+      if(unsubscribeBilletera){
+        unsubscribeBilletera();
+        unsubscribeBilletera=null;
+      }
+      const user=auth.currentUser;
+      if(!user?.email) return;
+      const billeteraRef=db.collection('Billetera').doc(user.email);
+      const proyeccionRef=db.collection('users').doc(user.email).collection('billeteraProyeccion').doc('resumen');
+      let resumenProyeccionReciente=false;
+
+      unsubscribeBilleteraProyeccion=proyeccionRef.onSnapshot(snap=>{
+        if(snap.exists){
+          resumenProyeccionReciente=true;
+          const data=snap.data()||{};
+          actualizarResumenCreditos(data);
+          if(Object.prototype.hasOwnProperty.call(data,'CartonesGratis')){
+            document.getElementById('cartones-valor').textContent = data.CartonesGratis || 0;
+          }
+          return;
+        }
+        resumenProyeccionReciente=false;
+      },error=>{
+        console.error('Error escuchando la proyección de billetera del usuario',error);
+      });
+
+      unsubscribeBilletera=billeteraRef.onSnapshot(async snap=>{
+        if(snap.exists){
+          const datosBilletera=snap.data()||{};
+          if(!resumenProyeccionReciente){
+            aplicarDatosBilleteraEnPantalla(datosBilletera);
+            return;
+          }
+          const creditosProyeccion=toNumberSafe(creditosTotales,0);
+          const creditosBilletera=toNumberSafe(datosBilletera.creditos,0);
+          const transitoBilletera=Math.max(0,toNumberSafe(datosBilletera.creditostransito,0));
+          const disponiblesBilletera=Math.max(0,creditosBilletera-transitoBilletera);
+          if(disponiblesBilletera>creditosProyeccion){
+            aplicarDatosBilleteraEnPantalla(datosBilletera);
+          }
+          return;
+        }
+        try{
+          await billeteraRef.set({creditos:0, CartonesGratis:0, creditostransito:0});
+        }catch(error){
+          console.error('No se pudo crear la billetera inicial del usuario',error);
+        }
+        aplicarDatosBilleteraEnPantalla({creditos:0, CartonesGratis:0, creditostransito:0});
+      },error=>{
+        console.error('Error escuchando la billetera del usuario',error);
+      });
+    }
+
+    function cargarBancosBilletera(){
+      db.collection('Bancos').where('categoria','==','Jugadores').where('estado','==','Activo').onSnapshot(snap=>{
+        const sel=document.getElementById('banco');
+        sel.innerHTML='<option value="" disabled selected>Banco</option>';
+        snap.forEach(doc=>{
+          const nombre=doc.data().nombre||doc.id;
+          const opt=document.createElement('option');
+          opt.value=nombre;
+          opt.textContent=nombre;
+          sel.appendChild(opt);
+        });
+      });
+    }
+
+    function cargarBancosBingo(){
+      db.collection('Bancos').where('categoria','==','Bingo').where('estado','==','Activo').onSnapshot(snap=>{
+      const tbody=document.querySelector('#tabla-bancos tbody');
+      const sel=document.getElementById('banco-deposito');
+      sel.innerHTML='<option value="" disabled selected>Banco donde transferiste</option>';
+      tbody.innerHTML='';
+      snap.forEach(doc=>{
+        const nombre=doc.data().nombre||doc.id;
+        const tr=document.createElement('tr');
+        tr.innerHTML=`<td>${nombre}</td><td>${doc.data().pagomovil||''}</td><td>${doc.data().cedula||''}</td>`;
+        tbody.appendChild(tr);
+        const opt=document.createElement('option');
+        opt.value=nombre;
+        opt.textContent=nombre;
+        sel.appendChild(opt);
+      });
+    });
+    }
+
+    function normalizarSoloNumeros(valor){
+      return (valor||'').toString().replace(/\D+/g,'');
+    }
+
+    function normalizarPagoMovil(valor){
+      let limpio=(valor||'').toString().replace(/\s+/g,'');
+      const tieneMas=limpio.startsWith('+');
+      limpio=limpio.replace(/\+/g,'');
+      limpio=limpio.replace(/\D+/g,'');
+      return (tieneMas?'+':'')+limpio;
+    }
+
+    function normalizarNumeroWhatsapp(valor){
+      const texto=(valor||'').toString();
+      let limpio=texto.replace(/[^0-9+]/g,'');
+      if(!limpio) return '';
+      if(limpio.startsWith('+')){
+        limpio='+'+limpio.slice(1).replace(/\+/g,'');
+      }else{
+        limpio=limpio.replace(/\+/g,'');
+      }
+      return limpio;
+    }
+
+    function construirEnlaceWhatsapp(numero,mensaje){
+      const normalizado=normalizarNumeroWhatsapp(numero);
+      if(!normalizado) return '';
+      const destino=normalizado.startsWith('+')?normalizado.slice(1):normalizado;
+      const texto=encodeURIComponent((mensaje||'').toString());
+      return `https://wa.me/${destino}${texto?`?text=${texto}`:''}`;
+    }
+
+    function obtenerNombreUsuario(){
+      const user=auth.currentUser;
+      const nombre=(user?.displayName||'').trim();
+      if(nombre) return nombre;
+      return (user?.email||'').trim();
+    }
+
+    async function obtenerNumeroWhatsappConfigurado(){
+      if(numeroWhatsappDestino){
+        numeroWhatsappCargado=true;
+        return numeroWhatsappDestino;
+      }
+      if(numeroWhatsappCargado) return '';
+      try{
+        const snap=await db.collection('Variablesglobales').doc('Parametros').get();
+        if(snap.exists){
+          const data=snap.data()||{};
+          numeroWhatsappDestino=normalizarNumeroWhatsapp(data.numeroWhatsapp||data.numero_whatsapp||'');
+        }
+      }catch(error){
+        console.error('No se pudo cargar el número de WhatsApp configurado',error);
+      }
+      numeroWhatsappCargado=true;
+      return numeroWhatsappDestino;
+    }
+
+    const MENSAJES_WHATSAPP_SOLICITUD_DEFAULT={
+      mensajeSolicitudRecarga:'💵 *SOLICITUD DE RECARGA*\nCorreo: <correo>\nUsuario: <usuario>\nBanco receptor: <bancoReceptor>\nMonto: <monto>\nReferencia: <referencia>',
+      mensajeSolicitudRetiro:'💰 *SOLICITUD DE RETIRO*\nCorreo: <correo>\nUsuario: <usuario>\nBanco receptor: <bancoReceptor>\nPago móvil: <pagoMovil>\nCuenta: <cuenta>\nMonto solicitado: <montoSolicitado>\nMonto a recibir: <montoRecibir>'
+    };
+    let mensajesWhatsappSolicitudes={...MENSAJES_WHATSAPP_SOLICITUD_DEFAULT};
+    let mensajesWhatsappSolicitudesCargados=false;
+    let suscripcionParametrosWhatsapp=null;
+
+    function actualizarMensajesWhatsappSolicitudesDesdeData(data={}){
+      const grupo=data.mensajesWhatsapp||{};
+      mensajesWhatsappSolicitudes={
+        ...MENSAJES_WHATSAPP_SOLICITUD_DEFAULT,
+        mensajeSolicitudRecarga:grupo.mensajeSolicitudRecarga||data.mensajeSolicitudRecarga||MENSAJES_WHATSAPP_SOLICITUD_DEFAULT.mensajeSolicitudRecarga,
+        mensajeSolicitudRetiro:grupo.mensajeSolicitudRetiro||data.mensajeSolicitudRetiro||MENSAJES_WHATSAPP_SOLICITUD_DEFAULT.mensajeSolicitudRetiro
+      };
+      mensajesWhatsappSolicitudesCargados=true;
+    }
+
+    function iniciarSuscripcionMensajesWhatsappSolicitudes(){
+      if(suscripcionParametrosWhatsapp) return;
+      suscripcionParametrosWhatsapp=db.collection('Variablesglobales').doc('Parametros').onSnapshot(snap=>{
+        const data=snap.exists?(snap.data()||{}):{};
+        actualizarMensajesWhatsappSolicitudesDesdeData(data);
+      },error=>{
+        console.error('No se pudo sincronizar la configuración de mensajes WhatsApp en tiempo real',error);
+      });
+    }
+
+    async function cargarPlantillasWhatsappSolicitudes(){
+      iniciarSuscripcionMensajesWhatsappSolicitudes();
+      if(mensajesWhatsappSolicitudesCargados) return mensajesWhatsappSolicitudes;
+      try{
+        const snap=await db.collection('Variablesglobales').doc('Parametros').get();
+        const data=snap.exists?(snap.data()||{}):{};
+        actualizarMensajesWhatsappSolicitudesDesdeData(data);
+      }catch(error){
+        console.error('No se pudo cargar la configuración de mensajes de solicitud WhatsApp',error);
+      }
+      return mensajesWhatsappSolicitudes;
+    }
+
+    function aplicarPlantillaMensaje(plantilla,valores){
+      return (plantilla||'').replace(/<([a-zA-Z0-9_]+)>/g,(_,clave)=>{
+        const valor=valores[clave];
+        return valor===undefined || valor===null ? '' : String(valor);
+      }).trim();
+    }
+
+    async function construirMensajeWhatsapp(tipo,info){
+      const correo=auth.currentUser?.email||'';
+      const nombre=obtenerNombreUsuario();
+      const formatearEnteroSeguro=valor=>Math.trunc(toNumberSafe(valor,0)).toString();
+      const tipoNormalizado = tipo==='deposito'?'recarga':tipo;
+      const plantillas=await cargarPlantillasWhatsappSolicitudes();
+
+      if(tipoNormalizado==='recarga'){
+        return aplicarPlantillaMensaje(plantillas.mensajeSolicitudRecarga,{
+          correo,
+          usuario:nombre,
+          bancoReceptor:info?.banco||'N/D',
+          monto:formatearEnteroSeguro(info?.monto),
+          referencia:info?.referencia||'N/D'
+        });
+      }
+      if(tipoNormalizado==='retiro'){
+        return aplicarPlantillaMensaje(plantillas.mensajeSolicitudRetiro,{
+          correo,
+          usuario:nombre,
+          bancoReceptor:info?.banco||'N/D',
+          pagoMovil:info?.pagomovil||'N/D',
+          cuenta:info?.cuenta||'N/D',
+          montoSolicitado:formatearEnteroSeguro(info?.montoSolicitado),
+          montoRecibir:formatearEnteroSeguro(info?.montoNeto)
+        });
+      }
+      return '';
+    }
+
+    async function notificarSolicitudWhatsapp(tipo,info){
+      try{
+        const numero=await obtenerNumeroWhatsappConfigurado();
+        if(!numero) return;
+        const mensaje=await construirMensajeWhatsapp(tipo,info);
+        const enlace=construirEnlaceWhatsapp(numero,mensaje);
+        if(!enlace) return;
+        window.open(enlace,'_blank','noopener');
+      }catch(error){
+        console.error('No se pudo preparar el mensaje de WhatsApp',error);
+      }
+    }
+
+    function limitarSoloNumeros(input){
+      if(!input) return;
+      const sanitizar=()=>{
+        input.value=normalizarSoloNumeros(input.value);
+      };
+      sanitizar();
+      input.addEventListener('input',sanitizar);
+    }
+
+    function limitarPagoMovil(input){
+      if(!input) return;
+      const sanitizar=()=>{
+        input.value=normalizarPagoMovil(input.value);
+      };
+      sanitizar();
+      input.addEventListener('input',sanitizar);
+    }
+
+    document.querySelectorAll('.tab-buttons button').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.tab-buttons button').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+        btn.classList.add('active');
+        document.getElementById(btn.dataset.tab).classList.add('active');
+      });
+    });
+
+    limitarSoloNumeros(document.getElementById('cuenta'));
+    limitarSoloNumeros(document.getElementById('cedula'));
+    limitarPagoMovil(document.getElementById('pagomovil'));
+
+    function actualizarOpcionPagoFiltro(rol){
+      const filtroTipoSelect = document.getElementById('filtro-tipo');
+      if(!filtroTipoSelect) return;
+      const rolNormalizado = (rol || '').toLowerCase();
+      const permitirPago = ['administrador','superadmin'].includes(rolNormalizado);
+      let opcionPago = document.getElementById('filtro-tipo-pago');
+      if(permitirPago){
+        if(!opcionPago){
+          opcionPago = document.createElement('option');
+          opcionPago.value = 'pago';
+          opcionPago.id = 'filtro-tipo-pago';
+          opcionPago.textContent = 'PAGO';
+          filtroTipoSelect.appendChild(opcionPago);
+        }else{
+          opcionPago.disabled = false;
+          opcionPago.hidden = false;
+        }
+      }else if(opcionPago){
+        if(opcionPago.selected){
+          filtroTipoSelect.value = '';
+        }
+        opcionPago.remove();
+      }
+    }
+
+    initFirebase().then(() => {
+      auth.onAuthStateChanged(async user => {
+        if(!user) return;
+        let rolActual = window.currentRole || '';
+        if(!rolActual){
+          try{
+            const infoRol = await getUserRole(user, { createIfMissing: false });
+            rolActual = infoRol.role;
+          }catch(err){
+            console.error('No se pudo determinar el rol del usuario para el filtro de transacciones', err);
+          }
+        }
+        actualizarOpcionPagoFiltro(rolActual);
+        cargarBancosBilletera();
+        cargarBancosBingo();
+        const paramDoc = await db.collection('Variablesglobales').doc('Parametros').get();
+        if(paramDoc.exists){
+          porcentajeRetiro = parseFloat(paramDoc.data().porcentajeretiro) || 0;
+          porcentajeAdministra = parseFloat(paramDoc.data().porcentajeadministra) || 0;
+          numeroWhatsappDestino = normalizarNumeroWhatsapp(paramDoc.data().numeroWhatsapp||paramDoc.data().numero_whatsapp||'');
+          numeroWhatsappCargado = true;
+          document.getElementById('porcentaje-retiro').textContent = porcentajeRetiro;
+          document.getElementById('porcentaje-admin').textContent = porcentajeAdministra;
+          actualizarMontoNeto();
+        }
+        const billeteraRef = db.collection('Billetera').doc(user.email);
+        const doc = await billeteraRef.get();
+        suscribirBilleteraUsuario();
+        suscribirTransaccionesUsuario();
+        const estadoTutorialActivo = (doc.exists && doc.data()?.tutorialBilleteraEstado === 'Activo');
+        tutorialState.datosCargados=true;
+        configurarControlesTutorial();
+        mostrarControlesTutorial();
+        if(estadoTutorialActivo){
+          setTimeout(()=>{ reanudarTutorialSiAplica(true); },50);
+        }
+      });
+    });
+
+    function actualizarEstadoCuentaOpcional(activa){
+      const cuentaInput=document.getElementById('cuenta');
+      const cuentaWrapper=document.getElementById('cuenta-opcional');
+      const tipoCuentaWrapper=document.getElementById('tipo-cuenta');
+      const tipoCuentaInputs=document.querySelectorAll('input[name="tipo-cuenta"]');
+      const habilitar=!!activa;
+      cuentaInput.disabled=!habilitar;
+      tipoCuentaInputs.forEach(radio=>{ radio.disabled=!habilitar; });
+      cuentaWrapper.classList.toggle('desactivado', !habilitar);
+      tipoCuentaWrapper.classList.toggle('desactivado', !habilitar);
+    }
+
+    document.getElementById('cuenta-toggle').addEventListener('change', (event) => {
+      actualizarEstadoCuentaOpcional(event.target.checked);
+    });
+
+    document.getElementById('guardar-datos').addEventListener('click', async () => {
+      const user = auth.currentUser;
+      const bancoSelect=document.getElementById('banco');
+      const cuentaInput=document.getElementById('cuenta');
+      const cedulaInput=document.getElementById('cedula');
+      const pagoMovilInput=document.getElementById('pagomovil');
+      const cuentaToggle=document.getElementById('cuenta-toggle');
+      const tipoCuentaSeleccionada=document.querySelector('input[name="tipo-cuenta"]:checked');
+      const data = {
+        cedula: cedulaInput.value.trim(),
+        pagomovil: pagoMovilInput.value.trim(),
+        banco: bancoSelect.value,
+      };
+      if(cuentaToggle.checked){
+        data.cuenta=cuentaInput.value.trim();
+        data.tipoCuenta=tipoCuentaSeleccionada?.value || '';
+      }
+      if(!data.banco){ alert('Seleccione su banco'); bancoSelect.focus(); return; }
+      if(!data.cedula){ alert('Ingrese su cédula'); cedulaInput.focus(); return; }
+      if(!/^\d+$/.test(data.cedula)){ alert('La cédula solo debe contener números'); cedulaInput.focus();return; }
+      if(!data.pagomovil){ alert('Ingrese su número de pago móvil'); pagoMovilInput.focus(); return; }
+      if(!/^\+?\d+$/.test(data.pagomovil)){ alert('El pago móvil solo debe contener números y puede iniciar con +'); pagoMovilInput.focus(); return; }
+      if(cuentaToggle.checked){
+        if(!data.cuenta){ alert('Ingrese su número de cuenta'); cuentaInput.focus(); return; }
+        if(!/^\d+$/.test(data.cuenta)){ alert('La cuenta solo debe contener números'); cuentaInput.focus();return; }
+        if(!data.tipoCuenta){
+          alert('Seleccione el tipo de cuenta');
+          const primerTipo=document.querySelector('input[name="tipo-cuenta"]');
+          if(primerTipo){ primerTipo.focus(); }
+          return;
+        }
+      }
+      const confirmar=await mostrarConfirmacionModal('¿Deseas guardar o actualizar tus datos bancarios?');
+      if(!confirmar){ return; }
+      data.CartonesGratis=parseInt(document.getElementById('cartones-valor').textContent)||0;
+      await db.collection('Billetera').doc(user.email).set(data, {merge:true});
+      alert('Datos guardados');
+    });
+
+    function fechaActual(){
+      return fechaServidor();
+    }
+    function horaActual(){
+      return horaServidor();
+    }
+
+    function formatearFecha(str){
+      if(!str) return '';
+      if(str.includes('/')){
+        const [d,m,a]=str.split('/');
+        return `${d.padStart(2,'0')}/${m.padStart(2,'0')}/${a.padStart(4,'0')}`;
+      }
+      const [a,m,d]=str.split('-');
+      return `${d.padStart(2,'0')}/${m.padStart(2,'0')}/${a}`;
+    }
+
+    function aHora24(str){
+      if(!str) return '00:00';
+      str=str.toLowerCase().replace(/\./g,'').replace(/\s+/g,'');
+      const m=str.match(/(\d{1,2}):(\d{2})(?::(\d{2}))?(a|p)?m?/);
+      if(!m) return str;
+      let h=parseInt(m[1],10);const min=m[2];const ap=m[4];
+      if(ap==='p'&&h<12)h+=12;
+      if(ap==='a'&&h===12)h=0;
+      return `${String(h).padStart(2,'0')}:${min}`;
+    }
+
+    function parseFechaHora(f,h){
+      const [d,m,a]=f.split('/');
+      return new Date(`${a}-${m}-${d}T${aHora24(h)}:00`);
+    }
+
+    function formatearHora(str){
+      if(!str) return '';
+      const [h24,min] = aHora24(str).split(':');
+      let h=parseInt(h24,10);
+      const ampm=h>=12?'pm':'am';
+      h=h%12; if(h===0) h=12;
+      return `${h}:${min} ${ampm}`;
+    }
+
+    function normalizarTipoTransaccion(data){
+      const tipoCrudo = (data.tipotrans || '').toString().trim().toLowerCase();
+      const origen = (data.origen || '').toString().trim().toLowerCase();
+      const referencia = (data.referencia || '').toString().trim().toUpperCase();
+      const sorteoNombre = (data.sorteoNombre || '').toString().trim().toLowerCase();
+      const rolInterno = (data.rolInterno || data.rolinterno || '').toString().trim().toLowerCase();
+      const esRolEspecial = ['desarrolladores','desarrollador','agencia'].includes(rolInterno);
+
+      if(['retiro','recarga','ajuste_colaborador'].includes(tipoCrudo)){
+        return tipoCrudo;
+      }
+
+      if(tipoCrudo === 'deposito'){
+        return 'recarga';
+      }
+
+      let tipo = tipoCrudo;
+
+      if(origen === 'pagos_administracion' && tipo !== 'ajuste_colaborador'){
+        tipo = 'pago';
+      } else if(origen === 'premios_jugadores'){
+        if(!tipo || tipo === 'pago'){
+          tipo = 'premio';
+        }
+      }
+
+      if(esRolEspecial && tipo !== 'ajuste_colaborador'){
+        if(!tipo || tipo === 'premio' || tipo === 'pago' || !tipoCrudo){
+          if(!origen || origen === 'pagos_administracion' || sorteoNombre.includes('pago') || referencia === 'PAGO'){
+            tipo = 'pago';
+          }
+        }
+      }
+
+      if(!tipo){
+        tipo = 'premio';
+      }
+
+      return tipo;
+    }
+
+    const tutorialUI = {
+      overlay: document.getElementById('tutorial-overlay'),
+      hand: document.getElementById('tutorial-hand'),
+      label: document.getElementById('tutorial-label'),
+      toggleBtn: document.getElementById('tutorial-toggle'),
+      nav: document.getElementById('tutorial-nav'),
+      prev: document.getElementById('tutorial-prev'),
+      play: document.getElementById('tutorial-play'),
+      next: document.getElementById('tutorial-next'),
+      controles: document.getElementById('tutorial-controls'),
+      tabDepositar: document.getElementById('tab-depositar'),
+      tabRetirar: document.getElementById('tab-retirar'),
+      toggleDatos: document.getElementById('toggle-datos'),
+      datosContent: document.getElementById('datos-content'),
+      transaccionesContent: document.getElementById('transacciones-content'),
+    };
+
+    const tutorialState = {
+      activo:false,
+      indice:0,
+      auto:{reproduciendo:false, intervalId:null, ciclos:0, indiceInicio:0, iniciado:false},
+      estadoGuardado:'Inactivo',
+      datosCargados:false,
+      alturaBaseViewport: window.innerHeight,
+      viewportAltura: (window.visualViewport?.height)||window.innerHeight,
+      enPausaTemporal:false,
+    };
+    let tutorialDimTimeout = null;
+
+    function sincronizarViewportVisual(){
+      if(!document.documentElement) return;
+      if(!window.visualViewport){
+        document.documentElement.style.setProperty('--vv-offset-top', '0px');
+        document.documentElement.style.setProperty('--vv-offset-left', '0px');
+        return;
+      }
+      const { offsetTop, offsetLeft } = window.visualViewport;
+      document.documentElement.style.setProperty('--vv-offset-top', `${offsetTop || 0}px`);
+      document.documentElement.style.setProperty('--vv-offset-left', `${offsetLeft || 0}px`);
+    }
+
+    sincronizarViewportVisual();
+    if(window.visualViewport){
+      window.visualViewport.addEventListener('resize', sincronizarViewportVisual);
+      window.visualViewport.addEventListener('scroll', sincronizarViewportVisual);
+    }
+    window.addEventListener('resize', sincronizarViewportVisual);
+    window.addEventListener('scroll', sincronizarViewportVisual, { passive: true });
+
+    const animacionTabla = { frameId:null, puntos:[], posicionX:0, direccion:1, pausaHasta:0, ultimaMarca:0, indiceObjetivo:0, y:0 };
+
+    let tutorialControlesListos=false;
+    let tutorialScrollPendiente=false;
+
+    function aplicarEnfasisPestana(tipo, activo){
+      const boton = tipo==='recargas'?tutorialUI.tabDepositar:tutorialUI.tabRetirar;
+      const contenedor = document.getElementById(tipo==='recargas'?'depositar':'retirar');
+      if(boton){
+        boton.classList.toggle('tab-animada', !!activo);
+      }
+      if(contenedor){
+        contenedor.classList.toggle('tab-foco', !!activo);
+      }
+    }
+
+    function ajustarAmbientePaso(paso){
+      const esRecargas = IDS_FOCO_RECARGAS.has(paso.id);
+      const esRetiros = IDS_FOCO_RETIROS.has(paso.id);
+      tutorialMascaraSuavizada = paso.sinMascara === true;
+      aplicarEnfasisPestana('recargas', esRecargas);
+      aplicarEnfasisPestana('retiros', esRetiros);
+      if(tutorialUI.overlay){
+        tutorialUI.overlay.classList.toggle('sin-mascara', tutorialMascaraSuavizada);
+      }
+    }
+
+    function limpiarAmbientePaso(){
+      tutorialMascaraSuavizada=false;
+      aplicarEnfasisPestana('recargas', false);
+      aplicarEnfasisPestana('retiros', false);
+      if(tutorialUI.overlay){
+        tutorialUI.overlay.classList.remove('sin-mascara');
+      }
+    }
+
+    const TUTORIAL_KEY = 'billeteraTutorialIndice';
+
+    const PASOS_MIS_DATOS = [
+      { id:'banco-select', elementId:'banco', mano:'img/Mano-izquierda.png', posicion:'derecha', mensaje:'Elige el Banco que usas', color:'#0b4c8c', requisitoTab:null },
+      { id:'cedula-input', elementId:'cedula', mano:'img/Mano-izquierda.png', posicion:'derecha', mensaje:'Escribe tu número de Cédula', color:'#4b0082', requisitoTab:null },
+      { id:'pago-movil', elementId:'pagomovil', mano:'img/Mano-izquierda.png', posicion:'derecha', mensaje:'Escribe tu número usado para tus pagos moviles', color:'#e67e22', requisitoTab:null },
+      { id:'cuenta-toggle', elementId:'cuenta-toggle', mano:'img/Mano-izquierda.png', posicion:'derecha', mensaje:'Si marcas esta casilla puedes agregar tus datos de Cuenta bancaria para tener mas opciones al recibir los montos de premios', color:'#0b4c8c', requisitoTab:null },
+      { id:'cuenta-input', elementId:'cuenta', mano:'img/Mano-izquierda.png', posicion:'derecha', mensaje:'Escribe el número completo de tu cuenta bancaria', color:'#0a8800', requisitoTab:null },
+      { id:'tipo-cuenta-corriente', elementId:'tipo-cuenta-corriente', mano:'img/Mano-izquierda.png', posicion:'derecha', mensaje:'Elige tu tipo de Cuenta: Ahorro o Corriente', color:'#8b0000', requisitoTab:null },
+      { id:'guardar-datos', elementId:'guardar-datos', mano:'img/Mano-izquierda.png', posicion:'derecha', mensaje:'Una vez coloques todos tus datos puedes guardar o actualizar tus datos presionando este boton', color:'#0b9a2e', requisitoTab:null },
+    ];
+
+    const PASOS_RECARGAS = [
+      { id:'tabla-bancos', elementId:'tabla-bancos', selectorPersonalizado:'#tabla-bancos', selectorAnimacion:'#tabla-bancos tbody tr:last-child', mano:'img/Mano-arriba.png', posicion:'debajo-centro', mensaje:'Estos son los datos de los bancos habilitados donde deberás transferir para la recarga', color:'#0a4c6a', tab:'depositar' },
+      { id:'banco-deposito', elementId:'banco-deposito', mano:'img/Mano-izquierda.png', posicion:'derecha', mensaje:'elige el banco donde transferiste tu pago móvil', color:'#005b99', tab:'depositar' },
+      { id:'monto-deposito', elementId:'monto-deposito', mano:'img/Mano-izquierda.png', posicion:'derecha', mensaje:'Coloca el monto que transferiste. Es IMPORTANTE  que coloques el monto exacto para que no sea anulado', color:'#0b9a2e', tab:'depositar' },
+      { id:'referencia', elementId:'referencia', mano:'img/Mano-izquierda.png', posicion:'derecha', mensaje:'Colocalos últimos 5 dígitos de la referencia. Es IMPORTANTE  que coloques los dígitos correctos, de lo contrario la recarga será anulada', color:'#6a0dad', tab:'depositar' },
+      { id:'comentario-deposito', elementId:'comentario-deposito', mano:'img/Mano-izquierda.png', posicion:'derecha', mensaje:'Aquí puedes colocar un comentario referente a la recarga, este comentario es opcional', color:'#b34700', tab:'depositar' },
+      { id:'btn-depositar', elementId:'btn-depositar', mano:'img/Mano-izquierda.png', posicion:'derecha', mensaje:'Una vez coloques todos los datos de la recarga, puedes solicitar presionando este botón. Serás dirigido automaticamente a tu WhatsApp con el mensaje de solicitud para enviarlo', color:'#0a8800', tab:'depositar' },
+    ];
+
+    const PASOS_RETIROS = [
+      { id:'banco-retiro', elementId:'banco-retiro', mano:'img/Mano-izquierda.png', posicion:'derecha', mensaje:'Aquí verás el banco donde recibirás tu retiro y los datos asociados', color:'#004d66', tab:'retirar' },
+      { id:'monto-retiro', elementId:'monto-retiro', mano:'img/Mano-izquierda.png', posicion:'derecha', mensaje:'Ingresa el monto que deseas retirar', color:'#0b9a2e', tab:'retirar' },
+      { id:'monto-retiro-neto', elementId:'monto-retiro-neto', mano:'img/Mano-izquierda.png', posicion:'derecha', mensaje:'Verifica el monto aproximado a recibir luego de los descuentos aplicados', color:'#8b4513', tab:'retirar' },
+      { id:'comentario-retiro', elementId:'comentario-retiro', mano:'img/Mano-izquierda.png', posicion:'derecha', mensaje:'Agrega un comentario opcional para tu retiro', color:'#6a0dad', tab:'retirar' },
+      { id:'btn-retirar', elementId:'btn-retirar', mano:'img/Mano-izquierda.png', posicion:'derecha', mensaje:'Cuando revises los datos puedes solicitar el retiro presionando este botón', color:'#cc0000', tab:'retirar' },
+    ];
+
+    const PASOS_TRANSACCIONES = [
+      {
+        id:'tabla-transacciones',
+        elementId:'tabla-transacciones',
+        selectorAnimacion:'#tabla-transacciones thead tr:first-child',
+        mano:'img/Mano-arriba.png',
+        posicion:'encima-centro',
+        mensaje:'En esta tabla se listan tus transacciones, puedes usar los filtros en la primera fila TIPO, MONTO, FECHA, ESTADO',
+        color:'#4b0082',
+        tab:null,
+      },
+    ];
+
+    const IDS_FOCO_RECARGAS = new Set(['titulo-bancos','tabla-bancos','banco-deposito','monto-deposito','referencia','comentario-deposito','btn-depositar']);
+    const IDS_FOCO_RETIROS = new Set(['banco-retiro','monto-retiro','monto-retiro-neto','comentario-retiro','btn-retirar']);
+    let tutorialMascaraSuavizada=false;
+
+    function obtenerAlturaViewport(){
+      if(tutorialState.activo && tutorialState.alturaBaseViewport){
+        return tutorialState.alturaBaseViewport;
+      }
+      return tutorialState.viewportAltura || window.innerHeight;
+    }
+
+    function actualizarAlturaViewport(){
+      const alturaActual=window.visualViewport?.height || window.innerHeight;
+      tutorialState.viewportAltura=alturaActual;
+      if(!tutorialState.alturaBaseViewport || alturaActual>tutorialState.alturaBaseViewport){
+        tutorialState.alturaBaseViewport=alturaActual;
+      }
+      if(tutorialState.activo){
+        enfocarPaso();
+      }
+    }
+
+    function resaltarTipoCuenta(activo){
+      document.querySelectorAll('#tipo-cuenta label').forEach(label=>{
+        if(activo){ label.classList.add('tutorial-glow'); }
+        else { label.classList.remove('tutorial-glow'); }
+      });
+    }
+
+    function marcarModalInteractiva(activo, modal=document.getElementById('modal-detalle')){
+      if(!modal) return;
+      if(activo){ modal.classList.add('tutorial-modal-activa'); }
+      else { modal.classList.remove('tutorial-modal-activa'); }
+    }
+
+    if(window.visualViewport){
+      window.visualViewport.addEventListener('resize',actualizarAlturaViewport);
+    }
+    window.addEventListener('orientationchange',actualizarAlturaViewport);
+
+    function guardarIndiceTutorial(indice){
+      if(Number.isInteger(indice)){
+        const dias=30;
+        const maxAge=dias*24*60*60;
+        document.cookie=`${TUTORIAL_KEY}=${indice};path=/;max-age=${maxAge}`;
+      }
+    }
+
+    function obtenerIndiceTutorial(){
+      const pares=document.cookie.split(';').map(p=>p.trim());
+      const encontrado=pares.find(p=>p.startsWith(`${TUTORIAL_KEY}=`));
+      if(!encontrado) return null;
+      const valor=encontrado.split('=')[1];
+      const numero=Number.parseInt(valor,10);
+      return Number.isInteger(numero)?numero:null;
+    }
+
+    function activarTab(tab){
+      const btn=tab==='retirar'?tutorialUI.tabRetirar:tutorialUI.tabDepositar;
+      if(!btn) return;
+      document.querySelectorAll('.tab-buttons button').forEach(b=>b.classList.remove('active'));
+      document.querySelectorAll('.tab-content').forEach(c=>c.classList.remove('active'));
+      btn.classList.add('active');
+      const contenido=document.getElementById(btn.dataset.tab);
+      if(contenido){ contenido.classList.add('active'); }
+    }
+
+    function obtenerElementoPaso(paso){
+      if(paso.selectorPersonalizado){
+        const personalizado=document.querySelector(paso.selectorPersonalizado);
+        if(personalizado){ return personalizado; }
+      }
+      return document.getElementById(paso.elementId);
+    }
+
+    function obtenerElementoAnimacion(paso, elementoBase){
+      if(paso.selectorAnimacion){
+        const objetivo=document.querySelector(paso.selectorAnimacion);
+        if(objetivo){ return objetivo; }
+      }
+      return elementoBase;
+    }
+
+    function construirPasosTutorial(){
+      const pasos=[];
+      pasos.push({ id:'toggle-datos', elementId:'switch-datos-wrapper', mano:'img/Mano-izquierda.png', posicion:'derecha', mensaje:'Activa este interruptor para desplegar y modificar tus datos bancarios', color:'#0b4c8c', tab:null });
+      if(tutorialUI.toggleDatos?.checked){
+        pasos.push(...PASOS_MIS_DATOS);
+      }
+      pasos.push(...PASOS_RECARGAS);
+      pasos.push(...PASOS_RETIROS);
+      pasos.push(...PASOS_TRANSACCIONES);
+      return pasos;
+    }
+
+    function aplicarEstadoInteraccion(elemento, paso){
+      document.querySelectorAll('.tutorial-elemento-activo').forEach(el=>el.classList.remove('tutorial-elemento-activo'));
+      resaltarTipoCuenta(false);
+      document.getElementById('mis-datos-label')?.classList.remove('tutorial-glow', 'tutorial-elemento-activo');
+      document.getElementById('mis-transacciones-label')?.classList.remove('tutorial-glow', 'tutorial-elemento-activo');
+      if(elemento){
+        elemento.classList.add('tutorial-elemento-activo');
+      }
+      if(paso?.id==='toggle-datos'){
+        const etiqueta=document.getElementById('mis-datos-label');
+        if(etiqueta){ etiqueta.classList.add('tutorial-elemento-activo','tutorial-glow'); }
+      }
+      if(paso?.id==='tipo-cuenta-corriente'){
+        const contenedor=document.getElementById('tipo-cuenta');
+        if(contenedor && contenedor!==elemento){
+          contenedor.classList.add('tutorial-elemento-activo');
+        }
+        resaltarTipoCuenta(true);
+      }
+    }
+
+    const OPACIDAD_MASCARA_TUTORIAL = 0.52;
+
+    function actualizarMascara(rect, extraRect){
+      if(!tutorialUI.overlay || !rect) return;
+      const padding=14;
+      const union={
+        left: Math.max(0, Math.min(rect.left, extraRect?.left ?? rect.left) - padding),
+        right: Math.min(window.innerWidth, Math.max(rect.right, extraRect?.right ?? rect.right) + padding),
+        top: Math.max(0, Math.min(rect.top, extraRect?.top ?? rect.top) - padding),
+        bottom: Math.min(obtenerAlturaViewport(), Math.max(rect.bottom, extraRect?.bottom ?? rect.bottom) + padding),
+      };
+      const centroX=(union.left + union.right) / 2;
+      const centroY=(union.top + union.bottom) / 2;
+      const ancho=union.right - union.left;
+      const alto=union.bottom - union.top;
+      const radio=Math.sqrt((ancho ** 2) + (alto ** 2)) / 2 + 26;
+      const halo=radio + 160;
+      tutorialUI.overlay.classList.remove('sin-mascara');
+      tutorialUI.overlay.style.clipPath='none';
+      tutorialUI.overlay.style.background=`radial-gradient(circle at ${centroX}px ${centroY}px, rgba(0, 0, 0, 0) ${radio}px, rgba(0, 0, 0, ${OPACIDAD_MASCARA_TUTORIAL}) ${halo}px)`;
+    }
+
+    function limpiarMascara(){
+      if(!tutorialUI.overlay) return;
+      tutorialUI.overlay.style.clipPath='none';
+      tutorialUI.overlay.style.background=tutorialMascaraSuavizada?'transparent':`rgba(0, 0, 0, ${OPACIDAD_MASCARA_TUTORIAL})`;
+      if(tutorialMascaraSuavizada){ tutorialUI.overlay.classList.add('sin-mascara'); }
+    }
+
+    function posicionarMano(pos){
+      if(!tutorialUI.hand || !pos) return;
+      tutorialUI.hand.style.left=`${pos.x}px`;
+      tutorialUI.hand.style.top=`${pos.y}px`;
+      tutorialUI.hand.style.display='block';
+    }
+
+    function detenerAnimacionTabla(){
+      if(animacionTabla.frameId){
+        cancelAnimationFrame(animacionTabla.frameId);
+      }
+      animacionTabla.frameId=null;
+      animacionTabla.puntos=[];
+      animacionTabla.pausaHasta=0;
+      animacionTabla.ultimaMarca=0;
+      animacionTabla.indiceObjetivo=0;
+      animacionTabla.direccion=1;
+    }
+
+    function obtenerPuntosTabla(elemento){
+      if(!elemento) return null;
+      const fila=elemento.querySelector('tr')||elemento;
+      const celdas=Array.from(fila.querySelectorAll('th,td'));
+      const manoWidth=tutorialUI.hand?.width||44;
+      const objetivoColumnas=['tipo','monto','fecha','estado'];
+      const tabla=fila.closest('table');
+      let celdasObjetivo=celdas.filter(celda=>objetivoColumnas.includes((celda.textContent||'').trim().toLowerCase()));
+      if(tabla?.id === 'tabla-bancos'){
+        celdasObjetivo=celdas.slice(0,3);
+      }
+      if(!celdasObjetivo.length){
+        celdasObjetivo=celdas.slice(1,5);
+      }
+      const puntos=celdasObjetivo.map(celda=>{
+        const rect=celda.getBoundingClientRect();
+        return rect.left + rect.width/2 - manoWidth/2;
+      }).filter((valor)=>Number.isFinite(valor));
+      const filaRect=fila.getBoundingClientRect();
+      const margenInferior=Math.min(18, filaRect.height*0.35);
+      return { puntos, y: filaRect.bottom - margenInferior };
+    }
+
+    function iniciarAnimacionTabla(elemento){
+      if(!tutorialUI.hand || !elemento) return;
+      detenerAnimacionTabla();
+      const infoTabla=obtenerPuntosTabla(elemento);
+      if(!infoTabla || !infoTabla.puntos.length) return;
+      animacionTabla.puntos=infoTabla.puntos;
+      animacionTabla.posicionX=infoTabla.puntos[0];
+      animacionTabla.indiceObjetivo=Math.min(1, infoTabla.puntos.length-1);
+      animacionTabla.direccion=animacionTabla.indiceObjetivo===0?0:1;
+      animacionTabla.y=infoTabla.y;
+      const velocidadPxMs=0.18;
+      const duracionPausa=380;
+
+      tutorialUI.hand.style.display='block';
+      posicionarMano({ x: animacionTabla.posicionX, y: animacionTabla.y });
+
+      const step=(timestamp)=>{
+        if(!tutorialState.activo || !animacionTabla.puntos.length){ return; }
+        if(!animacionTabla.ultimaMarca){ animacionTabla.ultimaMarca=timestamp; }
+        const delta=timestamp-animacionTabla.ultimaMarca;
+        animacionTabla.ultimaMarca=timestamp;
+
+        if(animacionTabla.pausaHasta && timestamp<animacionTabla.pausaHasta){
+          animacionTabla.frameId=requestAnimationFrame(step);
+          return;
+        }
+
+        const objetivo=animacionTabla.puntos[animacionTabla.indiceObjetivo] ?? animacionTabla.posicionX;
+        const diferencia=objetivo - animacionTabla.posicionX;
+        const direccionActual=diferencia===0? (animacionTabla.direccion||1) : Math.sign(diferencia);
+        const avance=Math.min(Math.abs(diferencia), delta*velocidadPxMs) * direccionActual;
+        animacionTabla.posicionX += avance;
+
+        if(Math.abs(diferencia) <= Math.abs(avance)){
+          animacionTabla.posicionX = objetivo;
+          if(animacionTabla.puntos.length>1){
+            if(animacionTabla.indiceObjetivo === animacionTabla.puntos.length-1){
+              animacionTabla.direccion = -1;
+            } else if(animacionTabla.indiceObjetivo === 0){
+              animacionTabla.direccion = 1;
+            }
+            animacionTabla.indiceObjetivo = Math.max(0, Math.min(animacionTabla.puntos.length-1, animacionTabla.indiceObjetivo + animacionTabla.direccion));
+          }
+          animacionTabla.pausaHasta=timestamp+duracionPausa;
+        }
+
+        posicionarMano({ x: animacionTabla.posicionX, y: animacionTabla.y });
+        animacionTabla.frameId=requestAnimationFrame(step);
+      };
+
+      animacionTabla.frameId=requestAnimationFrame(step);
+    }
+
+    function calcularPosicionMano(paso, rect){
+      const manoWidth=tutorialUI.hand?.width||44;
+      const manoHeight=tutorialUI.hand?.height||44;
+      const offset=20;
+      switch(paso.posicion){
+        case 'derecha':
+          return { x: rect.right - offset, y: rect.top + rect.height/2 - manoHeight/2 };
+        case 'izquierda':
+          return { x: rect.left - manoWidth + offset, y: rect.top + rect.height/2 - manoHeight/2 };
+        case 'arriba':
+          return { x: rect.left + rect.width/2 - manoWidth/2, y: rect.top - manoHeight + offset };
+        case 'abajo':
+          return { x: rect.left + rect.width/2 - manoWidth/2, y: rect.bottom - offset };
+        case 'debajo-centro':
+          return { x: rect.left + rect.width/2 - manoWidth/2, y: rect.bottom - offset };
+        case 'encima-centro':
+          return { x: rect.left + rect.width/2 - manoWidth/2, y: rect.top - manoHeight + offset };
+        default:
+          return { x: rect.right - offset, y: rect.top };
+      }
+    }
+
+    function posicionarEtiqueta(rect, mensaje, color){
+      if(!tutorialUI.label) return;
+      const viewportHeight=obtenerAlturaViewport();
+      const viewportWidth=window.innerWidth;
+      const label=tutorialUI.label;
+      const clampValor=(valor, min, max)=>Math.max(min, Math.min(max, valor));
+      const maxAncho=Math.min(480, viewportWidth*0.9);
+      const tamanoFuente=Math.max(16, Math.min(22, maxAncho/18));
+      label.style.maxWidth=`${maxAncho}px`;
+      label.style.minWidth='200px';
+      label.style.fontSize=`${tamanoFuente}px`;
+      label.style.padding=`${Math.max(16, tamanoFuente*0.75)}px ${Math.max(20, tamanoFuente*0.95)}px`;
+      label.textContent=mensaje;
+      label.style.color=color||'#1f1f1f';
+      label.style.display='flex';
+      label.classList.add('adaptado');
+      label.style.visibility='hidden';
+      label.style.left='0px';
+      label.style.top='0px';
+      label.style.transform='none';
+
+      const medidas=label.getBoundingClientRect();
+      const ancho=medidas.width;
+      const alto=medidas.height;
+      const espacios={
+        arriba: Math.max(0, rect.top),
+        abajo: Math.max(0, viewportHeight - rect.bottom),
+        izquierda: Math.max(0, rect.left),
+        derecha: Math.max(0, viewportWidth - rect.right),
+      };
+      let direccion='abajo';
+      ['derecha','izquierda','abajo','arriba'].forEach(dir=>{
+        if(espacios[dir]>espacios[direccion]){ direccion=dir; }
+      });
+      const margen=Math.max(20, tamanoFuente*1.1);
+      let left=viewportWidth/2 - ancho/2;
+      let top=viewportHeight/2 - alto/2;
+      switch(direccion){
+        case 'derecha':
+          left=rect.right + margen;
+          top=rect.top + rect.height/2 - alto/2;
+          break;
+        case 'izquierda':
+          left=rect.left - ancho - margen;
+          top=rect.top + rect.height/2 - alto/2;
+          break;
+        case 'arriba':
+          top=rect.top - alto - margen;
+          left=rect.left + rect.width/2 - ancho/2;
+          break;
+        default:
+          top=rect.bottom + margen;
+          left=rect.left + rect.width/2 - ancho/2;
+          break;
+      }
+
+      const centroHorizontal=viewportWidth/2 - ancho/2;
+      left=(left + centroHorizontal)/2;
+
+      left=clampValor(left, margen, viewportWidth - ancho - margen);
+      top=clampValor(top, margen, viewportHeight - alto - margen);
+
+      const manoRect=tutorialUI.hand?.getBoundingClientRect();
+      if(manoRect){
+        const solapa=!(left+ancho < manoRect.left || left > manoRect.right || top+alto < manoRect.top || top > manoRect.bottom);
+        if(solapa){
+          if(espacios.arriba>espacios.abajo){
+            top=clampValor(manoRect.top - alto - margen, margen, viewportHeight - alto - margen);
+          }else{
+            top=clampValor(manoRect.bottom + margen, margen, viewportHeight - alto - margen);
+          }
+        }
+      }
+
+      if(window.innerHeight>window.innerWidth){
+        left = clampValor((viewportWidth/2) - (ancho/2), margen, viewportWidth - ancho - margen);
+      }
+
+      const controlesRect=tutorialUI.controles?.getBoundingClientRect();
+      if(controlesRect){
+        const solapaControles=!(left+ancho < controlesRect.left || left > controlesRect.right || top+alto < controlesRect.top || top > controlesRect.bottom);
+        if(solapaControles){
+          const candidatos=[
+            { left, top: controlesRect.top - alto - margen },
+            { left, top: controlesRect.bottom + margen },
+            { left: controlesRect.right + margen, top },
+            { left: controlesRect.left - ancho - margen, top },
+          ];
+          const valido=candidatos.find((cand)=>{
+            const candLeft=clampValor(cand.left, margen, viewportWidth - ancho - margen);
+            const candTop=clampValor(cand.top, margen, viewportHeight - alto - margen);
+            return (candLeft+ancho < controlesRect.left || candLeft > controlesRect.right || candTop+alto < controlesRect.top || candTop > controlesRect.bottom);
+          });
+          if(valido){
+            left=clampValor(valido.left, margen, viewportWidth - ancho - margen);
+            top=clampValor(valido.top, margen, viewportHeight - alto - margen);
+          }
+        }
+      }
+      label.style.left=`${left}px`;
+      label.style.top=`${top}px`;
+      label.style.transform='none';
+      label.style.visibility='visible';
+    }
+
+    function enfocarPaso(){
+      if(!tutorialState.activo){
+        if(tutorialUI.overlay){ tutorialUI.overlay.classList.remove('activo'); tutorialUI.overlay.setAttribute('aria-hidden','true'); }
+        limpiarMascara();
+        detenerAnimacionTabla();
+        if(tutorialUI.hand) tutorialUI.hand.style.display='none';
+        if(tutorialUI.hand) tutorialUI.hand.classList.remove('tutorial-hand-pulse');
+        if(tutorialUI.label) tutorialUI.label.style.display='none';
+        resaltarTipoCuenta(false);
+        marcarModalInteractiva(false);
+        limpiarAmbientePaso();
+        document.body.classList.remove('tutorial-activo');
+        return;
+      }
+
+      const pasos=construirPasosTutorial();
+      if(!pasos.length){
+        return;
+      }
+      tutorialState.indice=Math.max(0, Math.min(pasos.length-1, tutorialState.indice));
+      const paso=pasos[tutorialState.indice];
+      if(paso.tab){
+        activarTab(paso.tab);
+      }
+      ajustarAmbientePaso(paso);
+      if(paso.id==='toggle-datos' && tutorialUI.toggleDatos && !tutorialUI.toggleDatos.checked){
+        tutorialUI.datosContent.style.display='none';
+      }
+      const elemento=obtenerElementoPaso(paso);
+      if(!elemento){
+        return;
+      }
+      const rect=elemento.getBoundingClientRect();
+      let rectPestana=null;
+      if(IDS_FOCO_RECARGAS.has(paso.id)){
+        rectPestana=tutorialUI.tabDepositar?.getBoundingClientRect();
+      } else if(IDS_FOCO_RETIROS.has(paso.id)){
+        rectPestana=tutorialUI.tabRetirar?.getBoundingClientRect();
+      }
+      aplicarEstadoInteraccion(elemento, paso);
+      document.body.classList.add('tutorial-activo');
+      if(tutorialUI.overlay){
+        tutorialUI.overlay.setAttribute('aria-hidden','false');
+        tutorialUI.overlay.classList.add('activo');
+        let rectExtra=rectPestana;
+        if(paso.id==='toggle-datos'){
+          const etiqueta=document.getElementById('mis-datos-label');
+          if(etiqueta){ rectExtra=etiqueta.getBoundingClientRect(); }
+        }
+        actualizarMascara(rect, rectExtra);
+      }
+      if(tutorialUI.hand){
+        tutorialUI.hand.src=paso.mano;
+        if(paso.id==='tabla-bancos' || paso.id==='tabla-transacciones'){
+          tutorialUI.hand.classList.remove('tutorial-hand-pulse');
+          const elementoAnimacion=obtenerElementoAnimacion(paso, elemento);
+          iniciarAnimacionTabla(elementoAnimacion);
+        } else {
+          detenerAnimacionTabla();
+          const pos=calcularPosicionMano(paso, rect);
+          posicionarMano(pos);
+          tutorialUI.hand.classList.add('tutorial-hand-pulse');
+        }
+      }
+      posicionarEtiqueta(rect, paso.mensaje, paso.color);
+      guardarIndiceTutorial(tutorialState.indice);
+    }
+
+    function cambiarPaso(delta){
+      const pasos=construirPasosTutorial();
+      if(!pasos.length) return;
+      const pasoActual=pasos[tutorialState.indice];
+      if(delta>0 && pasoActual?.id==='guardar-datos'){
+        if(tutorialUI.toggleDatos){ tutorialUI.toggleDatos.checked=false; }
+        if(tutorialUI.datosContent){ tutorialUI.datosContent.style.display='none'; }
+        activarTab('depositar');
+      }
+      tutorialState.indice=(tutorialState.indice + delta + pasos.length)%pasos.length;
+      enfocarPaso();
+    }
+
+    function actualizarBotonPlay(){
+      if(!tutorialUI.play) return;
+      tutorialUI.play.textContent=tutorialState.auto.reproduciendo?'⏸️':'▶️';
+      const etiqueta=tutorialState.auto.reproduciendo?'Pausar avance automático del tutorial':'Reproducir tutorial automáticamente';
+      tutorialUI.play.setAttribute('aria-label',etiqueta);
+    }
+
+    function mostrarControlesTutorial(){
+      const controles=document.getElementById('tutorial-controls');
+      if(!controles) return;
+      controles.classList.add('visible');
+    }
+
+    function limpiarAuto(){
+      if(tutorialState.auto.intervalId){ clearInterval(tutorialState.auto.intervalId); }
+      tutorialState.auto.intervalId=null;
+      tutorialState.auto.reproduciendo=false;
+      tutorialState.auto.ciclos=0;
+      tutorialState.auto.iniciado=false;
+      tutorialState.auto.indiceInicio=tutorialState.indice;
+      actualizarBotonPlay();
+    }
+
+    function pausarAuto(){
+      if(tutorialState.auto.intervalId){ clearInterval(tutorialState.auto.intervalId); }
+      tutorialState.auto.intervalId=null;
+      tutorialState.auto.reproduciendo=false;
+      actualizarBotonPlay();
+    }
+
+    function iniciarAuto(){
+      if(!tutorialState.activo){ activarTutorial(); }
+      if(!tutorialState.auto.iniciado){
+        tutorialState.auto.indiceInicio=tutorialState.indice;
+        tutorialState.auto.iniciado=true;
+      }
+      if(tutorialState.auto.intervalId){ clearInterval(tutorialState.auto.intervalId); }
+      tutorialState.auto.reproduciendo=true;
+      actualizarBotonPlay();
+      tutorialState.auto.intervalId=setInterval(()=>{
+        if(!tutorialState.activo){ limpiarAuto(); return; }
+        const previo=tutorialState.indice;
+        cambiarPaso(1);
+        const pasos=construirPasosTutorial();
+        const volvio= tutorialState.auto.iniciado && tutorialState.indice!==previo && tutorialState.indice===tutorialState.auto.indiceInicio;
+        if(volvio){
+          tutorialState.auto.ciclos+=1;
+          if(tutorialState.auto.ciclos>=3){ limpiarAuto(); desactivarTutorial(); }
+        }
+      },6000);
+    }
+
+    function alternarAuto(){
+      if(tutorialState.auto.reproduciendo){ pausarAuto(); return; }
+      iniciarAuto();
+    }
+
+    async function guardarEstadoTutorialFirestore(activo){
+      const user=auth?.currentUser;
+      if(!user||!db) return;
+      try{
+        await db.collection('Billetera').doc(user.email).set({ tutorialBilleteraEstado: activo?'Activo':'Inactivo' },{merge:true});
+        tutorialState.estadoGuardado=activo?'Activo':'Inactivo';
+      }catch(error){
+        console.error('No se pudo guardar el estado del modo tutorial',error);
+      }
+    }
+
+    function desactivarTutorial(opciones={}){
+      const omitirGuardado=opciones?.omitirGuardado===true;
+      tutorialState.activo=false;
+      if(tutorialUI.toggleBtn){ tutorialUI.toggleBtn.classList.remove('activo'); }
+      if(tutorialUI.nav){ tutorialUI.nav.setAttribute('aria-hidden','true'); tutorialUI.nav.classList.add('saliendo'); tutorialUI.nav.classList.remove('activo'); }
+      document.body.classList.remove('tutorial-activo');
+      window.removeEventListener('resize', enfocarPaso);
+      limpiarAuto();
+      enfocarPaso();
+      if(!omitirGuardado){ guardarEstadoTutorialFirestore(false); }
+      if(!omitirGuardado){ tutorialState.enPausaTemporal=false; }
+      programarAtenuacionTutorial();
+    }
+
+    function activarTutorial(opciones={}){
+      const pasos=construirPasosTutorial();
+      const guardado=obtenerIndiceTutorial();
+      if(!opciones?.preservarIndice){
+        tutorialState.indice=Number.isInteger(guardado)?Math.max(0, Math.min((pasos.length||1)-1, guardado)):0;
+      }else{
+        tutorialState.indice=Math.max(0, Math.min((pasos.length||1)-1, tutorialState.indice));
+      }
+      tutorialState.activo=true;
+      tutorialState.enPausaTemporal=false;
+      if(tutorialUI.toggleBtn){
+        tutorialUI.toggleBtn.classList.add('activo');
+        tutorialUI.toggleBtn.style.opacity='1';
+      }
+      if(tutorialUI.nav){ tutorialUI.nav.classList.remove('saliendo'); tutorialUI.nav.classList.add('activo'); tutorialUI.nav.setAttribute('aria-hidden','false'); }
+      window.addEventListener('resize', enfocarPaso);
+      enfocarPaso();
+      if(!opciones?.omitirGuardado){ guardarEstadoTutorialFirestore(true); }
+    }
+
+    function programarAtenuacionTutorial(){
+      if(!tutorialUI.toggleBtn) return;
+      if(tutorialDimTimeout){
+        clearTimeout(tutorialDimTimeout);
+      }
+      tutorialUI.toggleBtn.style.opacity='1';
+      if(tutorialState.activo) return;
+      tutorialDimTimeout=setTimeout(()=>{
+        if(!tutorialState.activo && tutorialUI.toggleBtn){
+          tutorialUI.toggleBtn.style.opacity='0.3';
+        }
+      },10000);
+    }
+
+    function pausarTutorialTemporal(){
+      const estabaActivo=tutorialState.activo;
+      if(estabaActivo){
+        tutorialState.enPausaTemporal=true;
+        desactivarTutorial({omitirGuardado:true});
+      }
+      let restaurado=false;
+      return function restaurarTutorial(){
+        if(restaurado){ return; }
+        restaurado=true;
+        if(estabaActivo && tutorialState.enPausaTemporal){
+          activarTutorial({omitirGuardado:true, preservarIndice:true});
+        }
+        tutorialState.enPausaTemporal=false;
+      };
+    }
+
+    function irAlPaso(id){
+      const pasos=construirPasosTutorial();
+      const idx=pasos.findIndex(p=>p.id===id);
+      if(idx>=0){
+        tutorialState.indice=idx;
+        enfocarPaso();
+      }
+    }
+
+    function configurarControlesTutorial(){
+      if(tutorialControlesListos) return;
+      if(!tutorialUI.toggleBtn||!tutorialUI.nav||!tutorialUI.prev||!tutorialUI.next||!tutorialUI.play){ return; }
+      tutorialControlesListos=true;
+      actualizarBotonPlay();
+      tutorialUI.toggleBtn.addEventListener('click',()=>{
+        if(tutorialState.activo){ desactivarTutorial(); }
+        else { activarTutorial(); }
+      });
+      tutorialUI.prev.addEventListener('click',()=>{ if(tutorialState.activo) cambiarPaso(-1); });
+      tutorialUI.next.addEventListener('click',()=>{ if(!tutorialState.activo){ activarTutorial(); return; } cambiarPaso(1); });
+      tutorialUI.play.addEventListener('click',alternarAuto);
+      if(tutorialUI.toggleDatos){
+        tutorialUI.toggleDatos.addEventListener('change',()=>{
+          if(!tutorialState.activo) return;
+          if(!tutorialUI.toggleDatos.checked){
+            tutorialUI.datosContent.style.display='none';
+            irAlPaso('tabla-bancos');
+          }else{
+            irAlPaso('banco-select');
+          }
+        });
+      }
+      programarAtenuacionTutorial();
+    }
+
+    document.addEventListener('focusin',()=>{
+      if(!tutorialState.activo) return;
+      setTimeout(enfocarPaso,80);
+    });
+
+    function sincronizarScrollTutorial(){
+      if(!tutorialState.activo) return;
+      if(tutorialScrollPendiente) return;
+      tutorialScrollPendiente=true;
+      requestAnimationFrame(()=>{
+        tutorialScrollPendiente=false;
+        enfocarPaso();
+      });
+    }
+
+    window.addEventListener('scroll',sincronizarScrollTutorial,{passive:true});
+
+    async function reanudarTutorialSiAplica(estadoBD){
+      tutorialState.estadoGuardado=estadoBD?'Activo':'Inactivo';
+      if(estadoBD){ activarTutorial(); }
+    }
+
+
+    function normalizarEstadoPremioTransaccion(valor){
+      if(window.EstadosPagoPremio && typeof window.EstadosPagoPremio.normalizarLectura==='function'){
+        return window.EstadosPagoPremio.normalizarLectura(valor, (valor||'').toString().trim().toUpperCase());
+      }
+      const texto=(valor||'').toString().trim().toUpperCase();
+      return texto==='REALIZADO'?'APROBADO':texto;
+    }
+
+    function normalizarTransaccionParaTabla(id,data){
+      const payload={...(data||{})};
+      payload.fechasolicitud=formatearFecha(payload.fechasolicitud);
+      payload.fechagestion=formatearFecha(payload.fechagestion);
+      const tipoNormalizado = normalizarTipoTransaccion(payload);
+      const estadoNormalizado = normalizarEstadoPremioTransaccion(payload.estado || '');
+      return {id,...payload, estado: estadoNormalizado, tipotrans: tipoNormalizado};
+    }
+
+    function sincronizarTransaccionesEnTabla(){
+      transacciones.length=0;
+      const premiosEnProyeccion=new Set();
+      transaccionesPremioProyeccion.forEach((valor)=>{
+        transacciones.push(valor);
+        const llave=(valor.eventoGanadorId||valor.winnerKey||valor.id||'').toString();
+        if(llave){ premiosEnProyeccion.add(llave); }
+      });
+
+      transaccionesGlobales.forEach((valor)=>{
+        const tipo=(valor.tipotrans||'').toLowerCase();
+        if(tipo==='premio'){
+          const llave=(valor.eventoGanadorId||valor.winnerKey||valor.id||'').toString();
+          if(llave && premiosEnProyeccion.has(llave)) return;
+        }
+        transacciones.push(valor);
+      });
+
+      transacciones.sort((a,b)=>{
+        const da=parseFechaHora(a.fechagestion||a.fechasolicitud,a.horagestion||a.horasolicitud);
+        const db=parseFechaHora(b.fechagestion||b.fechasolicitud,b.horagestion||b.horasolicitud);
+        return db-da;
+      });
+      filtrarTransacciones();
+    }
+
+    function suscribirTransaccionesUsuario(){
+      if(unsubscribePremiosProyeccion){
+        unsubscribePremiosProyeccion();
+        unsubscribePremiosProyeccion=null;
+      }
+      if(unsubscribeTransacciones){
+        unsubscribeTransacciones();
+        unsubscribeTransacciones=null;
+      }
+      transaccionesPremioProyeccion.clear();
+      transaccionesGlobales.clear();
+
+      const user=auth.currentUser;
+      if(!user?.email) return;
+
+      const identidadesLectura = Array.from(new Set([user.email, user.uid].filter(Boolean)));
+      const premiosPorIdentidad = new Map();
+      const transaccionesPorIdentidad = new Map();
+
+      const resyncPremios = () => {
+        transaccionesPremioProyeccion.clear();
+        premiosPorIdentidad.forEach((mapaDocs)=>{
+          mapaDocs.forEach((valor,id)=>{
+            if(!transaccionesPremioProyeccion.has(id)){
+              transaccionesPremioProyeccion.set(id, valor);
+            }
+          });
+        });
+        sincronizarTransaccionesEnTabla();
+      };
+
+      const resyncTransacciones = () => {
+        transaccionesGlobales.clear();
+        transaccionesPorIdentidad.forEach((mapaDocs)=>{
+          mapaDocs.forEach((valor,id)=>{
+            if(!transaccionesGlobales.has(id)){
+              transaccionesGlobales.set(id, valor);
+            }
+          });
+        });
+        sincronizarTransaccionesEnTabla();
+      };
+
+      const unsubsPremios = identidadesLectura.map((identidad)=>db.collection('users').doc(identidad).collection('premios').onSnapshot(snapshot=>{
+        const docs = new Map();
+        snapshot.forEach(doc=>{
+          const normalizado=normalizarTransaccionParaTabla(doc.id,doc.data()||{});
+          docs.set(doc.id, normalizado);
+        });
+        premiosPorIdentidad.set(identidad, docs);
+        resyncPremios();
+      },error=>{
+        console.error('Error escuchando la proyección de premios del usuario',error, identidad);
+      }));
+
+      unsubscribePremiosProyeccion = () => {
+        unsubsPremios.forEach((fn)=>{ try{ fn(); }catch(_err){} });
+      };
+
+      const unsubsTransacciones = [
+        db.collection('transacciones').where('IDbilletera','==',user.email).onSnapshot(snapshot=>{
+          const docs = new Map();
+          snapshot.forEach(doc=>{
+            const normalizado=normalizarTransaccionParaTabla(doc.id,doc.data()||{});
+            docs.set(doc.id,normalizado);
+          });
+          transaccionesPorIdentidad.set('emailVisible', docs);
+          resyncTransacciones();
+        },error=>{ console.error('Error escuchando transacciones de la billetera',error); })
+      ];
+
+      if(identidadesLectura.length){
+        unsubsTransacciones.push(
+          db.collection('transacciones').where('idBilleteraInterna','in',identidadesLectura).onSnapshot(snapshot=>{
+            const docs = new Map();
+            snapshot.forEach(doc=>{
+              const normalizado=normalizarTransaccionParaTabla(doc.id,doc.data()||{});
+              docs.set(doc.id,normalizado);
+            });
+            transaccionesPorIdentidad.set('idBilleteraInterna', docs);
+            resyncTransacciones();
+          },error=>{ console.error('Error escuchando transacciones por idBilleteraInterna',error); })
+        );
+      }
+
+      unsubscribeTransacciones = () => {
+        unsubsTransacciones.forEach((fn)=>{ try{ fn(); }catch(_err){} });
+      };
+    }
+
+    function filtrarTransacciones(){
+      const tipo=document.getElementById('filtro-tipo').value;
+      const monto=document.getElementById('filtro-monto').value.trim();
+      const fechaInput=document.getElementById('filtro-fecha').value;
+      const fecha=fechaInput?fechaInput.split('-').reverse().join('/'):'';
+      const estado=document.getElementById('filtro-estado').value;
+      const tbody=document.querySelector('#tabla-transacciones tbody');
+      tbody.innerHTML='';
+      let n=1;
+      transacciones.forEach(t=>{
+        if(t.estado==='ARCHIVADO') return;
+        if(tipo && t.tipotrans!==tipo) return;
+        if(monto && parseFloat(t.Monto)!=parseFloat(monto)) return;
+        const f=formatearFecha(t.estado==='PENDIENTE'?t.fechasolicitud:t.fechagestion);
+        if(fecha && f!==fecha) return;
+        if(estado && normalizarEstadoPremioTransaccion(t.estado)!==normalizarEstadoPremioTransaccion(estado)) return;
+        const estadoNormalizado=normalizarEstadoPremioTransaccion(t.estado);
+        const estadoColor=estadoNormalizado==='PENDIENTE'?'orange':estadoNormalizado==='ANULADO'?'red':(estadoNormalizado==='APROBADO' || estadoNormalizado==='ACEPTADO')?'green':'black';
+        const tr=document.createElement('tr');
+        const montoFmt=parseFloat(t.Monto).toFixed(2).replace(/\.00$/, '').replace(/(\.\d)0$/, '$1');
+        const tipoTrans=(t.tipotrans||'').toLowerCase();
+        const cartonesGratisNum=Number(t.cartonesGratis)||0;
+        const esRecarga=tipoTrans==='recarga';
+        const esRetiro=tipoTrans==='retiro';
+        const esPremio=tipoTrans==='premio';
+        const esPago=tipoTrans==='pago';
+        const esPremioCartones=esPremio && cartonesGratisNum>0 && (Number(t.Monto)||0)===cartonesGratisNum;
+        const esResaltado=esPremio||esPago;
+        const colorTipo=esRecarga?'green':esRetiro?'red':(esPremio?'#1b5e20':'#1b5e20');
+        const montoTexto=esPremioCartones?String(cartonesGratisNum):montoFmt;
+        const montoStyle=esPremioCartones
+          ? 'background:#6a1b9a;color:#fff;font-weight:800;'
+          : (esPremio?'color:#0a7d2a;font-weight:800;':(esPago?`background:#1b5e20;color:#fff;`:`color:${colorTipo};`));
+        const fechaStyle=esResaltado?`color:#1b5e20;`:'';
+        const celdas = [
+          { texto: String(n) },
+          { texto: tipoTrans.toUpperCase(), style: `color:${colorTipo}` },
+          { texto: montoTexto, style: montoStyle, className: 'celda-monto' },
+          { texto: f, style: fechaStyle, className: 'celda-fecha' },
+          { texto: t.estado || '', style: `color:${estadoColor}` }
+        ];
+
+        celdas.forEach(celda=>{
+          const td = document.createElement('td');
+          td.textContent = celda.texto;
+          if(celda.style) td.style.cssText = celda.style;
+          if(celda.className) td.className = celda.className;
+          tr.appendChild(td);
+        });
+
+        const fechaTd=tr.querySelector('.celda-fecha');
+        fechaTd.style.cursor='pointer';
+        fechaTd.addEventListener('click',()=>mostrarDetalle(t));
+        const montoTd=tr.querySelector('.celda-monto');
+        montoTd.style.cursor='pointer';
+        montoTd.addEventListener('click',()=>mostrarDetalleMonto(t));
+        const estadoTd=tr.lastElementChild;
+        if(t.estado==='ANULADO' && t.nota){
+          estadoTd.classList.add('nota-estado');
+          estadoTd.addEventListener('click',e=>{e.stopPropagation();alert(t.nota);});
+        }
+        tbody.appendChild(tr);n++;});
+      }
+
+      function mostrarConfirmacionModal(mensaje){
+        return new Promise(resolve=>{
+          const modal=document.getElementById('modal-confirm');
+          const texto=document.getElementById('modal-confirm-text');
+          const btnAceptar=document.getElementById('modal-confirm-accept');
+          const btnCancelar=document.getElementById('modal-confirm-cancel');
+          const restaurarTutorial=pausarTutorialTemporal();
+          if(!modal||!texto||!btnAceptar||!btnCancelar){
+            const respuesta=(window.nativeDialogs?.confirm||window.confirm).call(window,mensaje);
+            restaurarTutorial();
+            resolve(respuesta);
+            return;
+          }
+          texto.textContent=mensaje;
+          modal.style.display='flex';
+          modal.setAttribute('aria-hidden','false');
+          marcarModalInteractiva(true, modal);
+          btnCancelar.focus();
+          const cerrar=(respuesta)=>{
+            modal.style.display='none';
+            modal.setAttribute('aria-hidden','true');
+            marcarModalInteractiva(false, modal);
+            btnAceptar.onclick=null;
+            btnCancelar.onclick=null;
+            modal.removeEventListener('click', manejarFondo);
+            restaurarTutorial();
+            resolve(respuesta);
+          };
+          btnCancelar.onclick=()=>cerrar(false);
+          btnAceptar.onclick=()=>cerrar(true);
+          function manejarFondo(e){ if(e.target===modal){ cerrar(false); } }
+          modal.addEventListener('click', manejarFondo);
+        });
+      }
+
+      function mostrarAlertaModal(mensaje, opciones={}){
+        return new Promise(resolve=>{
+          const modal=document.getElementById('modal-alert');
+          const texto=document.getElementById('modal-alert-text');
+          const titulo=document.getElementById('modal-alert-title');
+          const btnAceptar=document.getElementById('modal-alert-accept');
+          const restaurarTutorial=pausarTutorialTemporal();
+          if(!modal||!texto||!btnAceptar){
+            alert(mensaje);
+            restaurarTutorial();
+            resolve();
+            return;
+          }
+          if(titulo){
+            titulo.textContent=opciones.titulo||'Aviso';
+          }
+          texto.textContent=mensaje;
+          modal.style.display='flex';
+          modal.setAttribute('aria-hidden','false');
+          marcarModalInteractiva(true, modal);
+          btnAceptar.focus();
+          const cerrar=()=>{
+            modal.style.display='none';
+            modal.setAttribute('aria-hidden','true');
+            marcarModalInteractiva(false, modal);
+            btnAceptar.onclick=null;
+            modal.removeEventListener('click', manejarFondo);
+            restaurarTutorial();
+            resolve();
+          };
+          btnAceptar.onclick=cerrar;
+          function manejarFondo(e){ if(e.target===modal){ cerrar(); } }
+          modal.addEventListener('click', manejarFondo);
+        });
+      }
+
+      function mostrarDetalle(t){
+        const ref=t.referencia||'';
+        const fs=formatearFecha(t.fechasolicitud||'');
+        const hs=formatearHora(t.horasolicitud||'');
+        const fg=formatearFecha(t.fechagestion||'');
+        const hg=formatearHora(t.horagestion||'');
+        const cont=document.querySelector('#modal-detalle .contenido');
+        if(t.tipotrans==='premio' || t.tipotrans==='pago'){
+          const etiqueta=t.tipotrans==='pago'?'PAGO':'PREMIO';
+          cont.innerHTML=`<div style="color:#1b5e20;font-weight:bold;">Referencia: ${etiqueta}</div>`+
+          `<div style="color:green;">Fecha de gestión: ${fg}</div>`+
+          `<div style="color:green;">Hora de gestión: ${hg}</div>`+
+          `<button id="modal-ok">Aceptar</button>`;
+        }else{
+          cont.innerHTML=`<div style="color:#00008B;">Referencia: ${ref}</div>`+
+          `<div style="color:orange;">Fecha de solicitud: ${fs}</div>`+
+          `<div style="color:orange;">Hora de solicitud: ${hs}</div>`+
+          `<div style="color:green;">Fecha de gestión: ${fg}</div>`+
+          `<div style="color:green;">Hora de gestión: ${hg}</div>`+
+          `<button id="modal-ok">Aceptar</button>`;
+        }
+        const modal=document.getElementById('modal-detalle');
+        const restaurarTutorial=pausarTutorialTemporal();
+        modal.style.display='flex';
+        modal.setAttribute('aria-hidden','false');
+        marcarModalInteractiva(true);
+        document.getElementById('modal-ok').addEventListener('click',()=>{
+          modal.style.display='none';
+          modal.setAttribute('aria-hidden','true');
+          marcarModalInteractiva(false);
+          restaurarTutorial();
+        },{once:true});
+      }
+
+      function mostrarDetalleMonto(t){
+        const solicitado=t.tipotrans==='retiro'?parseFloat(t.MontoSolicitado||t.Monto):parseFloat(t.Monto);
+        const cartonesGratisNum=Number(t.cartonesGratis)||0;
+        const esPremioCartones=(t.tipotrans==='premio') && cartonesGratisNum>0 && (Number(t.Monto)||0)===cartonesGratisNum;
+        const comB=t.tipotrans==='retiro'?solicitado*porcentajeRetiro/100:0;
+        const comG=t.tipotrans==='retiro'?solicitado*porcentajeAdministra/100:0;
+        const total=parseFloat(t.Monto);
+        const cont=document.querySelector('#modal-detalle .contenido');
+        if(esPremioCartones){
+          cont.innerHTML=
+            `<div style="font-weight:bold;background:#6a1b9a;color:#fff;padding:8px;border-radius:8px;">Cartones gratis ganados: ${cartonesGratisNum}</div>`+
+            `<button id='modal-ok'>Aceptar</button>`;
+        }else
+        if(t.tipotrans==='premio' || t.tipotrans==='pago'){
+          cont.innerHTML=
+            `<div style="font-weight:bold;color:#1b5e20;">Total recibido: ${total.toFixed(2)}</div>`+
+            `<button id='modal-ok'>Aceptar</button>`;
+        }else{
+          cont.innerHTML=
+            `<div style="font-weight:bold;color:purple;">Monto solicitado: ${solicitado.toFixed(2)}</div>`+
+            `<div style="color:orange;">Comisión Bancaria: ${comB.toFixed(2)}</div>`+
+            `<div style="color:orange;">Comisión Gestión: ${comG.toFixed(2)}</div>`+
+            `<div style="font-weight:bold;color:darkgreen;">Total recibido: ${total.toFixed(2)}</div>`+
+            `<button id='modal-ok'>Aceptar</button>`;
+        }
+        const modal=document.getElementById('modal-detalle');
+        const restaurarTutorial=pausarTutorialTemporal();
+        modal.style.display='flex';
+        modal.setAttribute('aria-hidden','false');
+        marcarModalInteractiva(true);
+        document.getElementById('modal-ok').addEventListener('click',()=>{
+          modal.style.display='none';
+          modal.setAttribute('aria-hidden','true');
+          marcarModalInteractiva(false);
+          restaurarTutorial();
+        },{once:true});
+      }
+
+      document.getElementById('filtro-tipo').addEventListener('change',filtrarTransacciones);
+      document.getElementById('filtro-monto').addEventListener('input',filtrarTransacciones);
+    document.getElementById('filtro-fecha').addEventListener('change',filtrarTransacciones);
+    document.getElementById('filtro-estado').addEventListener('change',filtrarTransacciones);
+
+    async function validarDatosBancarios(){
+      const user=auth.currentUser;
+      const doc=await db.collection('Billetera').doc(user.email).get();
+      const d=doc.data()||{};
+      if(d.banco && d.cuenta && d.cedula && d.pagomovil && d.tipoCuenta){
+        return true;
+      }
+      await mostrarAlertaModal('Antes de solicitar una Recarga o Retiro debes tener todos tus datos bancarios registrados');
+      const toggle=document.getElementById('toggle-datos');
+      toggle.checked=true;
+      document.getElementById('datos-content').style.display='block';
+      if(!d.banco){
+        document.getElementById('banco').focus();
+      } else if(!d.cuenta){
+        const cuentaToggle=document.getElementById('cuenta-toggle');
+        cuentaToggle.checked=true;
+        actualizarEstadoCuentaOpcional(true);
+        document.getElementById('cuenta').focus();
+      } else if(!d.cedula){
+        document.getElementById('cedula').focus();
+      } else if(!d.pagomovil){
+        document.getElementById('pagomovil').focus();
+      } else if(!d.tipoCuenta){
+        const cuentaToggle=document.getElementById('cuenta-toggle');
+        cuentaToggle.checked=true;
+        actualizarEstadoCuentaOpcional(true);
+        document.querySelector('input[name="tipo-cuenta"]').focus();
+      }
+      return false;
+    }
+
+    function limpiarCamposTransaccion(tipo){
+      if(tipo==='recarga'){
+        document.getElementById('banco-deposito').selectedIndex=0;
+        document.getElementById('monto-deposito').value='';
+        document.getElementById('referencia').value='';
+        document.getElementById('comentario-deposito').value='';
+      }else if(tipo==='retiro'){
+        document.getElementById('monto-retiro').value='';
+        document.getElementById('comentario-retiro').value='';
+        document.getElementById('monto-retiro-neto').value='';
+      }
+    }
+
+    function actualizarMontoNeto(){
+      const monto=parseFloat(document.getElementById('monto-retiro').value)||0;
+      const neto=monto - (monto*porcentajeRetiro/100) - (monto*porcentajeAdministra/100);
+      document.getElementById('monto-retiro-neto').value=neto>0?neto.toFixed(2):'';
+    }
+
+    document.getElementById('monto-retiro').addEventListener('input',actualizarMontoNeto);
+
+    document.getElementById('btn-depositar').addEventListener('click', async () => {
+      if(!await validarDatosBancarios()) return;
+      await initServerTime();
+      const user = auth.currentUser;
+      const banco=document.getElementById('banco-deposito').value;
+      if(!banco){await mostrarAlertaModal('Seleccione el banco donde transferiste');document.getElementById('banco-deposito').focus();return;}
+      const montoStr=document.getElementById('monto-deposito').value.trim();
+      const monto=parseFloat(montoStr);
+      if(!montoStr || isNaN(monto) || monto<=0){await mostrarAlertaModal('Ingrese un monto válido');document.getElementById('monto-deposito').focus();return;}
+      const ref=document.getElementById('referencia').value.trim();
+      if(!/^[0-9]{5}$/.test(ref)){await mostrarAlertaModal('Ingrese la referencia de 5 dígitos');document.getElementById('referencia').focus();return;}
+      const data = {
+        tipotrans:'recarga',
+        bancoreceptor:banco,
+        Monto:monto,
+        referencia:ref,
+        comentario: document.getElementById('comentario-deposito').value.trim(),
+        estado:'PENDIENTE',
+        IDbilletera: user.email,
+        fechasolicitud: fechaActual(),
+        horasolicitud: horaActual(),
+        usuariogestor:'',
+        rolusuario:'',
+        fechagestion:'',
+        horagestion:'',
+        nota:''
+      };
+      const confirmar = await mostrarConfirmacionModal(`¿Confirmas la solicitud de recarga por ${monto.toFixed(2)}?`);
+      if(!confirmar){ return; }
+      await db.collection('transacciones').add(data);
+      await mostrarAlertaModal('Bien, recibimos tu solicitud, una vez verificado el pago se recargará tu billetera, serás dirigido a tu WhatsApp para poder enviar el mensaje de solicitud');
+      await notificarSolicitudWhatsapp('recarga',{
+        banco:banco,
+        monto:monto,
+        referencia:ref,
+        comentario:data.comentario
+      });
+      limpiarCamposTransaccion('recarga');
+      suscribirTransaccionesUsuario();
+    });
+
+    async function ejecutarRetiro(monto,montoFinal, comentario){
+      const user=auth.currentUser;
+      await initServerTime();
+      const billeteraRef=db.collection('Billetera').doc(user.email);
+      const transaccionRef=db.collection('transacciones').doc();
+      const data={
+        tipotrans:'retiro',
+        bancoreceptor:'',
+        MontoSolicitado:monto,
+        Monto:montoFinal,
+        referencia:'',
+        comentario:comentario,
+        estado:'PENDIENTE',
+        IDbilletera:user.email,
+        fechasolicitud:fechaActual(),
+        horasolicitud:horaActual(),
+        usuariogestor:'',
+        rolusuario:'',
+        fechagestion:'',
+        horagestion:'',
+        nota:''
+      };
+      let billeteraData=null;
+      try{
+        await db.runTransaction(async tx=>{
+          const billeteraSnap=await tx.get(billeteraRef);
+          billeteraData=billeteraSnap.exists?(billeteraSnap.data()||{}):{};
+          const bancoSeleccionado=(billeteraData.banco||'').toString();
+          const creditosActual=toNumberSafe(billeteraData.creditos,0);
+          const transitoActual=Math.max(0,toNumberSafe(billeteraData.creditostransito,0));
+          const disponibles=Math.max(0,creditosActual-transitoActual);
+          if(monto>disponibles){
+            throw new Error('CREDITOS_INSUFICIENTES');
+          }
+          const nuevoTransito=transitoActual+monto;
+          if(!data.bancoreceptor){
+            data.bancoreceptor=bancoSeleccionado;
+          }
+          tx.set(billeteraRef,{creditostransito:nuevoTransito},{merge:true});
+          tx.set(transaccionRef,data);
+        });
+      }catch(error){
+        if(error?.message==='CREDITOS_INSUFICIENTES'){
+          throw new Error('CREDITOS_INSUFICIENTES');
+        }
+        console.error('No se pudo registrar el retiro',error);
+        throw error;
+      }
+      await refrescarResumenBilletera();
+      await mostrarAlertaModal('Solicitud enviada, una vez validada se transferirá a tu pago móvil, serás dirigido a tu WhatsApp para poder enviar el mensaje de solicitud');
+      limpiarCamposTransaccion('retiro');
+      suscribirTransaccionesUsuario();
+      return { data, billetera: billeteraData };
+    }
+
+    document.getElementById('btn-retirar').addEventListener('click', async () => {
+      if(!await validarDatosBancarios()) return;
+      const montoStr=document.getElementById('monto-retiro').value.trim();
+      const monto=parseFloat(montoStr);
+      if(!montoStr || isNaN(monto) || monto<=0){await mostrarAlertaModal('Ingrese un monto válido');document.getElementById('monto-retiro').focus();return;}
+      if(monto>creditosDisponibles){ await mostrarAlertaModal(`El monto supera los créditos disponibles (${formatearMontoPantalla(creditosDisponibles)})`); return; }
+      const montoFinal=monto - (monto*porcentajeRetiro/100) - (monto*porcentajeAdministra/100);
+      document.getElementById('monto-retiro-neto').value = montoFinal>0 ? montoFinal.toFixed(2) : '';
+      const comentarioRetiro=document.getElementById('comentario-retiro').value.trim();
+      const continuar=await mostrarConfirmacionModal(`¿Confirmas la solicitud de retiro por ${montoFinal.toFixed(2)}?`);
+      if(!continuar){ return; }
+      const restaurarTutorial=pausarTutorialTemporal();
+      try{
+        const resultado=await ejecutarRetiro(monto,montoFinal, comentarioRetiro);
+        await notificarSolicitudWhatsapp('retiro',{
+          montoSolicitado:monto,
+          montoNeto:montoFinal,
+          comentario:comentarioRetiro,
+          banco:resultado?.billetera?.banco||resultado?.data?.bancoreceptor||'',
+          pagomovil:resultado?.billetera?.pagomovil||'',
+          cuenta:resultado?.billetera?.cuenta||''
+        });
+      }catch(error){
+        if(error?.message==='CREDITOS_INSUFICIENTES'){
+          await refrescarResumenBilletera();
+          await mostrarAlertaModal('El saldo disponible cambió. Inténtalo nuevamente.');
+        }else{
+          await mostrarAlertaModal('No se pudo registrar la solicitud de retiro. Inténtalo nuevamente.');
+        }
+      }finally{
+        restaurarTutorial();
+      }
+    });
+
+    document.getElementById('volver-btn').addEventListener('click',()=>{
+      window.location.href='player.html';
+    });
+
+    </script>
+    <script>
+      document.addEventListener('DOMContentLoaded',()=>{
+      const toggle=document.getElementById('toggle-datos');
+      const datos=document.getElementById('datos-content');
+      const transDiv=document.getElementById('transacciones-content');
+      const btnRecargas=document.getElementById('tab-depositar');
+      const btnRetiros=document.getElementById('tab-retirar');
+      const seccionRecargas=document.getElementById('depositar');
+      const seccionRetiros=document.getElementById('retirar');
+      const tablaBancos=document.getElementById('tabla-bancos');
+      const tituloBancos=document.getElementById('titulo-bancos');
+
+      mostrarControlesTutorial();
+
+      function actualizarVisibilidad(){
+        datos.style.display=toggle.checked?'block':'none';
+      }
+
+      function activarEnfasis(tab){
+        aplicarEnfasisPestana(tab, true);
+      }
+
+      function desactivarEnfasis(tab){
+        aplicarEnfasisPestana(tab, false);
+      }
+
+      if(seccionRecargas){
+        seccionRecargas.addEventListener('focusin',()=>activarEnfasis('recargas'));
+        seccionRecargas.addEventListener('focusout',()=>{
+          if(!seccionRecargas.contains(document.activeElement)){
+            desactivarEnfasis('recargas');
+          }
+        });
+      }
+
+      if(seccionRetiros){
+        seccionRetiros.addEventListener('focusin',()=>activarEnfasis('retiros'));
+        seccionRetiros.addEventListener('focusout',()=>{
+          if(!seccionRetiros.contains(document.activeElement)){
+            desactivarEnfasis('retiros');
+          }
+        });
+      }
+
+      if(tablaBancos && tituloBancos){
+        const activarTitulo=()=>tituloBancos.classList.add('resaltado');
+        const desactivarTitulo=()=>tituloBancos.classList.remove('resaltado');
+        tablaBancos.addEventListener('focusin',activarTitulo);
+        tablaBancos.addEventListener('focusout',()=>{
+          if(!tablaBancos.contains(document.activeElement)){
+            desactivarTitulo();
+          }
+        });
+      }
+
+      toggle.addEventListener('change',actualizarVisibilidad);
+      let debeAbrirDatos=false;
+      try{
+        if(sessionStorage.getItem('abrirDatosBancarios')==='1'){
+          debeAbrirDatos=true;
+          sessionStorage.removeItem('abrirDatosBancarios');
+        }
+      }catch(error){
+        console.warn('No se pudo verificar la instrucción para abrir los datos bancarios',error);
+      }
+      if(debeAbrirDatos){
+        toggle.checked=true;
+      }
+      actualizarVisibilidad();
+      transDiv.style.display='block';
+      if(debeAbrirDatos){
+        setTimeout(()=>{
+          const primerCampo=document.getElementById('banco');
+          if(primerCampo){
+            primerCampo.focus();
+          }
+        },0);
+      }
+    });
+  </script>
+  <script src="js/backNavigation.js"></script>
+</body>
+</html>

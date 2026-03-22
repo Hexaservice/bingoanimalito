@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <link rel="apple-touch-icon" sizes="180x180" href="img/apple-touch-icon.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="img/android-chrome-192x192.png">
+  <link rel="icon" type="image/png" sizes="512x512" href="img/android-chrome-512x512.png">
+  <link rel="icon" type="image/x-icon" href="img/favicon.ico">
+  <link rel="icon" type="image/x-icon" sizes="16x16" href="img/favicon-16x16.ico">
+  <link rel="icon" type="image/x-icon" sizes="32x32" href="img/favicon-32x32.ico">
+
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Parámetros - Bingo Online</title>
+  <link href="https://fonts.googleapis.com/css2?family=Bangers&display=swap" rel="stylesheet">
+  <style>
+    body {
+      background: linear-gradient(rgba(255, 255, 255, 0.7), rgba(255, 255, 255, 0.7)),
+                  url('https://img.freepik.com/vectores-premium/padrao-sem-costura-com-simbolos-de-dolar-e-porcentagem_637741-777.jpg');
+      background-repeat: repeat;
+      background-size: auto;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      min-height: 100vh;
+      text-align: center;
+      font-family: 'Bangers', cursive;
+      padding-top: 60px;
+      margin: 0;
+    }
+    .menu-btn {
+      width: 250px;
+      height: 60px;
+      font-family: 'Bangers', cursive;
+      font-size: 1.4rem;
+      background: rgba(0, 170, 255, 0.8);
+      color: white;
+      border: 4px solid #FFD700;
+      border-radius: 10px;
+      text-shadow: 2px 2px 4px #000;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: transform 0.3s, box-shadow 0.3s, background 0.3s;
+      margin: 5px;
+    }
+    .menu-btn:hover {
+      transform: scale(1.05);
+      box-shadow: 0 0 15px rgba(255, 215, 0, 0.8);
+    }
+    .back-btn {
+      position: fixed;
+      top: 5px;
+      left: 5px;
+      width: 120px;
+      height: 40px;
+      background: orange;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      gap:5px;
+    }
+    #session-info {
+      position: fixed;
+      top: 10px;
+      right: 10px;
+      display: flex;
+      align-items: center;
+      font-size: 0.7rem;
+    }
+    #user-pic {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+    }
+    #logout-link {
+      font-family: Calibri, Arial, sans-serif;
+      margin-left: 5px;
+      font-size: 0.7rem;
+      color: #007bff;
+      text-decoration: underline;
+    }
+    #parametros-form {
+      width: 90%;
+      max-width: 600px;
+      display: none;
+      flex-direction: column;
+      gap: 8px;
+      font-family: Calibri, Arial, sans-serif;
+      font-size: 0.9rem;
+      align-items: center;
+    }
+    .form-row {
+      display: flex;
+      align-items: center;
+      width: 100%;
+    }
+    .form-row label {
+      flex: 0 0 150px;
+      font-weight: bold;
+      text-align: right;
+      margin-right: 10px;
+    }
+    .form-row input {
+      flex: 1;
+      padding: 5px;
+      border-radius: 5px;
+      border: 1px solid #ccc;
+      text-align: left;
+      background-color: #fff;
+    }
+    /* El menú de selección de país debe verse con fondo blanco */
+    #pais {
+      background-color: #fff;
+    }
+    .small-row {
+      flex-wrap: wrap;
+      gap: 10px;
+      justify-content: center;
+    }
+    .small-row .field {
+      display: flex;
+      align-items: center;
+    }
+    .small-row .field label {
+      flex: none;
+      width: auto;
+      margin-right: 5px;
+      text-align: left;
+    }
+    .small-row .field input {
+      width: 70px;
+      text-align: center;
+      background-color: #fff;
+    }
+    .small-row .field .percent {
+      margin-left: 4px;
+      font-weight: bold;
+    }
+  </style>
+  <link rel="stylesheet" href="css/desktopFrame.css">
+</head>
+<body>
+  <button id="volver-btn" class="menu-btn back-btn" data-compact-back="true">&#9664; Volver</button>
+  <div id="session-info" style="display:none;">
+    <img id="user-pic" referrerpolicy="no-referrer" crossorigin="anonymous" src="" alt="Usuario" />
+    <a href="#" id="logout-link">Cerrar sesión</a>
+  </div>
+  <h2 style="margin-top:20px;">Parámetros Globales</h2>
+  <div id="parametros-form">
+    <div class="form-row">
+      <label for="aplicacion">Nombre de App:</label>
+      <input type="text" id="aplicacion" placeholder="Aplicación" />
+    </div>
+    <div class="form-row">
+      <label for="cliente">Cliente:</label>
+      <input type="text" id="cliente" placeholder="Cliente" />
+    </div>
+    <div class="form-row">
+      <label for="agencia">Agencia:</label>
+      <input type="text" id="agencia" placeholder="Agencia" />
+    </div>
+    <div class="form-row">
+      <label for="telefonoA">Teléfono:</label>
+      <input type="text" id="telefonoA" placeholder="Teléfono" />
+    </div>
+    <div class="form-row">
+      <label for="emailA">Email:</label>
+      <input type="text" id="emailA" placeholder="Email" />
+    </div>
+    <div class="form-row">
+      <label for="nombreAgencia">Nombre Agencia:</label>
+      <input type="text" id="nombreAgencia" placeholder="Nombre de la Agencia" />
+    </div>
+    <div class="form-row">
+      <label for="direccion">Dirección:</label>
+      <input type="text" id="direccion" placeholder="Dirección" />
+    </div>
+    <div class="form-row small-row">
+      <div class="field">
+        <label for="pais">País:</label>
+        <select id="pais"></select>
+      </div>
+      <div class="field">
+        <label for="porcentaje">Porcentaje Agencia:</label>
+        <input type="number" id="porcentaje" placeholder="0" />
+        <span class="percent">%</span>
+      </div>
+      <div class="field">
+        <label for="porcentajesu">Porcentaje Superadmin:</label>
+        <input type="number" id="porcentajesu" placeholder="0" />
+        <span class="percent">%</span>
+      </div>
+      <div class="field">
+        <label for="porcentajeretiro">Porcentaje de Retiros:</label>
+        <input type="number" id="porcentajeretiro" placeholder="0" step="0.01" />
+        <span class="percent">%</span>
+      </div>
+      <div class="field">
+        <label for="porcentajeadministra">Porcentaje Administrativo:</label>
+        <input type="number" id="porcentajeadministra" placeholder="0" step="0.01" />
+        <span class="percent">%</span>
+      </div>
+    </div>
+    <button id="editar-btn" class="menu-btn">Editar</button>
+    <button id="guardar-btn" class="menu-btn" style="display:none;">Guardar</button>
+  </div>
+  <script src="https://www.gstatic.com/firebasejs/11.5.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/11.5.0/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/11.5.0/firebase-auth-compat.js"></script>
+  <script src="js/logoSwitcher.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/notificationCenter.js"></script>
+  <script>
+    ensureAuth('Superadmin');
+
+    const camposContrasenaLegacy = ['contrasenasu','contrasenaSu','contrasenaSU','Contrasenasu','ContrasenaSu','ContrasenaSU'];
+
+    async function validarAutorizacionFuerteSuperadmin(){
+      const verificacion = await verificarRolFuerte('Superadmin', { forceRefresh: true });
+      if(!verificacion.ok){
+        throw new Error('CLAIMS_SUPERADMIN_NO_VIGENTES');
+      }
+      if(!tieneReautenticacionReciente({ maxAgeMs: 10 * 60 * 1000 })){
+        throw new Error('REAUTENTICACION_REQUERIDA_DESDE_MENU_SUPERADMIN');
+      }
+    }
+
+    async function migrarContrasenaLegacyParametros(){
+      const ref = db.collection('Variablesglobales').doc('Parametros');
+      const doc = await ref.get();
+      if(!doc.exists){
+        return null;
+      }
+
+      const data = doc.data() || {};
+      const cambios = {};
+      let hayCambios = false;
+      for(const campo of camposContrasenaLegacy){
+        if(Object.prototype.hasOwnProperty.call(data, campo)){
+          cambios[campo] = firebase.firestore.FieldValue.delete();
+          hayCambios = true;
+        }
+      }
+
+      if(hayCambios){
+        await ref.set(cambios, { merge: true });
+      }
+      return data;
+    }
+
+
+    async function cargarPaises(){
+      try{
+        const resp = await fetch('https://restcountries.com/v3.1/all?fields=name,translations,timezones');
+        const paises = await resp.json();
+        paises.sort((a,b)=>{
+          const nA = (a.translations?.spa?.common || a.name.common);
+          const nB = (b.translations?.spa?.common || b.name.common);
+          return nA.localeCompare(nB);
+        });
+        const sel = document.getElementById('pais');
+        paises.forEach(p=>{
+          const nombre = p.translations?.spa?.common || p.name.common;
+          const opt = document.createElement('option');
+          opt.value = nombre;
+          opt.textContent = nombre;
+          opt.dataset.timezone = p.timezones[0];
+          sel.appendChild(opt);
+        });
+      }catch(e){
+        console.error('Error cargando países', e);
+      }
+    }
+
+    function cargarFormulario(data){
+      document.getElementById('aplicacion').value = data.Aplicacion || '';
+      document.getElementById('cliente').value = data.Cliente || '';
+      document.getElementById('agencia').value = data.Agencia || '';
+      document.getElementById('telefonoA').value = data.TelefonoA || '';
+      document.getElementById('emailA').value = data.EmailA || '';
+      document.getElementById('nombreAgencia').value = data.NombreAgencia || '';
+      document.getElementById('direccion').value = data.Direccion || '';
+      if(data.Pais){ document.getElementById('pais').value = data.Pais; }
+      document.getElementById('porcentaje').value = data.porcentaje || '';
+      document.getElementById('porcentajesu').value = data.porcentajesu || '';
+      document.getElementById('porcentajeretiro').value = data.porcentajeretiro || '';
+      document.getElementById('porcentajeadministra').value = data.porcentajeadministra || '';
+      /* Habilitar edición por defecto para permitir la selección inmediata del país */
+      toggleEdicion(false);
+    }
+    function toggleEdicion(disabled){
+      document.querySelectorAll('#parametros-form input, #parametros-form select').forEach(inp=>inp.disabled = disabled);
+      document.getElementById('editar-btn').style.display = disabled ? 'block':'none';
+      document.getElementById('guardar-btn').style.display = disabled ? 'none':'block';
+    }
+    document.getElementById('editar-btn').addEventListener('click', ()=>{ toggleEdicion(false); });
+    document.getElementById('guardar-btn').addEventListener('click', async ()=>{
+      const data={
+        Aplicacion: document.getElementById('aplicacion').value.trim(),
+        Cliente: document.getElementById('cliente').value.trim(),
+        Agencia: document.getElementById('agencia').value.trim(),
+        TelefonoA: document.getElementById('telefonoA').value.trim(),
+        EmailA: document.getElementById('emailA').value.trim(),
+        NombreAgencia: document.getElementById('nombreAgencia').value.trim(),
+        Direccion: document.getElementById('direccion').value.trim(),
+        Pais: document.getElementById('pais').value.trim(),
+        ZonaHoraria: document.getElementById('pais').selectedOptions[0]?.dataset.timezone || '',
+        porcentaje: parseFloat(document.getElementById('porcentaje').value)||0,
+        porcentajesu: parseFloat(document.getElementById('porcentajesu').value)||0,
+        porcentajeretiro: parseFloat(document.getElementById('porcentajeretiro').value)||0,
+        porcentajeadministra: parseFloat(document.getElementById('porcentajeadministra').value)||0
+      };
+      const limpiezaLegacy = Object.fromEntries(camposContrasenaLegacy.map(campo=>[campo, firebase.firestore.FieldValue.delete()]));
+      await db.collection('Variablesglobales').doc('Parametros').set({ ...data, ...limpiezaLegacy },{merge:true});
+      alert('Parámetros guardados');
+      toggleEdicion(true);
+    });
+    document.getElementById('volver-btn').addEventListener('click',()=>{window.location.href='super.html';});
+    async function iniciarParametros(){
+      try{
+        await initFirebase();
+      }catch(error){
+        console.error('No se pudo inicializar Firebase antes de cargar parámetros', error);
+        alert('No se pudo preparar la conexión con los datos de parámetros. Intenta nuevamente más tarde.');
+        window.location.href='super.html';
+        return;
+      }
+
+      await cargarPaises();
+      let datosParametros = null;
+      try{
+        const dataOriginal = await migrarContrasenaLegacyParametros();
+        if(!dataOriginal){
+          alert('No se encontraron parámetros configurados.');
+          window.location.href='super.html';
+          return;
+        }
+        datosParametros = dataOriginal;
+      }catch(error){
+        console.error('Error al obtener parámetros', error);
+        alert('No fue posible obtener los parámetros.');
+        window.location.href='super.html';
+        return;
+      }
+
+
+      cargarFormulario(datosParametros);
+      document.getElementById('parametros-form').style.display = 'flex';
+      document.getElementById('session-info').style.display = 'flex';
+    }
+
+    let parametrosYaInicializados=false;
+    function iniciarCuandoAuthEsteLista(){
+      initFirebase()
+        .then(()=>{
+          auth.onAuthStateChanged(async usuario=>{
+            if(!usuario || parametrosYaInicializados) return;
+            try{
+              await validarAutorizacionFuerteSuperadmin();
+              await iniciarParametros();
+              parametrosYaInicializados=true;
+            }catch(err){
+              parametrosYaInicializados=false;
+              console.error('Fallo al cargar parámetros tras autenticar',err);
+              if(err && err.message === 'REAUTENTICACION_REQUERIDA_DESDE_MENU_SUPERADMIN'){
+                alert('Para abrir Parámetros Globales, vuelve al menú Superadmin y toca tu nombre para validar el acceso una sola vez.');
+              }else if(err && err.message === 'CLAIMS_SUPERADMIN_NO_VIGENTES'){
+                alert('Tus claims de Superadmin no están vigentes, cierre y abra sesión.');
+              }else{
+                alert('Tu sesión no cumple la autorización fuerte de Superadmin para acceder a Parámetros.');
+              }
+              window.location.href='super.html';
+            }
+          });
+        })
+        .catch(error=>{
+          console.error('No se pudo esperar a la autenticación para cargar parámetros',error);
+          alert('No fue posible preparar la autenticación. Intenta nuevamente desde el menú Superadmin.');
+          window.location.href='super.html';
+        });
+    }
+
+    iniciarCuandoAuthEsteLista();
+  </script>
+  <script src="js/backNavigation.js"></script>
+</body>
+</html>

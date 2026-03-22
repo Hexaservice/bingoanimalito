@@ -1,0 +1,740 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <link rel="apple-touch-icon" sizes="180x180" href="img/apple-touch-icon.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="img/android-chrome-192x192.png">
+  <link rel="icon" type="image/png" sizes="512x512" href="img/android-chrome-512x512.png">
+  <link rel="icon" type="image/x-icon" href="img/favicon.ico">
+  <link rel="icon" type="image/x-icon" sizes="16x16" href="img/favicon-16x16.ico">
+  <link rel="icon" type="image/x-icon" sizes="32x32" href="img/favicon-32x32.ico">
+
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Configuraciones Colaborador</title>
+  <link href="https://fonts.googleapis.com/css2?family=Bangers&family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
+  <style>
+    body {
+      background-color: #ffffff;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      min-height: 100vh;
+      text-align: center;
+      font-family: 'Bangers', cursive;
+      margin: 0;
+      position: relative;
+      overflow-x: hidden;
+    }
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background: url('https://img.freepik.com/vectores-premium/padrao-sem-costura-com-simbolos-de-dolar-e-porcentagem_637741-777.jpg') repeat;
+      opacity: 0.08;
+      pointer-events: none;
+      z-index: -1;
+    }
+    #session-info {
+      position: fixed;
+      top: 10px;
+      right: 10px;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      font-size: 0.7rem;
+    }
+    #user-pic {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+    }
+    #logout-link {
+      font-family: Calibri, Arial, sans-serif;
+      margin-left: 5px;
+      font-size: 0.7rem;
+      color: #007bff;
+      text-decoration: underline;
+    }
+    .menu-btn {
+      width: 250px;
+      height: 60px;
+      font-family: 'Bangers', cursive;
+      font-size: 1.4rem;
+      background: rgba(0, 170, 255, 0.8);
+      color: white;
+      border: 4px solid #FFD700;
+      border-radius: 10px;
+      text-shadow: 2px 2px 4px #000;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: transform 0.3s, box-shadow 0.3s, background 0.3s;
+      margin: 5px;
+    }
+    .menu-btn:hover {
+      transform: scale(1.05);
+      box-shadow: 0 0 15px rgba(255, 215, 0, 0.8);
+    }
+    .back-btn {
+      position: fixed;
+      top: 5px;
+      left: 5px;
+      width: 120px;
+      height: 40px;
+      background: orange;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      gap:5px;
+    }
+    h2 {
+      margin-top: 70px;
+      margin-bottom: 0;
+    }
+    main#perfil-contenido {
+      width: min(420px, 90vw);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      margin-top: 16px;
+      font-family: 'Poppins', sans-serif;
+    }
+    input {font-size:1rem;padding:8px;text-align:center;border-radius:8px;border:1px solid #ccc;width:100%;box-sizing:border-box;display:block;transition:border-color 0.2s ease, box-shadow 0.2s ease;}
+    h3, h4 { margin:5px 0; }
+    #perfil-titulo {
+      font-family: 'Bangers', cursive;
+      font-size: clamp(2rem, 5vw, 2.6rem);
+      color: #0b1b4d;
+      text-shadow: 0 0 14px rgba(0, 26, 95, 0.15);
+      letter-spacing: 1px;
+      margin-bottom: 4px;
+    }
+    #perfil-subtitulo {
+      font-family: 'Poppins', sans-serif;
+      color: #0b1b4d;
+      margin-bottom: 4px;
+      font-weight: 600;
+    }
+    .nombre-apellido-row {
+      display: flex;
+      gap: 10px;
+      width: 100%;
+      flex-wrap: wrap;
+    }
+    .campo-wrap {
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+      width: 100%;
+    }
+    .nombre-apellido-row .campo-wrap {
+      flex: 1 1 150px;
+      min-width: 0;
+    }
+    .campo-wrap.campo-completo {
+      margin-top: 8px;
+    }
+    .celular-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      width: 100%;
+      flex-wrap: nowrap;
+    }
+    #perfil-codigo-pais {
+      flex: 0 0 44%;
+      max-width: 160px;
+      min-width: 120px;
+      padding: 8px;
+      border-radius: 8px;
+      border: 1px solid #ccc;
+      font-weight: 600;
+    }
+    #perfil-celular {
+      flex: 1;
+      min-width: 180px;
+    }
+    .mensaje-validacion {
+      font-size: 0.8rem;
+      color: #b71c1c;
+      min-height: 16px;
+      text-align: center;
+      font-family: 'Poppins', sans-serif;
+    }
+    .campo-error {
+      border-color: #d50000 !important;
+      box-shadow: 0 0 6px rgba(213,0,0,0.35);
+    }
+    .campo-wrap.campo-error input {
+      border-color: #d50000 !important;
+      box-shadow: 0 0 6px rgba(213,0,0,0.35);
+    }
+    #perfil-nombre, #perfil-apellido, #perfil-alias {font-weight:bold;}
+    #perfil-nombre, #perfil-apellido {color:#00008B;}
+    #perfil-alias {color:#FF8C00;}
+    #guardar-perfil-btn {
+      font-family: 'Bangers', cursive;
+      font-size: 1.05rem;
+      background: linear-gradient(135deg, #0a8800, #48c752);
+      color: white;
+      border: 3px solid #FFD700;
+      border-radius: 10px;
+      text-shadow: 1px 1px 2px #000;
+      padding: 8px 14px;
+      margin: 4px 0;
+      cursor: pointer;
+      transition: background 0.3s ease, box-shadow 0.3s ease;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: auto;
+      min-height: auto;
+    }
+    #guardar-perfil-btn.modo-edicion {
+      background: linear-gradient(135deg, #083cbe, #ffffff);
+      box-shadow: 0 0 14px rgba(8, 60, 190, 0.45);
+    }
+    .notificaciones-panel {
+      width: min(420px, 90vw);
+      margin-top: 16px;
+      background: rgba(255,255,255,0.88);
+      border-radius: 14px;
+      padding: 16px;
+      box-shadow: 0 10px 26px rgba(0,0,0,0.18);
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+    .notificaciones-fila {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 18px;
+      width: 100%;
+    }
+    .notificaciones-fila .notificaciones-titulo-texto {
+      margin: 0;
+      flex: 1;
+      text-align: left;
+    }
+    .notificaciones-contenido {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .notificaciones-contenido[aria-hidden="true"] {
+      display: none;
+    }
+    .notificaciones-opcion {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 18px;
+      width: 100%;
+      font-family: Calibri, Arial, sans-serif;
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: #0b1b4d;
+      cursor: pointer;
+    }
+    .notificaciones-opcion-todo {
+      margin-top: 25px;
+    }
+    .notificaciones-fila-titulo {
+      cursor: pointer;
+    }
+    .notificaciones-opcion-titulo {
+      flex: 1;
+      text-align: left;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 4px;
+      margin: 0;
+      padding-right: 12px;
+    }
+    .notificaciones-opcion-titulo small {
+      font-weight: 400;
+      font-size: 0.78rem;
+      color: #444;
+    }
+    .notificaciones-opcion[data-clave="mensajeRecargaAprobada"] .notificaciones-opcion-titulo {
+      color: #0b6b27;
+    }
+    .notificaciones-opcion[data-clave="mensajeRecargaAprobada"] .notificaciones-opcion-titulo small {
+      color: #0b6b27;
+    }
+    .notificaciones-opcion[data-clave="mensajeRetiroAprobado"] .notificaciones-opcion-titulo {
+      color: #b71c1c;
+    }
+    .notificaciones-opcion[data-clave="mensajeRetiroAprobado"] .notificaciones-opcion-titulo small {
+      color: #b71c1c;
+    }
+    .notificaciones-opcion[data-clave="mensajeRecargaAnulada"] .notificaciones-opcion-titulo {
+      color: #0a8800;
+    }
+    .notificaciones-opcion[data-clave="mensajeRecargaAnulada"] .notificaciones-opcion-titulo small {
+      color: #0a8800;
+    }
+    .notificaciones-opcion[data-clave="mensajeRetiroAnulado"] .notificaciones-opcion-titulo {
+      color: #d32f2f;
+    }
+    .notificaciones-opcion[data-clave="mensajeRetiroAnulado"] .notificaciones-opcion-titulo small {
+      color: #d32f2f;
+    }
+    .notificaciones-grupo-titulo {
+      margin: 8px 0 0;
+      font-weight: 700;
+      font-size: 0.95rem;
+      text-align: left;
+      font-family: Calibri, Arial, sans-serif;
+    }
+    .notificaciones-grupo-titulo.colaborador {
+      color: #1b5e20;
+    }
+    .notificaciones-grupo-titulo.jugador {
+      color: #FF8C00;
+    }
+    .notificaciones-grupo-titulo.administrador {
+      color: #1565c0;
+    }
+    .notificaciones-titulo-texto {
+      font-family: 'Bangers', cursive;
+      font-size: 1.3rem;
+      color: #0b1b4d;
+      margin: 0;
+      cursor: pointer;
+      padding-right: 12px;
+    }
+    .notificaciones-titulo-texto:focus {
+      outline: 2px solid #0a8800;
+      outline-offset: 2px;
+    }
+    .notificaciones-todo-etiqueta {
+      color: #000000;
+      font-weight: 700;
+    }
+    .notificaciones-panel .switch {
+      position: relative;
+      display: inline-block;
+      width: 48px;
+      height: 26px;
+      cursor: pointer;
+      user-select: none;
+    }
+    .notificaciones-panel .switch input {
+      display: none;
+    }
+    .notificaciones-panel .switch .slider {
+      position: absolute;
+      inset: 0;
+      background: #cccccc;
+      border-radius: 26px;
+      transition: background 0.3s ease;
+    }
+    .notificaciones-panel .switch .slider::before {
+      content: "";
+      position: absolute;
+      width: 22px;
+      height: 22px;
+      left: 2px;
+      top: 2px;
+      background: #ffffff;
+      border-radius: 50%;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.25);
+      transition: transform 0.3s ease;
+    }
+    .notificaciones-panel .switch input:checked + .slider {
+      background: #4caf50;
+    }
+    .notificaciones-panel .switch input:checked + .slider::before {
+      transform: translateX(22px);
+    }
+    .notificaciones-panel .switch input:focus + .slider {
+      outline: 2px solid #0a8800;
+      outline-offset: 2px;
+    }
+  </style>
+  <link rel="stylesheet" href="css/desktopFrame.css">
+</head>
+<body>
+  <button id="volver-btn" class="menu-btn back-btn" data-compact-back="true">&#9664; Volver</button>
+  <div id="session-info">
+    <img id="user-pic" referrerpolicy="no-referrer" crossorigin="anonymous" src="" alt="Usuario" />
+    <a href="#" id="logout-link">Cerrar sesión</a>
+  </div>
+  <h2 style="margin-bottom:6px;">Configuraciones</h2>
+  <main id="perfil-contenido">
+    <h4 id="perfil-subtitulo" style="margin-top:0;">Tus Datos Personales</h4>
+    <div class="nombre-apellido-row">
+      <div class="campo-wrap">
+        <input type="text" id="perfil-nombre" placeholder="Nombre" autocomplete="given-name" required />
+      </div>
+      <div class="campo-wrap">
+        <input type="text" id="perfil-apellido" placeholder="Apellido" autocomplete="family-name" required />
+      </div>
+    </div>
+    <div class="campo-wrap campo-completo">
+      <input type="text" id="perfil-alias" placeholder="Alias" maxlength="20" autocomplete="nickname" required />
+    </div>
+    <div class="campo-wrap campo-completo">
+      <div class="celular-row">
+        <select id="perfil-codigo-pais" aria-label="Código de país"></select>
+        <input type="tel" id="perfil-celular" placeholder="Número Celular" autocomplete="tel" inputmode="numeric" maxlength="20" pattern="[0-9]+" title="Ingresa solo números" required />
+      </div>
+    </div>
+    <div id="perfil-mensaje" class="mensaje-validacion" role="alert" aria-live="polite"></div>
+    <button id="guardar-perfil-btn" class="menu-btn" data-modo="guardar">Guardar</button>
+  </main>
+  <section id="notificaciones-panel" class="notificaciones-panel" aria-labelledby="notificaciones-titulo">
+    <div class="notificaciones-fila notificaciones-fila-titulo" data-switch="notificaciones-global">
+      <span id="notificaciones-titulo" class="notificaciones-titulo-texto" data-switch="notificaciones-global">Notificaciones</span>
+      <label class="switch switch-base" aria-labelledby="notificaciones-titulo">
+        <input type="checkbox" id="notificaciones-global">
+        <span class="slider" aria-hidden="true"></span>
+      </label>
+    </div>
+    <div id="notificaciones-contenido" class="notificaciones-contenido" aria-hidden="true">
+      <div class="notificaciones-opcion notificaciones-opcion-todo notificaciones-fila" data-switch="notificaciones-todo" data-base-opcion="true">
+        <span class="notificaciones-opcion-titulo notificaciones-todo-etiqueta">Notificarme de todo</span>
+        <label class="switch switch-base" aria-label="Notificarme de todo" data-base-switch="true">
+          <input type="checkbox" id="notificaciones-todo">
+          <span class="slider" aria-hidden="true"></span>
+        </label>
+      </div>
+    </div>
+  </section>
+
+  <script src="https://www.gstatic.com/firebasejs/11.5.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/11.5.0/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/11.5.0/firebase-auth-compat.js"></script>
+  <script src="js/logoSwitcher.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/notificationCenter.js"></script>
+  <script src="js/notificationPanelSetup.js"></script>
+  <script>
+    ensureAuth('Colaborador');
+    const nombreInput=document.getElementById('perfil-nombre');
+    const apellidoInput=document.getElementById('perfil-apellido');
+    const aliasInput=document.getElementById('perfil-alias');
+    const celularInput=document.getElementById('perfil-celular');
+    const selectCodigoPais=document.getElementById('perfil-codigo-pais');
+    const guardarBtn=document.getElementById('guardar-perfil-btn');
+    const mensajeValidacionEl=document.getElementById('perfil-mensaje');
+    const camposObligatorios=[nombreInput,apellidoInput,aliasInput,celularInput];
+    let valoresOriginales={name:'',apellido:'',alias:'',celular:'',numerocel:'',prefijo:''};
+    let tieneDatosGuardados=false;
+    let panelNotificacionesColaborador=null;
+    let rolNotificacionesActual=null;
+    const codigosPais=[
+      {codigo:'VE',nombre:'Venezuela',prefijo:'+58',bandera:'🇻🇪'},
+      {codigo:'CO',nombre:'Colombia',prefijo:'+57',bandera:'🇨🇴'},
+      {codigo:'MX',nombre:'México',prefijo:'+52',bandera:'🇲🇽'},
+      {codigo:'US',nombre:'Estados Unidos',prefijo:'+1',bandera:'🇺🇸'},
+      {codigo:'AR',nombre:'Argentina',prefijo:'+54',bandera:'🇦🇷'},
+      {codigo:'CL',nombre:'Chile',prefijo:'+56',bandera:'🇨🇱'},
+      {codigo:'PE',nombre:'Perú',prefijo:'+51',bandera:'🇵🇪'}
+    ];
+    function poblarSelectCodigos(select){
+      if(!select) return;
+      select.innerHTML='';
+      codigosPais.forEach(pais=>{
+        const opcion=document.createElement('option');
+        opcion.value=pais.prefijo;
+        opcion.textContent=`${pais.bandera||''} ${pais.nombre} (${pais.prefijo})`;
+        select.appendChild(opcion);
+      });
+      if(!select.value){
+        select.value='+58';
+      }
+    }
+    function separarPrefijo(numero){
+      const limpio=(numero||'').toString().replace(/[^0-9+]/g,'');
+      const candidatos=[...codigosPais].sort((a,b)=>b.prefijo.length-a.prefijo.length);
+      for(const pais of candidatos){
+        const pref=pais.prefijo;
+        if(limpio.startsWith(pref)){
+          return {prefijo:pref,local:limpio.slice(pref.length)};
+        }
+        const prefSinMas=pref.replace('+','');
+        if(prefSinMas && limpio.startsWith(prefSinMas)){
+          return {prefijo:pref,local:limpio.slice(prefSinMas.length)};
+        }
+      }
+      return {prefijo:selectCodigoPais ? selectCodigoPais.value||'+58' : '+58',local:limpio};
+    }
+    function obtenerNumeroCompleto(){
+      const prefijo=selectCodigoPais ? selectCodigoPais.value||'' : '';
+      const local=(celularInput?.value||'').trim().replace(/\D/g,'');
+      return (prefijo||'')+local;
+    }
+    poblarSelectCodigos(selectCodigoPais);
+    function normalizarAlias(valor){
+      return (valor||'').toString().normalize('NFD').replace(/\p{Diacritic}/gu,'').replace(/[^a-zA-Z0-9 ]/g,'').trim();
+    }
+    function normalizarCelular(valor){
+      return (valor||'').toString().replace(/\s+/g,'').replace(/(?!^)[^0-9+]/g,'');
+    }
+    function esCelularValido(valor){
+      const base=valor||obtenerNumeroCompleto();
+      const limpio=normalizarCelular(base);
+      return limpio.length>=8 && /^\+?[0-9]+$/.test(limpio);
+    }
+    function camposObligatoriosCompletos(valores){
+      return ['name','apellido','alias','celular'].every(campo=>valores[campo] && valores[campo].trim()!=='' && (campo!=='celular'||esCelularValido(valores[campo])));
+    }
+    function mostrarMensajeValidacion(texto){
+      if(mensajeValidacionEl){
+        mensajeValidacionEl.textContent=texto||'';
+      }
+    }
+    function limpiarMensajeValidacion(){
+      mostrarMensajeValidacion('');
+    }
+    function actualizarEstadoErrorCampo(campo,esError){
+      if(!campo) return;
+      const wrapper=campo.parentElement;
+      if(esError){
+        campo.classList.add('campo-error');
+        if(wrapper) wrapper.classList.add('campo-error');
+      }else{
+        campo.classList.remove('campo-error');
+        if(wrapper) wrapper.classList.remove('campo-error');
+      }
+    }
+    function validarCamposObligatorios(){
+      let esValido=true;
+      camposObligatorios.forEach(campo=>{
+        if(!campo) return;
+        let valido=campo.value.trim().length>0;
+        if(campo===aliasInput){
+          const aliasNormalizado=normalizarAlias(campo.value);
+          if(aliasInput.value!==aliasNormalizado){
+            aliasInput.value=aliasNormalizado;
+          }
+          valido=aliasNormalizado.length>0;
+        }
+        if(campo===celularInput){
+          const soloDigitos=(campo.value||'').replace(/\D/g,'');
+          if(celularInput.value!==soloDigitos){
+            celularInput.value=soloDigitos;
+          }
+          const prefijoValido=!!(selectCodigoPais && selectCodigoPais.value);
+          valido=soloDigitos.length>=6 && prefijoValido && esCelularValido((selectCodigoPais?.value||'')+soloDigitos);
+        }
+        actualizarEstadoErrorCampo(campo,!valido);
+        if(!valido){
+          esValido=false;
+        }
+      });
+      if(!esValido){
+        mostrarMensajeValidacion('Todos los campos son obligatorios y deben ser válidos');
+      }else{
+        limpiarMensajeValidacion();
+      }
+      return esValido;
+    }
+    function obtenerValoresPerfil(){
+      const aliasValor=normalizarAlias(aliasInput.value);
+      if(aliasInput.value!==aliasValor){
+        aliasInput.value=aliasValor;
+      }
+      const celularLocal=(celularInput.value||'').replace(/\D/g,'');
+      if(celularInput.value!==celularLocal){
+        celularInput.value=celularLocal;
+      }
+      const prefijoSeleccionado=selectCodigoPais?.value||'';
+      const celularValor=(prefijoSeleccionado||'')+celularLocal;
+      return {
+        name:nombreInput.value.trim(),
+        apellido:apellidoInput.value.trim(),
+        alias:aliasValor,
+        celular:celularValor,
+        numerocel:celularValor,
+        prefijo:prefijoSeleccionado
+      };
+    }
+    function establecerEstadoBoton(modo){
+      if(!guardarBtn) return;
+      if(modo==='editar'){
+        guardarBtn.textContent='Editar';
+        guardarBtn.dataset.modo='editar';
+        guardarBtn.classList.add('modo-edicion');
+      }else{
+        guardarBtn.textContent='Guardar';
+        guardarBtn.dataset.modo='guardar';
+        guardarBtn.classList.remove('modo-edicion');
+      }
+    }
+    function evaluarCambios(){
+      const actuales=obtenerValoresPerfil();
+      const hayCambios=['name','apellido','alias','celular'].some(campo=>actuales[campo]!==valoresOriginales[campo]);
+      if(tieneDatosGuardados && hayCambios){
+        establecerEstadoBoton('editar');
+      }else{
+        establecerEstadoBoton('guardar');
+      }
+    }
+    async function guardarPerfil(){
+      const user=auth?.currentUser;
+      if(!user || !guardarBtn) return;
+      const modo=(guardarBtn.dataset.modo||'guardar')==='editar'?'editar':'guardar';
+      const valores=obtenerValoresPerfil();
+      if(!validarCamposObligatorios()){
+        return;
+      }
+      const confirmar=await window.confirm(modo==='editar'?'¿Deseas EDITAR los datos?':'¿Deseas GUARDAR los datos de tu perfil?');
+      if(!confirmar) return;
+      const baseDatos={
+        email:user.email,
+        photoURL:user.photoURL||'',
+        celular:valores.celular,
+        numerocel:valores.celular
+      };
+      try{
+        if(modo==='editar'){
+          const cambios={};
+          ['name','apellido','alias','celular'].forEach(campo=>{
+            if(valores[campo]!==valoresOriginales[campo]){
+              cambios[campo]=valores[campo];
+            }
+          });
+          if('celular' in cambios){
+            cambios.numerocel=valores.celular;
+          }
+          if(Object.keys(cambios).length===0){
+            alert('No se detectaron cambios para editar.');
+            evaluarCambios();
+            return;
+          }
+          await db.collection('users').doc(user.email).set({...baseDatos,...cambios},{merge:true});
+          alert('Datos editados correctamente.');
+          tieneDatosGuardados=camposObligatoriosCompletos(valores);
+        }else{
+          await db.collection('users').doc(user.email).set({...baseDatos,...valores},{merge:true});
+          alert('Datos guardados correctamente.');
+          tieneDatosGuardados=camposObligatoriosCompletos(valores);
+        }
+        valoresOriginales={...valores};
+        evaluarCambios();
+      }catch(error){
+        console.error('No se pudieron guardar los datos del perfil del colaborador',error);
+        alert('Ocurrió un error al guardar los datos. Intenta nuevamente.');
+      }
+    }
+    if(guardarBtn){
+      guardarBtn.addEventListener('click',guardarPerfil);
+    }
+    camposObligatorios.forEach(campo=>{
+      ['input','change'].forEach(evt=>{
+        campo?.addEventListener(evt,()=>{
+          validarCamposObligatorios();
+          evaluarCambios();
+        });
+      });
+    });
+    if(selectCodigoPais){
+      selectCodigoPais.addEventListener('change',()=>{
+        validarCamposObligatorios();
+        evaluarCambios();
+      });
+    }
+    function configurarPanelNotificaciones(rolDestino){
+      if(typeof setupNotificationPanel!=='function') return;
+      const rolNormalizado=(rolDestino||'Colaborador').toString();
+      if(rolNotificacionesActual===rolNormalizado && panelNotificacionesColaborador){
+        return;
+      }
+      if(panelNotificacionesColaborador && typeof panelNotificacionesColaborador.cleanup==='function'){
+        try{ panelNotificacionesColaborador.cleanup(); }
+        catch(error){ console.error('No se pudo limpiar el panel de notificaciones previo',error); }
+      }
+      panelNotificacionesColaborador=setupNotificationPanel({rol:rolNormalizado});
+      rolNotificacionesActual=rolNormalizado;
+    }
+    const botonVolver=document.getElementById('volver-btn');
+    if(botonVolver){
+      botonVolver.addEventListener('click',()=>{window.location.href='collab.html';});
+    }
+    function vincularEventosAuthCollab(){
+      if(!auth || typeof auth.onAuthStateChanged!=='function'){
+        return false;
+      }
+      auth.onAuthStateChanged(async user=>{
+        if(user){
+          const foto=document.getElementById('user-pic');
+          if(foto){
+            foto.src=user.photoURL;
+          }
+          const enlaceSalir=document.getElementById('logout-link');
+          if(enlaceSalir && !enlaceSalir.dataset.logoutBound){
+            enlaceSalir.addEventListener('click',e=>{e.preventDefault(); logout();});
+            enlaceSalir.dataset.logoutBound='true';
+          }
+          let rolActual=window.currentRole;
+          try{
+            const doc=await db.collection('users').doc(user.email).get();
+            if(doc.exists){
+              const d=doc.data()||{};
+              const numeroGuardado=normalizarCelular(d.celular||d.numerocel||d.telefono||d.Telefono||d.whatsapp||'');
+              const {prefijo,local}=separarPrefijo(numeroGuardado);
+              valoresOriginales={
+                name:(d.name||'').toString().trim(),
+                apellido:(d.apellido||'').toString().trim(),
+                alias:normalizarAlias(d.alias||''),
+                celular:prefijo+local,
+                numerocel:prefijo+local,
+                prefijo:prefijo
+              };
+              if(nombreInput) nombreInput.value=valoresOriginales.name;
+              if(apellidoInput) apellidoInput.value=valoresOriginales.apellido;
+              if(aliasInput) aliasInput.value=valoresOriginales.alias;
+              if(selectCodigoPais) selectCodigoPais.value=prefijo;
+              if(celularInput) celularInput.value=local;
+              tieneDatosGuardados=camposObligatoriosCompletos(valoresOriginales);
+              rolActual=rolActual||d.role||d.rol||d.rolinterno;
+            }else{
+              valoresOriginales={name:'',apellido:'',alias:'',celular:'',numerocel:'',prefijo:selectCodigoPais?.value||''};
+              if(nombreInput) nombreInput.value='';
+              if(apellidoInput) apellidoInput.value='';
+              if(aliasInput) aliasInput.value='';
+              if(selectCodigoPais) selectCodigoPais.value=selectCodigoPais.value||'+58';
+              if(celularInput) celularInput.value='';
+              tieneDatosGuardados=false;
+            }
+            evaluarCambios();
+          }catch(error){
+            console.error('No se pudo cargar la información del colaborador',error);
+            mostrarMensajeValidacion('No se pudieron cargar tus datos. Intenta nuevamente.');
+          }
+          if(!rolActual){
+            try{
+              const infoRol=await getUserRole(user,{createIfMissing:false});
+              rolActual=infoRol?.role;
+            }catch(error){
+              console.error('No se pudo determinar el rol del usuario para notificaciones',error);
+            }
+          }
+          configurarPanelNotificaciones(rolActual||'Colaborador');
+        }else{
+          rolNotificacionesActual=null;
+          if(panelNotificacionesColaborador && typeof panelNotificacionesColaborador.cleanup==='function'){
+            try{ panelNotificacionesColaborador.cleanup(); }
+            catch(error){ console.error('No se pudo limpiar el panel de notificaciones',error); }
+          }
+          panelNotificacionesColaborador=null;
+        }
+      });
+      return true;
+    }
+    if(!vincularEventosAuthCollab()){
+      initFirebase()
+        .then(()=>{ vincularEventosAuthCollab(); })
+        .catch(error=>{ console.error('No se pudo vincular los eventos de autenticación en configcollab',error); });
+    }
+  </script>
+  <script src="js/backNavigation.js"></script>
+</body>
+</html>

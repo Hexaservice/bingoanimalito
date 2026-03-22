@@ -1,0 +1,1011 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <link rel="apple-touch-icon" sizes="180x180" href="img/apple-touch-icon.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="img/android-chrome-192x192.png">
+  <link rel="icon" type="image/png" sizes="512x512" href="img/android-chrome-512x512.png">
+  <link rel="icon" type="image/x-icon" href="img/favicon.ico">
+  <link rel="icon" type="image/x-icon" sizes="16x16" href="img/favicon-16x16.ico">
+  <link rel="icon" type="image/x-icon" sizes="32x32" href="img/favicon-32x32.ico">
+
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Perfil</title>
+  <link href="https://fonts.googleapis.com/css2?family=Bangers&family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
+  <style>
+      body {
+          font-family: 'Poppins', sans-serif;
+          background: linear-gradient(rgba(255, 255, 255, 0.7), rgba(255, 255, 255, 0.7)),
+                      url('https://img.freepik.com/vetores-premium/padrao-sem-costura-com-simbolos-de-dolar-e-porcentagem_637741-777.jpg');
+          background-repeat: repeat;
+          background-size: auto;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: flex-start;
+          padding-top: 20px;
+          min-height: 100vh;
+          text-align: center;
+          margin: 0;
+      }
+      .back-btn {
+          position: fixed;
+          top: 5px;
+          left: 5px;
+          width: 120px;
+          height: 40px;
+          font-family: 'Bangers', cursive;
+          font-size: 1.2rem;
+          background: orange;
+          color: white;
+          border: 4px solid #FFD700;
+          border-radius: 10px;
+          text-shadow: 2px 2px 4px #000;
+          text-transform: uppercase;
+          display:flex;
+          align-items:center;
+          justify-content:center;
+          gap:5px;
+      }
+      main#perfil-contenido {
+          width: min(420px, 90vw);
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 10px;
+          margin-top: clamp(30px, 8vh, 90px);
+      }
+      input, select {font-size:1rem;padding:8px;text-align:center;border-radius:8px;border:1px solid #ccc;width:100%;box-sizing:border-box;display:block;transition:border-color 0.2s ease, box-shadow 0.2s ease;}
+      .menu-btn { width:140px; }
+      h3, h4 { margin:5px 0; }
+      #session-info {
+          position: fixed;
+          top: 10px;
+          right: 10px;
+          display: flex;
+          align-items: center;
+          font-size: 0.7rem;
+      }
+      #user-pic {
+          width: 40px;
+          height: 40px;
+          border-radius: 50%;
+      }
+      #logout-link {
+          font-family: Calibri, Arial, sans-serif;
+          margin-left: 5px;
+          font-size: 0.7rem;
+          color: #007bff;
+          text-decoration: underline;
+      }
+      #perfil-nombre, #perfil-apellido, #perfil-alias {font-weight:bold;}
+      #perfil-nombre, #perfil-apellido {color:#00008B;}
+      #perfil-alias {color:#FF8C00;}
+      #perfil-titulo {
+          font-family: 'Bangers', cursive;
+          font-size: clamp(2rem, 5vw, 2.6rem);
+          color: #ffffff;
+          text-shadow: 0 0 14px rgba(0, 26, 95, 0.8);
+          letter-spacing: 1px;
+          margin-bottom: 4px;
+      }
+      #perfil-subtitulo {
+          font-family: 'Poppins', sans-serif;
+          color: #0b1b4d;
+          margin-bottom: 4px;
+      }
+      .nombre-apellido-row {
+          display: flex;
+          gap: 10px;
+          width: 100%;
+          flex-wrap: wrap;
+      }
+      .campo-wrap {
+          display: flex;
+          flex-direction: column;
+          align-items: stretch;
+          width: 100%;
+      }
+      .nombre-apellido-row .campo-wrap {
+          flex: 1 1 150px;
+          min-width: 0;
+      }
+      .campo-wrap.campo-completo {
+          margin-top: 8px;
+      }
+      .celular-row{
+          display:flex;
+          gap:8px;
+          align-items:center;
+          width:100%;
+      }
+      .celular-row select{
+          flex:0 0 44%;
+          max-width:160px;
+      }
+      .celular-row input{
+          flex:1;
+      }
+      .nota-campos {
+          font-size: 0.65rem;
+          margin: 0;
+          color: #000;
+          text-align: center;
+          text-shadow: 0 0 6px rgba(255, 255, 255, 0.9);
+      }
+      .nota-campos strong {
+          color: #b71c1c;
+      }
+      .nota-celular {
+          font-size: 0.65rem;
+          margin: 4px 0 0 0;
+          color: #000;
+          text-align: center;
+          text-shadow: 0 0 6px rgba(255, 255, 255, 0.9);
+      }
+      .nota-celular strong {
+          color: #d50000;
+      }
+      .mensaje-validacion {
+          font-size: 0.7rem;
+          color: #b71c1c;
+          min-height: 16px;
+      }
+      .campo-error {
+          border-color: #d50000 !important;
+          box-shadow: 0 0 6px rgba(213,0,0,0.35);
+      }
+      .campo-wrap.campo-error {
+          outline: 2px solid rgba(213,0,0,0.45);
+          border-radius: 10px;
+      }
+      .campo-wrap.campo-error input {
+          border-color: #d50000 !important;
+          box-shadow: 0 0 6px rgba(213,0,0,0.35);
+      }
+      #guardar-perfil-btn {
+          font-family: 'Bangers', cursive;
+          font-size: 1.2rem;
+          background: linear-gradient(135deg, #0a8800, #48c752);
+          color: white;
+          border: 3px solid #FFD700;
+          border-radius: 10px;
+          text-shadow: 2px 2px 4px #000;
+          width: 220px;
+          cursor: pointer;
+          transition: background 0.3s ease, box-shadow 0.3s ease;
+      }
+      #guardar-perfil-btn.modo-edicion {
+          background: linear-gradient(135deg, #083cbe, #ffffff);
+          box-shadow: 0 0 14px rgba(8, 60, 190, 0.45);
+      }
+      #jugar-carton-btn{
+          font-family:'Bangers',cursive;
+          font-size:1.2rem;
+          background:linear-gradient(orange,white);
+          color:white;
+          border:3px solid #FFD700;
+          border-radius:8px;
+          text-shadow:2px 2px 4px #000;
+          width:200px;
+          cursor:pointer;
+          margin-top:10px;
+      }
+      .notificaciones-panel{
+          width:100%;
+          margin-top:16px;
+          background:rgba(255,255,255,0.88);
+          border-radius:14px;
+          padding:16px;
+          box-shadow:0 10px 26px rgba(0,0,0,0.18);
+          box-sizing:border-box;
+          display:flex;
+          flex-direction:column;
+          gap:14px;
+      }
+      .notificaciones-fila{
+          display:flex;
+          align-items:center;
+          justify-content:space-between;
+          gap:18px;
+          width:100%;
+      }
+      .notificaciones-fila .notificaciones-titulo-texto{
+          margin:0;
+          flex:1;
+          text-align:left;
+      }
+      .notificaciones-contenido{
+          display:flex;
+          flex-direction:column;
+          gap:12px;
+      }
+      .notificaciones-contenido[aria-hidden="true"]{
+          display:none;
+      }
+      .notificaciones-opcion{
+          display:flex;
+          align-items:flex-start;
+          justify-content:space-between;
+          gap:18px;
+          width:100%;
+          font-family:Calibri, Arial, sans-serif;
+          font-size:0.95rem;
+          font-weight:600;
+          color:#0b1b4d;
+          cursor:pointer;
+      }
+      .notificaciones-opcion-todo{
+          margin-top:25px;
+      }
+      .notificaciones-fila-titulo{
+          cursor:pointer;
+      }
+      .notificaciones-opcion-titulo{
+          flex:1;
+          text-align:left;
+          display:flex;
+          flex-direction:column;
+          align-items:flex-start;
+          gap:4px;
+          margin:0;
+          padding-right:12px;
+      }
+      .notificaciones-opcion-titulo small{
+          font-weight:400;
+          font-size:0.78rem;
+          color:#444;
+      }
+      .notificaciones-opcion[data-clave="mensajeRecargaAprobada"] .notificaciones-opcion-titulo{
+          color:#0b6b27;
+      }
+      .notificaciones-opcion[data-clave="mensajeRecargaAprobada"] .notificaciones-opcion-titulo small{
+          color:#0b6b27;
+      }
+      .notificaciones-opcion[data-clave="mensajeRetiroAprobado"] .notificaciones-opcion-titulo{
+          color:#b71c1c;
+      }
+      .notificaciones-opcion[data-clave="mensajeRetiroAprobado"] .notificaciones-opcion-titulo small{
+          color:#b71c1c;
+      }
+      .notificaciones-opcion[data-clave="mensajeRecargaAnulada"] .notificaciones-opcion-titulo{
+          color:#0a8800;
+      }
+      .notificaciones-opcion[data-clave="mensajeRecargaAnulada"] .notificaciones-opcion-titulo small{
+          color:#0a8800;
+      }
+      .notificaciones-opcion[data-clave="mensajeRetiroAnulado"] .notificaciones-opcion-titulo{
+          color:#d32f2f;
+      }
+      .notificaciones-opcion[data-clave="mensajeRetiroAnulado"] .notificaciones-opcion-titulo small{
+          color:#d32f2f;
+      }
+      .notificaciones-grupo-titulo{
+          margin:8px 0 0;
+          font-weight:700;
+          font-size:0.95rem;
+          text-align:left;
+          font-family:Calibri, Arial, sans-serif;
+      }
+      .notificaciones-grupo-titulo.colaborador{
+          color:#1b5e20;
+      }
+      .notificaciones-grupo-titulo.jugador{
+          color:#FF8C00;
+      }
+      .notificaciones-grupo-titulo.administrador{
+          color:#1565c0;
+      }
+      .notificaciones-titulo-texto{
+          font-family:'Bangers',cursive;
+          font-size:1.3rem;
+          color:#0b1b4d;
+          margin:0;
+          cursor:pointer;
+          padding-right:12px;
+      }
+      .notificaciones-titulo-texto:focus{
+          outline:2px solid #0a8800;
+          outline-offset:2px;
+      }
+      .notificaciones-todo-etiqueta{
+          color:#000000;
+          font-weight:700;
+      }
+      .switch{
+          position:relative;
+          display:inline-block;
+          width:48px;
+          height:26px;
+          cursor:pointer;
+          user-select:none;
+      }
+      .switch input{
+          display:none;
+      }
+      .switch .slider{
+          position:absolute;
+          inset:0;
+          background:#cccccc;
+          border-radius:26px;
+          transition:background 0.3s ease;
+      }
+      .switch .slider::before{
+          content:"";
+          position:absolute;
+          width:22px;
+          height:22px;
+          left:2px;
+          top:2px;
+          background:#ffffff;
+          border-radius:50%;
+          box-shadow:0 2px 4px rgba(0,0,0,0.25);
+          transition:transform 0.3s ease;
+      }
+      .switch input:checked + .slider{
+          background:#4caf50;
+      }
+      .switch input:checked + .slider::before{
+          transform:translateX(22px);
+      }
+      .switch input:focus + .slider{
+          outline:2px solid #0a8800;
+          outline-offset:2px;
+      }
+      .notificaciones-opcion > .switch{
+          margin-left:auto;
+      }
+      #fecha-hora, #derechos { font-size:0.7rem; text-align:center; color:#000; margin:0; }
+      #fecha-hora { margin-top:auto; padding-top:12px; }
+      #derechos { font-size:0.6rem; padding-bottom:12px; }
+      .modal-whatsapp {
+          position: fixed;
+          inset: 0;
+          display: none;
+          align-items: center;
+          justify-content: center;
+          padding: clamp(18px, 6vw, 28px);
+          background: rgba(0, 0, 0, 0.6);
+          box-sizing: border-box;
+          z-index: 1200;
+      }
+      .modal-whatsapp.activa {
+          display: flex;
+      }
+      .modal-whatsapp .modal-contenido {
+          background: #ffffff;
+          border-radius: 18px;
+          padding: clamp(22px, 6vw, 36px);
+          width: min(360px, 90vw);
+          max-width: 90vw;
+          display: flex;
+          flex-direction: column;
+          gap: clamp(12px, 4vw, 20px);
+          text-align: center;
+          border: 4px solid #ffd700;
+          box-shadow: 0 12px 30px rgba(0, 0, 0, 0.35);
+      }
+      .modal-whatsapp .modal-contenido h2 {
+          margin: 0;
+          font-family: 'Bangers', cursive;
+          font-size: clamp(1.3rem, 4.6vw, 1.8rem);
+          color: #0056ff;
+          text-shadow: 0 0 6px rgba(255, 215, 0, 0.9);
+      }
+      .modal-whatsapp .modal-mensaje {
+          margin: 0;
+          font-size: clamp(0.95rem, 4vw, 1.2rem);
+          color: #333333;
+      }
+      .modal-whatsapp-acciones {
+          display: flex;
+          justify-content: center;
+      }
+      #modal-whatsapp-aceptar {
+          font-family: 'Bangers', cursive;
+          font-size: clamp(1rem, 3.6vw, 1.2rem);
+          background: linear-gradient(135deg, #0a8800, #51c94d);
+          color: #ffffff;
+          border: 3px solid #ffd700;
+          border-radius: 10px;
+          padding: 10px 18px;
+          cursor: pointer;
+          transition: transform 0.2s ease, box-shadow 0.2s ease;
+      }
+      #modal-whatsapp-aceptar:hover,
+      #modal-whatsapp-aceptar:focus {
+          transform: translateY(-1px);
+          box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
+          outline: none;
+      }
+      @media (min-width: 1024px) {
+          body { font-size: 1.02rem; }
+          main#perfil-contenido { width: min(760px, 84vw); }
+          input, select { font-size: clamp(1rem, 1vw, 1.05rem); }
+          .nombre-apellido-row { gap: 14px; }
+          .menu-btn { width: clamp(220px, 24vw, 320px); }
+          #guardar-perfil-btn, #jugar-carton-btn { width: clamp(240px, 28vw, 340px); }
+          .notificaciones-panel { width: min(760px, 84vw); }
+          .notificaciones-opcion,
+          .notificaciones-opcion-titulo small,
+          .nota-campos,
+          .nota-celular,
+          .mensaje-validacion,
+          #session-info,
+          #logout-link,
+          #fecha-hora,
+          #derechos { font-size: max(0.85rem, 0.95vw); }
+      }
+      @media (orientation: portrait) {
+          .modal-whatsapp {
+              align-items: center;
+              justify-content: center;
+          }
+      }
+  </style>
+  <link rel="stylesheet" href="css/desktopFrame.css">
+</head>
+<body>
+  <div id="session-info" style="display:none;">
+    <img id="user-pic" referrerpolicy="no-referrer" crossorigin="anonymous" src="" alt="Usuario" />
+    <a href="#" id="logout-link">Cerrar sesión</a>
+  </div>
+  <button id="volver-btn" class="menu-btn back-btn" data-compact-back="true">&#9664; Volver</button>
+  <main id="perfil-contenido">
+    <h3 id="perfil-titulo">Perfil del Jugador</h3>
+    <h4 id="perfil-subtitulo">Tus Datos Personales</h4>
+    <div class="nombre-apellido-row">
+      <div class="campo-wrap">
+        <input type="text" id="perfil-nombre" placeholder="Nombre" autocomplete="given-name" required />
+      </div>
+      <div class="campo-wrap">
+        <input type="text" id="perfil-apellido" placeholder="Apellido" autocomplete="family-name" required />
+      </div>
+    </div>
+    <div class="campo-wrap campo-completo">
+      <input type="text" id="perfil-alias" placeholder="Alias" maxlength="20" autocomplete="nickname" required />
+    </div>
+    <p class="nota-campos">Nota: Tu Nombre y Apellido no serán visibles para ningún otro jugador, sólo será visible tu Alias.</p>
+    <div class="campo-wrap campo-completo">
+      <div class="celular-row">
+        <select id="perfil-codigo-pais" aria-label="Código de país" required></select>
+        <input type="tel" id="perfil-celular" placeholder="Número Celular" autocomplete="tel" inputmode="numeric" maxlength="20" pattern="[0-9]+" title="Ingresa solo números" required />
+      </div>
+    </div>
+    <p class="nota-celular"><strong>IMPORTANTE:</strong> Tu número celular no será visible para ningún otro jugador, sin embargo, este número debe ser el mismo que usaras al entrar en los Grupos de WhatsApp, de lo contrario tu acceso al sistema será restringido.</p>
+    <div id="perfil-mensaje" class="mensaje-validacion" role="alert" aria-live="polite"></div>
+    <button id="guardar-perfil-btn" class="menu-btn" data-modo="guardar">Guardar</button>
+    <button id="jugar-carton-btn" class="menu-btn" onclick="window.location.href='jugarcartones.html'">Jugar Cartón</button>
+    <section id="notificaciones-panel" class="notificaciones-panel" aria-labelledby="notificaciones-titulo">
+      <div class="notificaciones-fila notificaciones-fila-titulo" data-switch="notificaciones-global">
+        <span id="notificaciones-titulo" class="notificaciones-titulo-texto" data-switch="notificaciones-global">Notificaciones</span>
+        <label class="switch switch-base" aria-labelledby="notificaciones-titulo">
+          <input type="checkbox" id="notificaciones-global">
+          <span class="slider" aria-hidden="true"></span>
+        </label>
+      </div>
+      <div id="notificaciones-contenido" class="notificaciones-contenido" aria-hidden="true">
+        <div class="notificaciones-opcion notificaciones-opcion-todo notificaciones-fila" data-switch="notificaciones-todo" data-base-opcion="true">
+          <span class="notificaciones-opcion-titulo notificaciones-todo-etiqueta">Notificarme de todo</span>
+          <label class="switch switch-base" aria-label="Notificarme de todo" data-base-switch="true">
+            <input type="checkbox" id="notificaciones-todo">
+            <span class="slider" aria-hidden="true"></span>
+          </label>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <div id="modal-whatsapp" class="modal-whatsapp" role="dialog" aria-modal="true" aria-labelledby="modal-whatsapp-titulo" aria-hidden="true">
+    <div class="modal-contenido" role="document">
+      <h2 id="modal-whatsapp-titulo">GRUPO DE WHATSAPP NO DISPONIBLE</h2>
+      <p id="modal-whatsapp-mensaje" class="modal-mensaje">Aún no hay grupos disponibles de WhatsApp</p>
+      <div class="modal-whatsapp-acciones">
+        <button type="button" id="modal-whatsapp-aceptar">Aceptar</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="fecha-hora"></div>
+  <div id="derechos">Todos los derechos reservados ® Hexaservice <span class="current-year"></span></div>
+
+  <script src="https://www.gstatic.com/firebasejs/11.5.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/11.5.0/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/11.5.0/firebase-auth-compat.js"></script>
+  <script src="js/logoSwitcher.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/notificationCenter.js"></script>
+  <script src="js/notificationPanelSetup.js"></script>
+  <script src="js/internalTransactionNotifier.js"></script>
+  <script src="js/timezone.js"></script>
+  <script>
+  initFechaHora('fecha-hora');
+
+  const codigosPais=[
+    {codigo:'VE',nombre:'Venezuela',prefijo:'+58',bandera:'🇻🇪'},
+    {codigo:'CO',nombre:'Colombia',prefijo:'+57',bandera:'🇨🇴'},
+    {codigo:'MX',nombre:'México',prefijo:'+52',bandera:'🇲🇽'},
+    {codigo:'US',nombre:'Estados Unidos',prefijo:'+1',bandera:'🇺🇸'},
+    {codigo:'AR',nombre:'Argentina',prefijo:'+54',bandera:'🇦🇷'},
+    {codigo:'CL',nombre:'Chile',prefijo:'+56',bandera:'🇨🇱'},
+    {codigo:'PE',nombre:'Perú',prefijo:'+51',bandera:'🇵🇪'}
+  ];
+
+  const nombreInput=document.getElementById('perfil-nombre');
+  const apellidoInput=document.getElementById('perfil-apellido');
+  const aliasInput=document.getElementById('perfil-alias');
+  const celularInput=document.getElementById('perfil-celular');
+  const codigoPaisSelect=document.getElementById('perfil-codigo-pais');
+  const guardarBtn=document.getElementById('guardar-perfil-btn');
+  const whatsappModalEl=document.getElementById('modal-whatsapp');
+  const whatsappModalMensajeEl=document.getElementById('modal-whatsapp-mensaje');
+  const whatsappModalAceptarBtn=document.getElementById('modal-whatsapp-aceptar');
+  const mensajeValidacionEl=document.getElementById('perfil-mensaje');
+  let panelNotificacionesPerfil=null;
+  let rolNotificacionesActual=null;
+  let desuscribirSesionPerfil=null;
+  let usuarioSesionActiva=null;
+  let rolPersistentePerfil='Jugador';
+
+  function configurarPanelNotificacionesPerfil(rol){
+    if(typeof setupNotificationPanel!=='function') return;
+    const rolNormalizado=(rol||'Jugador').toString();
+    if(rolNotificacionesActual===rolNormalizado && panelNotificacionesPerfil){
+      return;
+    }
+    if(panelNotificacionesPerfil && typeof panelNotificacionesPerfil.cleanup==='function'){
+      try{ panelNotificacionesPerfil.cleanup(); }
+      catch(error){ console.error('No se pudo limpiar el panel de notificaciones previo',error); }
+    }
+    panelNotificacionesPerfil=setupNotificationPanel({rol:rolNormalizado});
+    rolNotificacionesActual=rolNormalizado;
+  }
+
+  function limpiarPanelNotificacionesPerfil(contexto){
+    if(panelNotificacionesPerfil && typeof panelNotificacionesPerfil.cleanup==='function'){
+      try{ panelNotificacionesPerfil.cleanup(); }
+      catch(error){ console.error(`No se pudo limpiar el panel de notificaciones${contexto?` (${contexto})`:''}`,error); }
+    }
+    panelNotificacionesPerfil=null;
+    rolNotificacionesActual=null;
+  }
+
+  if(typeof hasWindow==='function' && hasWindow() && typeof window.addEventListener==='function'){
+    window.addEventListener('beforeunload',()=>{
+      limpiarPanelNotificacionesPerfil('al salir');
+      if(typeof desuscribirSesionPerfil==='function'){
+        try{ desuscribirSesionPerfil(); }
+        catch(error){ console.error('No se pudo desuscribir el listener de sesión al salir',error); }
+      }
+      desuscribirSesionPerfil=null;
+      usuarioSesionActiva=null;
+    });
+  }
+
+  function configurarSesionVisible(user){
+    const nombreVisible=(user.displayName&&user.displayName.trim())?user.displayName:(user.email||'');
+    const nameEl=document.getElementById('user-name');
+    if(nameEl) nameEl.textContent=nombreVisible;
+    const emailEl=document.getElementById('user-email');
+    if(emailEl) emailEl.textContent=user.email||'';
+    const picEl=document.getElementById('user-pic');
+    if(picEl){
+      if(typeof asignarFotoUsuario==='function'){
+        asignarFotoUsuario(picEl,user.photoURL||'');
+      }else if(user.photoURL){
+        picEl.src=user.photoURL;
+      }
+    }
+    const infoEl=document.getElementById('session-info');
+    if(infoEl) infoEl.style.display='flex';
+    const logoutEl=document.getElementById('logout-link');
+    if(logoutEl && !logoutEl.dataset.listenerPerfil){
+      logoutEl.addEventListener('click',e=>{
+        e.preventDefault();
+        limpiarPanelNotificacionesPerfil('al cerrar sesión');
+        usuarioSesionActiva=null;
+        logout();
+      });
+      logoutEl.dataset.listenerPerfil='true';
+    }
+  }
+
+  function poblarSelectCodigos(select){
+    if(!select) return;
+    codigosPais.forEach(pais=>{
+      const opcion=document.createElement('option');
+      opcion.value=pais.prefijo;
+      opcion.textContent=`${pais.bandera||''} ${pais.nombre} (${pais.prefijo})`;
+      select.appendChild(opcion);
+    });
+    if(!select.value && codigosPais[0]){
+      select.value=codigosPais[0].prefijo;
+    }
+  }
+
+  poblarSelectCodigos(codigoPaisSelect);
+
+  nombreInput.placeholder='Nombre';
+  apellidoInput.placeholder='Apellido';
+  aliasInput.placeholder='Alias';
+  if(celularInput){
+    celularInput.placeholder='Número Celular';
+  }
+
+  let valoresOriginales={name:'',apellido:'',alias:'',celular:'',numerocel:''};
+  let tieneDatosGuardados=false;
+
+  const camposObligatorios=[nombreInput,apellidoInput,aliasInput,celularInput,codigoPaisSelect].filter(Boolean);
+
+  function normalizarAlias(valor){
+    return (valor||'').toString().trim().slice(0,20);
+  }
+
+  function normalizarNumeroLocal(valor){
+    return (valor||'').toString().replace(/[^0-9]/g,'');
+  }
+
+  function normalizarCelular(valor){
+    const texto=(valor||'').toString();
+    let limpio=texto.replace(/[^0-9+]/g,'');
+    if(!limpio) return '';
+    if(limpio.startsWith('+')){
+      limpio='+'+limpio.slice(1).replace(/\+/g,'');
+    }else{
+      limpio=limpio.replace(/\+/g,'');
+    }
+    return limpio;
+  }
+
+  function separarNumeroCompleto(numero){
+    const limpio=normalizarCelular(numero);
+    const candidatos=[...codigosPais].sort((a,b)=>b.prefijo.length-a.prefijo.length);
+    for(const pais of candidatos){
+      const pref=pais.prefijo;
+      if(limpio.startsWith(pref)){
+        return {prefijo:pref,local:limpio.slice(pref.length)};
+      }
+      const prefSinMas=pref.replace('+','');
+      if(prefSinMas && limpio.startsWith(prefSinMas)){
+        return {prefijo:pref,local:limpio.slice(prefSinMas.length)};
+      }
+    }
+    const prefSeleccionado=codigoPaisSelect && codigoPaisSelect.value ? codigoPaisSelect.value : (codigosPais[0]?.prefijo||'');
+    const sinSigno=limpio.startsWith('+')?limpio.slice(1):limpio;
+    return {prefijo:prefSeleccionado,local:sinSigno};
+  }
+
+  function obtenerNumeroCompletoDesdeInputs(){
+    const prefijo=codigoPaisSelect ? (codigoPaisSelect.value || '') : '';
+    const local=normalizarNumeroLocal(celularInput ? celularInput.value : '');
+    return normalizarCelular((prefijo||'')+local);
+  }
+
+  function actualizarCamposCelularDesdeNumero(numero){
+    const {prefijo,local}=separarNumeroCompleto(numero||'');
+    if(codigoPaisSelect){
+      codigoPaisSelect.value=prefijo;
+    }
+    if(celularInput){
+      celularInput.value=local;
+    }
+  }
+
+  function esCelularValido(valor){
+    const numero=valor===undefined?obtenerNumeroCompletoDesdeInputs():normalizarCelular(valor);
+    const partes=separarNumeroCompleto(numero);
+    return Boolean(partes.prefijo && partes.local.length>0);
+  }
+
+  function actualizarEstadoErrorCampo(campo,conError){
+    if(!campo) return;
+    const contenedor=campo.closest('.campo-wrap');
+    const elementos=new Set([campo]);
+    if(contenedor){
+      elementos.add(contenedor);
+    }
+    elementos.forEach(elemento=>{
+      if(conError){
+        elemento.classList.add('campo-error');
+      }else{
+        elemento.classList.remove('campo-error');
+      }
+    });
+  }
+
+  document.getElementById('volver-btn').addEventListener('click',()=>{window.location.href='player.html';});
+  guardarBtn.addEventListener('click',guardarPerfil);
+
+  camposObligatorios.forEach(input=>{
+    input.addEventListener('input',()=>{
+      if(input===aliasInput){
+        const valorNormalizado=normalizarAlias(aliasInput.value);
+        if(aliasInput.value!==valorNormalizado){
+          aliasInput.value=valorNormalizado;
+        }
+      }
+      if(input===celularInput){
+        const limpio=normalizarNumeroLocal(celularInput.value);
+        if(celularInput.value!==limpio){
+          celularInput.value=limpio;
+        }
+      }
+      if(input===codigoPaisSelect){
+        if(!codigoPaisSelect.value && codigosPais[0]){
+          codigoPaisSelect.value=codigosPais[0].prefijo;
+        }
+      }
+      actualizarEstadoCamposObligatorios();
+      evaluarCambios();
+    });
+  });
+
+  function mostrarModalWhatsapp(mensaje){
+    if(!whatsappModalEl) return;
+    const texto=(mensaje||'').toString().trim();
+    if(whatsappModalMensajeEl){
+      whatsappModalMensajeEl.textContent=texto.length?texto:'Aún no hay grupos disponibles de WhatsApp';
+    }
+    whatsappModalEl.classList.add('activa');
+    whatsappModalEl.removeAttribute('aria-hidden');
+    if(whatsappModalAceptarBtn){
+      whatsappModalAceptarBtn.focus();
+    }
+  }
+
+  function cerrarModalWhatsapp(){
+    if(!whatsappModalEl) return;
+    whatsappModalEl.classList.remove('activa');
+    whatsappModalEl.setAttribute('aria-hidden','true');
+  }
+
+  if(whatsappModalAceptarBtn){
+    whatsappModalAceptarBtn.addEventListener('click',cerrarModalWhatsapp);
+  }
+  if(whatsappModalEl){
+    whatsappModalEl.addEventListener('click',evento=>{
+      if(evento.target===whatsappModalEl){
+        cerrarModalWhatsapp();
+      }
+    });
+  }
+  window.mostrarModalWhatsapp=mostrarModalWhatsapp;
+  window.cerrarModalWhatsapp=cerrarModalWhatsapp;
+
+  function mostrarMensajeValidacion(texto){
+    if(!mensajeValidacionEl) return;
+    mensajeValidacionEl.textContent=texto;
+  }
+
+  function limpiarMensajeValidacion(){
+    mostrarMensajeValidacion('');
+  }
+
+  function actualizarEstadoCamposObligatorios(){
+    let existeVacio=false;
+    camposObligatorios.forEach(campo=>{
+      if(!campo) return;
+      let tieneValor=campo.value.trim().length>0;
+      if(campo===aliasInput){
+        tieneValor=normalizarAlias(campo.value).length>0;
+      }
+      if(campo===celularInput){
+        tieneValor=esCelularValido(obtenerNumeroCompletoDesdeInputs());
+      }
+      if(campo===codigoPaisSelect){
+        tieneValor=Boolean(codigoPaisSelect.value);
+      }
+      if(tieneValor){
+        actualizarEstadoErrorCampo(campo,false);
+      }else{
+        existeVacio=true;
+      }
+    });
+    if(!existeVacio){
+      limpiarMensajeValidacion();
+    }
+  }
+
+  function camposObligatoriosCompletos(valores){
+    const celularReferencia=valores.celular||valores.numerocel||'';
+    return ['name','apellido','alias'].every(campo=>(valores[campo]||'').trim().length>0) && esCelularValido(celularReferencia);
+  }
+
+  function validarCamposObligatorios(){
+    let esValido=true;
+    camposObligatorios.forEach(campo=>{
+      if(!campo) return;
+      let valido=campo.value.trim().length>0;
+      if(campo===aliasInput){
+        const aliasNormalizado=normalizarAlias(campo.value);
+        if(aliasInput.value!==aliasNormalizado){
+          aliasInput.value=aliasNormalizado;
+        }
+        valido=aliasNormalizado.length>0;
+      }
+      if(campo===celularInput){
+        const limpio=normalizarNumeroLocal(campo.value);
+        if(celularInput.value!==limpio){
+          celularInput.value=limpio;
+        }
+        valido=esCelularValido(obtenerNumeroCompletoDesdeInputs());
+      }
+      if(campo===codigoPaisSelect){
+        valido=Boolean(codigoPaisSelect.value);
+        if(!valido && codigosPais[0]){
+          codigoPaisSelect.value=codigosPais[0].prefijo;
+          valido=true;
+        }
+      }
+      actualizarEstadoErrorCampo(campo,!valido);
+      if(!valido){
+        esValido=false;
+      }
+    });
+    if(!esValido){
+      mostrarMensajeValidacion('Todos los campos son obligatorios');
+    }else{
+      limpiarMensajeValidacion();
+    }
+    return esValido;
+  }
+
+  function obtenerValoresPerfil(){
+    const aliasValor=normalizarAlias(aliasInput.value);
+    if(aliasInput.value!==aliasValor){
+      aliasInput.value=aliasValor;
+    }
+    const numeroLocal=normalizarNumeroLocal(celularInput.value);
+    if(celularInput.value!==numeroLocal){
+      celularInput.value=numeroLocal;
+    }
+    const celularValor=obtenerNumeroCompletoDesdeInputs();
+    return {
+      name:nombreInput.value.trim(),
+      apellido:apellidoInput.value.trim(),
+      alias:aliasValor,
+      celular:celularValor,
+      numerocel:celularValor
+    };
+  }
+
+  function establecerEstadoBoton(modo){
+    if(modo==='editar'){
+      guardarBtn.textContent='Editar';
+      guardarBtn.dataset.modo='editar';
+      guardarBtn.classList.add('modo-edicion');
+    }else{
+      guardarBtn.textContent='Guardar';
+      guardarBtn.dataset.modo='guardar';
+      guardarBtn.classList.remove('modo-edicion');
+    }
+  }
+
+  function evaluarCambios(){
+    const actuales=obtenerValoresPerfil();
+    const hayCambios=['name','apellido','alias','celular'].some(campo=>actuales[campo]!==valoresOriginales[campo]);
+    if(tieneDatosGuardados && hayCambios){
+      establecerEstadoBoton('editar');
+    }else{
+      establecerEstadoBoton('guardar');
+    }
+  }
+
+  async function guardarPerfil(){
+    const user = auth.currentUser;
+    if(!user) return;
+    const modo=(guardarBtn.dataset.modo||'guardar')==='editar'?'editar':'guardar';
+    const valores=obtenerValoresPerfil();
+    if(!validarCamposObligatorios()){
+      return;
+    }
+    const confirmar=await window.confirm(modo==='editar'?'¿Deseas EDITAR los datos?':'¿Deseas GUARDAR los datos de tu perfil?');
+    if(!confirmar) return;
+    const baseDatos={
+      email:user.email,
+      photoURL:user.photoURL||'',
+      celular:valores.celular,
+      numerocel:valores.celular
+    };
+    try{
+      if(modo==='editar'){
+        const cambios={};
+        ['name','apellido','alias','celular'].forEach(campo=>{
+          if(valores[campo]!==valoresOriginales[campo]){
+            cambios[campo]=valores[campo];
+          }
+        });
+        if('celular' in cambios){
+          cambios.numerocel=valores.celular;
+        }
+        if(Object.keys(cambios).length===0){
+          alert('No se detectaron cambios para editar.');
+          evaluarCambios();
+          return;
+        }
+        await db.collection('users').doc(user.email).set({...baseDatos,...cambios},{merge:true});
+        alert('Datos editados correctamente.');
+        tieneDatosGuardados=camposObligatoriosCompletos(valores);
+      }else{
+        await db.collection('users').doc(user.email).set({...baseDatos,...valores},{merge:true});
+        alert('Datos guardados correctamente.');
+        tieneDatosGuardados=camposObligatoriosCompletos(valores);
+      }
+      valoresOriginales={...valores};
+      evaluarCambios();
+    }catch(error){
+      console.error('No se pudieron guardar los datos del perfil',error);
+      alert('Ocurrió un error al guardar los datos. Intenta nuevamente.');
+    }
+  }
+
+  initFirebase()
+    .then(()=>{
+      desuscribirSesionPerfil=auth.onAuthStateChanged(async user=>{
+        if(user){
+          if(usuarioSesionActiva===user.uid){
+            return;
+          }
+          limpiarPanelNotificacionesPerfil('cambio de usuario');
+          usuarioSesionActiva=user.uid;
+          configurarSesionVisible(user);
+          let datosPerfil=null;
+          try{
+            const doc=await db.collection('users').doc(user.email).get();
+            if(doc.exists){
+              const d=doc.data()||{};
+              datosPerfil=d;
+              const rolDocumento=(d.role||d.rol||d.rolinterno||'').toString().trim();
+              if(rolDocumento){
+                rolPersistentePerfil=rolDocumento;
+              }
+              const celularNormalizado=normalizarCelular(d.celular||d.numerocel||d.telefono||d.Telefono||d.whatsapp||'');
+              valoresOriginales={
+                name:(d.name||'').toString().trim(),
+                apellido:(d.apellido||'').toString().trim(),
+                alias:normalizarAlias(d.alias||''),
+                celular:celularNormalizado,
+                numerocel:normalizarCelular(d.numerocel||d.celular||d.telefono||d.Telefono||d.whatsapp||'')
+              };
+              nombreInput.value=valoresOriginales.name;
+              apellidoInput.value=valoresOriginales.apellido;
+              aliasInput.value=valoresOriginales.alias;
+              actualizarCamposCelularDesdeNumero(valoresOriginales.celular);
+              tieneDatosGuardados=camposObligatoriosCompletos(valoresOriginales);
+            }else{
+              rolPersistentePerfil='Jugador';
+              valoresOriginales={name:'',apellido:'',alias:'',celular:'',numerocel:''};
+              nombreInput.value='';
+              apellidoInput.value='';
+              aliasInput.value='';
+              actualizarCamposCelularDesdeNumero('');
+              tieneDatosGuardados=false;
+            }
+          }catch(error){
+            console.error('No se pudo cargar la información del perfil',error);
+            mostrarMensajeValidacion('No se pudieron cargar los datos del perfil. Intenta nuevamente.');
+          }
+          const rolNotificaciones=(datosPerfil && (datosPerfil.role||datosPerfil.rol||datosPerfil.rolinterno))||window.currentRole||'Jugador';
+          if(window.notificationCenter && typeof window.notificationCenter.vincularUsuario==='function'){
+            try{ await window.notificationCenter.vincularUsuario(user, rolNotificaciones||rolPersistentePerfil||'Jugador'); }
+            catch(error){ console.error('No se pudo vincular el centro de notificaciones en perfil',error); }
+          }
+          window.currentRole=rolNotificaciones;
+          configurarPanelNotificacionesPerfil(rolNotificaciones);
+          actualizarEstadoCamposObligatorios();
+          evaluarCambios();
+        } else {
+          limpiarPanelNotificacionesPerfil('sin sesión');
+          usuarioSesionActiva=null;
+          window.location.href='index.html';
+        }
+      });
+    })
+    .catch(error=>{
+      console.error('No se pudo inicializar Firebase en perfil',error);
+      mostrarMensajeValidacion('Error al conectar con el servicio. Recarga la página e inténtalo otra vez.');
+    });
+  </script>
+  <script src="js/backNavigation.js"></script>
+</body>
+</html>
