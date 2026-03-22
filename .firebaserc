@@ -1,21 +1,5 @@
 {
   "projects": {
     "default": "bingoanimalito"
-  },
-  "targets": {
-    "bingo-online-231fd": {
-      "hosting": {
-        "dev": [
-          "bingo-online-231fd-dev"
-        ],
-        "stg": [
-          "bingo-online-231fd-stg"
-        ],
-        "prod": [
-          "bingo-online-231fd"
-        ]
-      }
-    }
-  },
-  "etags": {}
+  }
 }
