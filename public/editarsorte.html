@@ -297,6 +297,7 @@
     }
     window.location.href=fallbackUrl;
   }
+  // Fallback al asset compartido con nombre legado. Ver public/BRANDING.md.
   const LOGO_URL=typeof getSeasonalLogo==='function'?getSeasonalLogo():'img/Logo-BingOnline-nuevo500p.png';
   const preloadLogo=new Image();
   preloadLogo.src=LOGO_URL;

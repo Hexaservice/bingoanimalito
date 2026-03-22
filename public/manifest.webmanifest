@@ -1,6 +1,6 @@
 {
-  "name": "Bingo Online",
-  "short_name": "Bingo",
+  "name": "Bingo Animalito",
+  "short_name": "Animalito",
   "start_url": "/index.html",
   "scope": "/",
   "display": "standalone",

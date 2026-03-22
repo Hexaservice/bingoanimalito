@@ -319,7 +319,7 @@
 
       const tituloElem = document.createElement('h3');
       tituloElem.className = 'notif-modal-title';
-      tituloElem.textContent = titulo || 'Bingo Online';
+      tituloElem.textContent = titulo || 'Bingo Animalito';
 
       const btnCerrar = document.createElement('button');
       btnCerrar.className = 'notif-modal-close';
@@ -978,7 +978,7 @@
 
     emitirNotificacion(clave, mensaje, titulo){
       if(!mensaje) return;
-      const tituloFinal = titulo || 'Bingo Online';
+      const tituloFinal = titulo || 'Bingo Animalito';
       let mostrada = false;
       if(typeof Notification !== 'undefined' && Notification.permission === 'granted'){
         try{
