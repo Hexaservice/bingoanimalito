@@ -1,4 +1,4 @@
-let app, auth, db, provider, appleProvider, appName = 'BingOnline';
+let app, auth, db, provider, appleProvider, appName = 'Bingo Animalito';
 const DISABLED_MSG = "Tu cuenta ha sido deshabilitada, Motivado posiblemente a que has incumplido una o más clausulas en nuestros Terminos y condiciones. Contacta con un administrador del sistema si necesitas información.";
 const STRONG_AUTH_SESSION_KEY = 'bo_superadmin_strong_auth';
 const SUPERADMIN_DEVICE_KEY = 'bo_superadmin_device_id';

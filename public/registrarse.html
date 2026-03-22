@@ -239,7 +239,7 @@
   <link rel="stylesheet" href="css/desktopFrame.css">
 </head>
 <body>
-  <img id="logo-bingo" src="img/Logo-BingOnline-nuevo500p.png" />
+  <img id="logo-bingo" src="img/Logo-BingOnline-nuevo500p.png" alt="Logo de Bingo Animalito" />
   <h2>Registro de Jugador</h2>
   <div class="stepper" aria-label="Pasos del registro">
     <div id="step-pill-1" class="step-pill active">Paso 1 · Datos</div>
@@ -452,7 +452,8 @@
 
     const selectCodigoPais=document.getElementById('codigo-pais');
     poblarSelectCodigos(selectCodigoPais);
-    const REGISTRO_PENDIENTE_KEY = 'registroPendienteBingoOnline';
+    const REGISTRO_PENDIENTE_KEY = 'registroPendienteBingoAnimalito';
+    const REGISTRO_PENDIENTE_KEY_LEGACY = 'registroPendienteBingoOnline';
     let registroEnProceso = false;
     let loginEnProceso = false;
     let pasoActual = 1;
@@ -505,11 +506,18 @@
 
     function guardarRegistroPendiente(datos){ sessionStorage.setItem(REGISTRO_PENDIENTE_KEY, JSON.stringify(datos)); }
     function cargarRegistroPendiente(){
-      const raw = sessionStorage.getItem(REGISTRO_PENDIENTE_KEY);
+      const raw = sessionStorage.getItem(REGISTRO_PENDIENTE_KEY) || sessionStorage.getItem(REGISTRO_PENDIENTE_KEY_LEGACY);
       if(!raw) return null;
-      try{ return JSON.parse(raw); }catch{ sessionStorage.removeItem(REGISTRO_PENDIENTE_KEY); return null; }
+      try{ return JSON.parse(raw); }catch{
+        sessionStorage.removeItem(REGISTRO_PENDIENTE_KEY);
+        sessionStorage.removeItem(REGISTRO_PENDIENTE_KEY_LEGACY);
+        return null;
+      }
     }
-    function limpiarRegistroPendiente(){ sessionStorage.removeItem(REGISTRO_PENDIENTE_KEY); }
+    function limpiarRegistroPendiente(){
+      sessionStorage.removeItem(REGISTRO_PENDIENTE_KEY);
+      sessionStorage.removeItem(REGISTRO_PENDIENTE_KEY_LEGACY);
+    }
 
     function validarTexto(txt,max){ return txt && txt.length<=max && /^[A-Za-zÁÉÍÓÚáéíóúñÑ\s]+$/.test(txt); }
 

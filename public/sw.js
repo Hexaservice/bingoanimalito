@@ -2,6 +2,7 @@ const CACHE_VERSION = 'v3';
 const APP_SHELL_CACHE = `bingo-app-shell-${CACHE_VERSION}`;
 const AUDIO_CACHE = `bingo-audio-runtime-${CACHE_VERSION}`;
 
+// Logo con nombre legado compartido intencionalmente entre productos. Ver public/BRANDING.md.
 const APP_SHELL_URLS = [
   '/',
   '/index.html',

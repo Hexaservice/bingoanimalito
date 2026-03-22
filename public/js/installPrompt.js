@@ -91,7 +91,7 @@
     modal.innerHTML = `
       <div class="bo-install-prompt__modal" role="dialog" aria-modal="true" aria-label="Instalar aplicación">
         <h3>Instalar app</h3>
-        <p>Instala Bingo Online para abrir más rápido y usar una experiencia similar a una app.</p>
+        <p>Instala Bingo Animalito para abrir más rápido y usar una experiencia similar a una app.</p>
         <div class="bo-install-prompt__actions">
           <button class="bo-install-close" type="button">Ahora no</button>
           <button class="bo-install-confirm" type="button">Instalar</button>

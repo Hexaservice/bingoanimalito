@@ -9864,7 +9864,7 @@
   function mostrarModalSinPremio(){
     if(debePausarMensajesPorManual()) return;
     if(!modalSinPremioEl || !modalSinPremioMensajeEl) return;
-    modalSinPremioMensajeEl.textContent = '😅 Esta vez no ganaste ningún premio, te invitamos a seguir jugando al Bingo Online y podrás ser un feliz ganador 😊';
+    modalSinPremioMensajeEl.textContent = '😅 Esta vez no ganaste ningún premio, te invitamos a seguir jugando a Bingo Animalito y podrás ser un feliz ganador 😊';
     modalSinPremioEl.classList.add('activa');
     modalSinPremioEl.setAttribute('aria-hidden','false');
     playGameAudioEvent(AUDIO_EVENTS.MODAL_OPEN, { priority: 2 });
@@ -10295,6 +10295,7 @@
       totalContenedor.appendChild(cartonesGratisLabel);
       backContent.appendChild(totalContenedor);
       const backLogo=document.createElement('img');
+      // Fallback al asset compartido con nombre legado. Ver public/BRANDING.md.
       backLogo.src=typeof getSeasonalLogo==='function'?getSeasonalLogo():'img/Logo-BingOnline-nuevo500p.png';
       backLogo.alt='Logo HexaBingo';
       cartonBack.appendChild(backLogo);

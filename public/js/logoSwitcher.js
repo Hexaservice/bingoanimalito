@@ -1,4 +1,7 @@
 (() => {
+  const PRODUCT_NAME = 'Bingo Animalito';
+  // Estos archivos conservan el nombre histórico BingOnline porque se comparten intencionalmente
+  // entre productos y no deben renombrarse sin una migración coordinada de branding/assets.
   const DEFAULT_LOGO = 'img/Logo-BingOnline-nuevo500p.png';
   const DECEMBER_LOGO = 'img/Logo-BingOnline-cuadrado500p-navidad.png';
 
@@ -24,6 +27,7 @@
   };
 
   if (typeof window !== 'undefined') {
+    window.PRODUCT_NAME = window.PRODUCT_NAME || PRODUCT_NAME;
     window.getSeasonalLogo = getSeasonalLogo;
     window.applySeasonalLogoImages = replaceLogoImages;
   }
