@@ -9,9 +9,13 @@ Para que `public/registrarse.html` y `public/js/auth.js` muestren correctamente 
 
 1. Abrir **Authentication > Sign-in method**.
 2. Activar **Google** como proveedor de acceso.
-3. Si también se usará **Apple**, activarlo en la misma pantalla y completar la configuración requerida por Firebase para `apple.com`.
+3. Mantener **Apple** desactivado salvo que exista una decisión explícita de producto y una configuración completa de Apple Sign In en Firebase para `apple.com`. En este repositorio la UX, los mensajes de diagnóstico y los términos publicados asumen **Google** como proveedor principal.
 4. Abrir **Authentication > Settings > Authorized domains**.
-5. Agregar el dominio exacto donde corre la app y cualquier subdominio o entorno de pruebas necesario.
+5. Confirmar como mínimo estos dominios del proyecto correcto:
+   - `bingoanimalito.web.app`
+   - `bingoanimalito.firebaseapp.com`
+6. Agregar además el dominio exacto donde corre la app y cualquier subdominio o entorno de pruebas real necesario.
+7. Verificar que **ningún** dominio pertenezca a otro proyecto Firebase antes de guardar cambios.
 
 ### Secrets esperados por GitHub Actions
 
@@ -31,6 +35,7 @@ window.__FIREBASE_AUTH_SETTINGS__ = {
   },
   authorizedDomains: [
     "bingoanimalito.web.app",
+    "bingoanimalito.firebaseapp.com",
     "app.midominio.com",
     "staging.midominio.com"
   ]
