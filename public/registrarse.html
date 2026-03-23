@@ -587,11 +587,17 @@
       const d=obtenerDatosFormulario();
       const resumen=document.getElementById('resumen-confirmacion');
       if(!resumen) return;
-      const proveedoresDisponibles = [
-        (typeof isGoogleAuthEnabled === 'function' && isGoogleAuthEnabled()) ? 'Google' : null,
-        (typeof isAppleAuthEnabled === 'function' && isAppleAuthEnabled()) ? 'Apple' : null
-      ].filter(Boolean);
+      const proveedoresDisponibles = typeof getPublishedProviderLabels === 'function'
+        ? getPublishedProviderLabels()
+        : [
+            (typeof isGoogleAuthEnabled === 'function' && isGoogleAuthEnabled()) ? 'Google' : null,
+            (typeof isAppleAuthEnabled === 'function' && isAppleAuthEnabled()) ? 'Apple' : null
+          ].filter(Boolean);
       const textoProveedores = proveedoresDisponibles.length ? proveedoresDisponibles.join(' o ') : 'un proveedor configurado';
+      const dominiosPublicados = typeof getAuthorizedDomains === 'function' ? getAuthorizedDomains() : [];
+      const dominioActual = window.location.hostname || 'sin dominio';
+      const dominioPublicado = typeof isCurrentDomainPublished === 'function' ? isCurrentDomainPublished() : false;
+      const textoDominios = dominiosPublicados.length ? dominiosPublicados.join(', ') : 'pendiente de publicar';
       const tel=validarTelefono(d);
       resumen.innerHTML = `
         <strong>Revisa antes de guardar:</strong><br>
@@ -599,6 +605,8 @@
         Alias visible: ${d.alias || '-'}<br>
         Teléfono: ${tel.e164 || (d.codigoPais+d.celularLocal) || '-'}<br>
         Correo de cuenta: ${auth?.currentUser?.email || `No autenticada (${textoProveedores})`}<br>
+        Dominio actual: ${dominioActual} ${dominioPublicado ? '✅' : '⚠️'}<br>
+        Dominios publicados: ${textoDominios}<br>
         Código referido: ${d.codigoReferido || 'No aplica'}
       `;
     }
@@ -624,10 +632,15 @@
         return;
       }
 
+      const dominioActual = window.location.hostname || 'sin dominio';
+      const dominiosPublicados = typeof getAuthorizedDomains === 'function' ? getAuthorizedDomains() : [];
+      const dominioPublicado = typeof isCurrentDomainPublished === 'function' ? isCurrentDomainPublished() : false;
+      const resumenDominios = dominiosPublicados.length ? ` Dominios publicados: ${dominiosPublicados.join(', ')}.` : ' Publica también los dominios autorizados del sitio.';
+
       if(appleHabilitado){
-        setFieldMessage('cuenta','Puedes continuar con Google o Apple.');
+        setFieldMessage('cuenta',`Puedes continuar con Google o Apple. Dominio actual: ${dominioActual}${dominioPublicado ? ' ✅ publicado.' : ' ⚠️ falta agregarlo en Firebase Authorized domains.'}${resumenDominios}`);
       }else{
-        setFieldMessage('cuenta','Puedes continuar con Google. Apple permanecerá oculto hasta habilitarlo explícitamente.');
+        setFieldMessage('cuenta',`Puedes continuar con Google. Apple permanecerá oculto hasta habilitarlo explícitamente. Dominio actual: ${dominioActual}${dominioPublicado ? ' ✅ publicado.' : ' ⚠️ falta agregarlo en Firebase Authorized domains.'}${resumenDominios}`);
       }
     }
 
@@ -764,7 +777,10 @@
       const pendienteInicial = cargarRegistroPendiente();
       if(pendienteInicial){ aplicarDatosFormulario(pendienteInicial); }
       auth.onAuthStateChanged(async user=>{
-        emailLabel.textContent = user?.email || `Selecciona una cuenta de ${(typeof isAppleAuthEnabled === 'function' && isAppleAuthEnabled()) ? 'Google o Apple' : 'Google'} para completar el registro.`;
+        const proveedoresTexto = typeof describePublishedProviders === 'function'
+          ? describePublishedProviders()
+          : ((typeof isAppleAuthEnabled === 'function' && isAppleAuthEnabled()) ? 'Google y Apple' : 'Google');
+        emailLabel.textContent = user?.email || `Selecciona una cuenta de ${proveedoresTexto} para completar el registro.`;
         if(user?.email){ await validarCuentaRegistrada(user.email); }
         else { statusCuenta.textContent=''; }
         await actualizarEstadoRegistro();

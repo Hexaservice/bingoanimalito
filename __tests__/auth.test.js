@@ -1,7 +1,7 @@
 function setupWindow(){
   const sessionStore = {};
   global.window = {
-    location: { href: 'index.html', origin: 'https://app.test' },
+    location: { href: 'index.html', origin: 'https://app.test', hostname: 'app.test' },
     firebaseConfig: { projectId: 'demo-test' },
     alert: () => {},
     confirm: () => true,
@@ -275,8 +275,31 @@ describe('auth.js', () => {
     expect(isGoogleAuthEnabled()).toBe(true);
   });
 
-  test('buildFirebaseAuthErrorMessage describe unauthorized-domain con el host actual', () => {
+  test('lee providers y dominios autorizados publicados en window.__FIREBASE_AUTH_SETTINGS__', () => {
     setupWindow();
+    window.__FIREBASE_AUTH_SETTINGS__ = {
+      providers: { google: true, apple: true },
+      authorizedDomains: ['app.test', 'staging.app.test']
+    };
+    global.firebase = buildFirebaseMock();
+
+    let isAppleAuthEnabled, getAuthorizedDomains, isCurrentDomainPublished, describePublishedProviders;
+    jest.isolateModules(() => {
+      ({ isAppleAuthEnabled, getAuthorizedDomains, isCurrentDomainPublished, describePublishedProviders } = require('../public/js/auth.js'));
+    });
+
+    expect(isAppleAuthEnabled()).toBe(true);
+    expect(getAuthorizedDomains()).toEqual(['app.test', 'staging.app.test']);
+    expect(isCurrentDomainPublished()).toBe(true);
+    expect(describePublishedProviders()).toBe('Google y Apple');
+  });
+
+  test('buildFirebaseAuthErrorMessage describe unauthorized-domain con el host actual y dominios publicados', () => {
+    setupWindow();
+    window.__FIREBASE_AUTH_SETTINGS__ = {
+      providers: { google: true, apple: false },
+      authorizedDomains: ['app.test', 'staging.app.test']
+    };
     global.firebase = buildFirebaseMock();
 
     let buildFirebaseAuthErrorMessage;
@@ -287,6 +310,7 @@ describe('auth.js', () => {
     const mensaje = buildFirebaseAuthErrorMessage({ code: 'auth/unauthorized-domain' }, 'Google');
     expect(mensaje).toMatch(/app\.test/);
     expect(mensaje).toMatch(/Authorized domains/);
+    expect(mensaje).toMatch(/staging\.app\.test/);
   });
 
 });

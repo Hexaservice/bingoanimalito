@@ -9,3 +9,11 @@ window.__FIREBASE_CONFIG__ = {
   messagingSenderId: "__FIREBASE_MESSAGING_SENDER_ID__",
   appId: "__FIREBASE_APP_ID__"
 };
+
+window.__FIREBASE_AUTH_SETTINGS__ = {
+  providers: {
+    google: __FIREBASE_AUTH_GOOGLE_ENABLED__,
+    apple: __FIREBASE_AUTH_APPLE_ENABLED__
+  },
+  authorizedDomains: __FIREBASE_AUTH_AUTHORIZED_DOMAINS__
+};
