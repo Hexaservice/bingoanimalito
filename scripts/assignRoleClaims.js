@@ -1,8 +1,14 @@
 #!/usr/bin/env node
 const admin = require('firebase-admin');
 const fs = require('fs');
-
-const ALLOWED_ROLES = ['Jugador', 'Colaborador', 'Administrador', 'Superadmin'];
+const {
+  ALLOWED_ROLES,
+  normalizeEmail,
+  parseBooleanFlag,
+  userHasProvider,
+  buildRoleClaims,
+  buildUserProfileUpdate
+} = require('../lib/roleProvisioning');
 
 function parseArgs(argv) {
   const args = {};
@@ -31,16 +37,13 @@ function resolveCredentialsPath() {
 
 async function main() {
   const args = parseArgs(process.argv);
-  const email = String(args.email || '').trim().toLowerCase();
+  const email = normalizeEmail(args.email);
   const role = String(args.role || '').trim();
-  const forceAdmin = args.admin === true || String(args.admin || '').toLowerCase() === 'true';
+  const forceAdmin = parseBooleanFlag(args.admin, false);
+  const requireGoogle = parseBooleanFlag(args['require-google'], false);
 
   if (!email || !role) {
-    throw new Error('Uso: node scripts/assignRoleClaims.js --email usuario@dominio.com --role <Jugador|Colaborador|Administrador|Superadmin> [--admin true]');
-  }
-
-  if (!ALLOWED_ROLES.includes(role)) {
-    throw new Error(`Rol inválido. Permitidos: ${ALLOWED_ROLES.join(', ')}`);
+    throw new Error('Uso: node scripts/assignRoleClaims.js --email usuario@dominio.com --role <Jugador|Colaborador|Administrador|Superadmin> [--admin true] [--require-google true]');
   }
 
   const credentialsPath = resolveCredentialsPath();
@@ -52,20 +55,26 @@ async function main() {
   const db = admin.firestore();
 
   const userRecord = await auth.getUserByEmail(email);
-  const nextClaims = {
-    role,
-    roles: [role],
-    admin: forceAdmin || role === 'Superadmin'
-  };
+  if (requireGoogle && !userHasProvider(userRecord, 'google.com')) {
+    throw new Error(`El usuario ${email} todavía no tiene el proveedor google.com enlazado en Firebase Authentication. Primero debe iniciar sesión real con Google.`);
+  }
+
+  const nextClaims = buildRoleClaims(role, { forceAdmin });
 
   await auth.setCustomUserClaims(userRecord.uid, nextClaims);
 
-  await db.collection('users').doc(email).set({
+  const userProfileUpdate = buildUserProfileUpdate({
     email,
+    uid: userRecord.uid,
     role,
-    roleManagedBy: 'admin-script',
-    roleUpdatedAt: admin.firestore.FieldValue.serverTimestamp(),
-    uid: userRecord.uid
+    claims: nextClaims,
+    managedBy: 'admin-script'
+  });
+
+  await db.collection('users').doc(email).set({
+    ...userProfileUpdate,
+    authProviders: (userRecord.providerData || []).map(provider => provider.providerId).filter(Boolean),
+    roleUpdatedAt: admin.firestore.FieldValue.serverTimestamp()
   }, { merge: true });
 
   console.log(`Rol ${role} y custom claims asignados a ${email} (uid: ${userRecord.uid}).`);
