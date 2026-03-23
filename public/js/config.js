@@ -1,4 +1,8 @@
 const hasWindow = typeof window !== 'undefined';
+const appConfigFromWindow =
+  hasWindow && window.__APP_CONFIG__ && typeof window.__APP_CONFIG__ === 'object'
+    ? window.__APP_CONFIG__
+    : {};
 
 const firebaseConfigFromWindow =
   hasWindow && window.__FIREBASE_CONFIG__ ? window.__FIREBASE_CONFIG__ : undefined;
@@ -23,6 +27,7 @@ const hasProcess = typeof process !== 'undefined';
 
 let resolvedUploadEndpoint =
   (hasWindow && window.UPLOAD_ENDPOINT) ||
+  appConfigFromWindow.uploadEndpoint ||
   (hasProcess && process.env && process.env.UPLOAD_ENDPOINT) ||
   undefined;
 
@@ -49,3 +54,7 @@ if (
 }
 
 export const UPLOAD_ENDPOINT = resolvedUploadEndpoint;
+
+if (hasWindow) {
+  window.UPLOAD_ENDPOINT = resolvedUploadEndpoint;
+}

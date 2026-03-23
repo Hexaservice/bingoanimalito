@@ -46,6 +46,13 @@ function getAuthRuntimeSettings(){
   return {};
 }
 
+function getAppRuntimeSettings(){
+  if(!hasWindow()) return {};
+  const settings = window.__APP_CONFIG__ || window.appConfig || {};
+  if(settings && typeof settings === 'object') return settings;
+  return {};
+}
+
 function isProviderEnabled(providerKey, defaultValue = true){
   const settings = getAuthRuntimeSettings();
   const providers = settings.providers;
@@ -562,7 +569,15 @@ async function getUserRole(user){
 
 function resolverApiBaseParaClaims(){
   if(!hasWindow()) return '';
-  const endpoint = typeof window.UPLOAD_ENDPOINT === 'string' ? window.UPLOAD_ENDPOINT.trim() : '';
+  const configuredEndpoint =
+    typeof window.UPLOAD_ENDPOINT === 'string' && window.UPLOAD_ENDPOINT.trim()
+      ? window.UPLOAD_ENDPOINT.trim()
+      : '';
+  const runtimeEndpoint =
+    typeof getAppRuntimeSettings().uploadEndpoint === 'string'
+      ? getAppRuntimeSettings().uploadEndpoint.trim()
+      : '';
+  const endpoint = configuredEndpoint || runtimeEndpoint;
   if(endpoint){
     return endpoint.replace(/\/upload\/?$/, '');
   }
