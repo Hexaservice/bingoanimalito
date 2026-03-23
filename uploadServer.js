@@ -4,6 +4,7 @@ const cors = require('cors');
 const multer = require('multer');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
+const { buildRoleClaims, buildUserProfileUpdate } = require('./lib/roleProvisioning');
 const path = require('path');
 const crypto = require('crypto');
 const admin = require('firebase-admin');
@@ -499,12 +500,24 @@ app.post('/syncClaims', verificarToken, async (req, res) => {
 
     const nextClaims = {
       ...(userRecord.customClaims || {}),
-      role,
-      roles: [role],
-      admin: role === 'Superadmin' || role === 'Administrador'
+      ...buildRoleClaims(role, { forceAdmin: role === 'Administrador' })
     };
 
     await admin.auth().setCustomUserClaims(userRecord.uid, nextClaims);
+
+    const userProfileUpdate = buildUserProfileUpdate({
+      email,
+      uid: userRecord.uid,
+      role,
+      claims: nextClaims,
+      managedBy: 'syncClaims-endpoint'
+    });
+
+    await admin.firestore().collection('users').doc(email).set({
+      ...userProfileUpdate,
+      authProviders: (userRecord.providerData || []).map(provider => provider.providerId).filter(Boolean),
+      roleUpdatedAt: admin.firestore.FieldValue.serverTimestamp()
+    }, { merge: true });
 
     return res.json({ status: 'ok', role });
   } catch (e) {
