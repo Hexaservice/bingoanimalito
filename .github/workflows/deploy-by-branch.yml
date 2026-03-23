@@ -11,6 +11,7 @@ permissions:
 jobs:
   deploy-prod:
     runs-on: ubuntu-latest
+    environment: production
     env:
       HAS_FIREBASE_SECRETS: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_BINGOANIMALITO != '' &&
         secrets.FIREBASE_WEB_API_KEY != '' &&
