@@ -144,7 +144,7 @@
         if(user){
           try{
             const { role, exists } = await getUserRole(user, { createIfMissing: false });
-            if(!exists && role === 'Jugador'){
+            if(exists === false && role === 'Jugador'){
               window.location.href='registrarse.html';
               return;
             }
@@ -178,7 +178,7 @@
         if(user){
           try{
             const { role, exists } = await getUserRole(user, { createIfMissing: false });
-            if(!exists && role === 'Jugador'){
+            if(exists === false && role === 'Jugador'){
               window.location.href='registrarse.html';
               return;
             }
