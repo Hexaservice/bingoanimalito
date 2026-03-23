@@ -39,6 +39,12 @@ function getConfigFromWindow(){
   return null;
 }
 
+function getFirebaseConfigScriptUrl(){
+  if(!hasWindow()) return '/firebase-config.js';
+  const url = new URL('/firebase-config.js', window.location.origin);
+  return url.toString();
+}
+
 function ensureFirebaseConfigScript(){
   if(!hasWindow()) return Promise.resolve();
   if(getConfigFromWindow()) return Promise.resolve();
@@ -55,15 +61,15 @@ function ensureFirebaseConfigScript(){
           return;
         }
         existing.addEventListener('load', ()=>resolve(), { once: true });
-        existing.addEventListener('error', ()=>reject(new Error('No se pudo cargar firebase-config.js')), { once: true });
+        existing.addEventListener('error', ()=>reject(new Error(`No se pudo cargar ${getFirebaseConfigScriptUrl()}`)), { once: true });
         return;
       }
       const script = document.createElement('script');
-      script.src = 'firebase-config.js';
+      script.src = getFirebaseConfigScriptUrl();
       script.async = false;
       script.dataset.firebaseConfig = 'true';
       script.onload = ()=>resolve();
-      script.onerror = ()=>reject(new Error('No se pudo cargar firebase-config.js'));
+      script.onerror = ()=>reject(new Error(`No se pudo cargar ${getFirebaseConfigScriptUrl()}`));
       document.head.appendChild(script);
     });
   }
