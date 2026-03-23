@@ -53,17 +53,25 @@ service cloud.firestore {
       return ['role', 'disabled', 'contrasenasu', 'emailVerified', 'customClaims', 'uid'];
     }
 
+    function blockedUserFieldsOnCreate() {
+      return ['disabled', 'contrasenasu', 'emailVerified', 'customClaims', 'uid'];
+    }
+
     function touchesBlockedUserFields() {
       return request.resource.data.diff(resource.data).changedKeys().hasAny(blockedUserFields());
     }
 
     function createsBlockedUserFields() {
-      return request.resource.data.keys().hasAny(blockedUserFields());
+      return request.resource.data.keys().hasAny(blockedUserFieldsOnCreate());
+    }
+
+    function createsAllowedPlayerRole() {
+      return !('role' in request.resource.data) || request.resource.data.role == 'Jugador';
     }
 
     match /users/{email} {
       allow read: if isOwner(email) || isSystemRequest();
-      allow create: if isAdmin() || (isOwner(email) && !createsBlockedUserFields());
+      allow create: if isAdmin() || (isOwner(email) && !createsBlockedUserFields() && createsAllowedPlayerRole());
       allow update: if isAdmin() || (isOwner(email) && !touchesBlockedUserFields());
       allow delete: if isAdmin();
 
