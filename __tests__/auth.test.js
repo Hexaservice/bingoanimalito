@@ -22,7 +22,7 @@ function cleanup(){
   jest.clearAllMocks();
 }
 
-function buildFirebaseMock({ userExists = false, role = 'Jugador' } = {}){
+function buildFirebaseMock({ userExists = false, role = 'Jugador', userReadError = null } = {}){
   const userDoc = userExists
     ? { exists: true, data: () => ({ role }) }
     : { exists: false, data: () => ({}) };
@@ -37,7 +37,16 @@ function buildFirebaseMock({ userExists = false, role = 'Jugador' } = {}){
           return { doc: jest.fn(() => ({ get: jest.fn(async () => ({ exists: false, data: () => ({}) })) })) };
         }
         if(name === 'users'){
-          return { doc: jest.fn(() => ({ get: jest.fn(async () => userDoc) })) };
+          return {
+            doc: jest.fn(() => ({
+              get: jest.fn(async () => {
+                if(userReadError){
+                  throw userReadError;
+                }
+                return userDoc;
+              })
+            }))
+          };
         }
         return { doc: jest.fn(() => ({ get: jest.fn(async () => ({ exists: false, data: () => ({}) })) })) };
       })
@@ -75,6 +84,32 @@ describe('auth.js', () => {
     };
 
     await expect(getUserRole(fakeUser)).resolves.toEqual({ role: 'Jugador', exists: false });
+  });
+
+  test('getUserRole no interpreta un error de lectura como usuario inexistente', async () => {
+    setupWindow();
+    global.firebase = buildFirebaseMock({
+      userReadError: Object.assign(new Error('Missing or insufficient permissions.'), {
+        code: 'permission-denied'
+      })
+    });
+
+    let getUserRole;
+    jest.isolateModules(() => {
+      ({ getUserRole } = require('../public/js/auth.js'));
+    });
+
+    const fakeUser = {
+      email: 'bloqueado@correo.com',
+      getIdTokenResult: jest.fn(async () => ({ claims: {} }))
+    };
+
+    await expect(getUserRole(fakeUser)).resolves.toEqual({
+      role: 'Jugador',
+      exists: null,
+      readError: true,
+      errorCode: 'permission-denied'
+    });
   });
 
   test('getUserRole prioriza custom claim role cuando existe', async () => {

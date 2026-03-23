@@ -456,7 +456,7 @@ async function handleRedirect(){
     const result = await auth.getRedirectResult();
     if(result.user){
       const { role, exists } = await getUserRole(result.user);
-      if(!exists && role === 'Jugador'){
+      if(exists === false && role === 'Jugador'){
         window.location.href = 'registrarse.html';
         return;
       }
@@ -520,7 +520,12 @@ async function getUserRole(user){
     return { role: rolPersistente, exists: true };
   }catch(e){
     console.error('No se pudo leer el perfil de usuario para determinar su rol', e);
-    return { role: 'Jugador', exists: false };
+    return {
+      role: 'Jugador',
+      exists: null,
+      readError: true,
+      errorCode: e?.code || null
+    };
   }
 }
 
@@ -725,7 +730,7 @@ function ensureAuth(roleExpected){
           return;
         }
         const { role, exists } = await getUserRole(user);
-        if(!exists && role === 'Jugador'){
+        if(exists === false && role === 'Jugador'){
           window.location.href = 'registrarse.html';
           return;
         }
