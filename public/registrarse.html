@@ -659,8 +659,13 @@
         trackEvent('registro_exito',{email:user.email});
         window.location.href='player.html';
       }catch(err){
+        console.error('Error completando registro de usuario', err);
         limpiarRegistroPendiente();
-        if(err?.message!=='telefono_invalido'){ setFieldMessage('confirmacion','No se pudo completar el registro. Revisa tus datos.'); }
+        if(err?.code === 'permission-denied'){
+          setFieldMessage('confirmacion','Firebase rechazó el alta del perfil. Revisa las reglas de Firestore para permitir crear usuarios nuevos con rol Jugador.');
+        }else if(err?.message!=='telefono_invalido'){
+          setFieldMessage('confirmacion','No se pudo completar el registro. Revisa tus datos.');
+        }
       }finally{
         registroEnProceso = false;
       }
