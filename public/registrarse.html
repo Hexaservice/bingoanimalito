@@ -769,8 +769,11 @@
       try{ await initFirebase(); }
       catch(err){
         console.error('No se pudo inicializar Firebase en registrarse.html', err);
-        alert('No se pudo preparar el registro. Intenta nuevamente.');
-        window.location.href='index.html';
+        emailLabel.textContent='No se pudo preparar el registro. Recarga esta página e inténtalo nuevamente.';
+        statusCuenta.textContent='⚠️ La página de registro no pudo inicializar la sesión y se mantendrá abierta para que no pierdas el formulario.';
+        statusCuenta.style.color='#b91c1c';
+        registrarBtn.disabled = true;
+        alert('No se pudo preparar el registro. Recarga esta página e inténtalo nuevamente.');
         return;
       }
       sincronizarBotonesProveedores();
