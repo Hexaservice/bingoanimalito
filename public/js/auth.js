@@ -39,6 +39,71 @@ function getConfigFromWindow(){
   return null;
 }
 
+function getAuthRuntimeSettings(){
+  if(!hasWindow()) return {};
+  const settings = window.__FIREBASE_AUTH_SETTINGS__ || window.firebaseAuthSettings || {};
+  if(settings && typeof settings === 'object') return settings;
+  return {};
+}
+
+function isProviderEnabled(providerKey, defaultValue = true){
+  const settings = getAuthRuntimeSettings();
+  const providers = settings.providers;
+  if(providers && typeof providers === 'object' && Object.prototype.hasOwnProperty.call(providers, providerKey)){
+    return !!providers[providerKey];
+  }
+  return defaultValue;
+}
+
+function isGoogleAuthEnabled(){
+  return isProviderEnabled('google', true);
+}
+
+function isAppleAuthEnabled(){
+  return isProviderEnabled('apple', false);
+}
+
+function getCurrentHostname(){
+  if(!hasWindow() || !window.location) return '';
+  if(window.location.hostname || window.location.host){
+    return window.location.hostname || window.location.host || '';
+  }
+  const originOrHref = window.location.origin || window.location.href || '';
+  if(!originOrHref) return '';
+  try{
+    return new URL(originOrHref, 'https://placeholder.local').hostname || '';
+  }catch(error){
+    return '';
+  }
+}
+
+function getAuthDomain(){
+  const cfg = getConfigFromWindow();
+  return cfg?.authDomain || '';
+}
+
+function buildFirebaseAuthErrorMessage(error, providerLabel = 'el proveedor seleccionado'){
+  const code = error?.code || '';
+  const hostname = getCurrentHostname();
+  const authDomain = getAuthDomain();
+  if(code === 'auth/user-disabled'){
+    return DISABLED_MSG;
+  }
+  if(code === 'auth/web-storage-unsupported'){
+    return 'El navegador bloqueó el almacenamiento o las cookies necesarias para iniciar sesión. Limpia caché/cookies, habilita cookies de terceros si aplica y prueba nuevamente desde un dominio autorizado en Firebase.';
+  }
+  if(code === 'auth/unauthorized-domain'){
+    return `Firebase bloqueó el acceso porque el dominio actual (${hostname || 'sin dominio detectado'}) no está autorizado. Revisa Authentication > Settings > Authorized domains y agrega ese dominio exacto.`;
+  }
+  if(code === 'auth/operation-not-allowed'){
+    return `Firebase no tiene habilitado ${providerLabel}. Revisa Authentication > Sign-in method y activa ${providerLabel}.`;
+  }
+  if(code === 'auth/invalid-auth-event' || code === 'auth/invalid-credential'){
+    return `No se pudo completar la autenticación con ${providerLabel}. Verifica que authDomain (${authDomain || 'no configurado'}) pertenezca al proyecto correcto si usas signInWithRedirect.`;
+  }
+  return `Error al iniciar sesión con ${providerLabel}.`;
+}
+
 function getFirebaseConfigScriptUrl(){
   if(!hasWindow()) return '/firebase-config.js';
   const url = new URL('/firebase-config.js', window.location.origin);
@@ -318,6 +383,10 @@ async function loginGoogle(){
     alert('Error de inicialización de Firebase');
     return;
   }
+  if(!isGoogleAuthEnabled()){
+    alert('Google no está habilitado para esta aplicación. Actívalo en Firebase Authentication > Sign-in method o ajusta la configuración publicada.');
+    return;
+  }
   try {
     if(provider && provider.setCustomParameters){
       provider.setCustomParameters({ prompt: 'select_account' });
@@ -332,14 +401,8 @@ async function loginGoogle(){
     try {
       await auth.signInWithRedirect(provider);
     } catch(e){
-      if (e.code === 'auth/user-disabled') {
-        alert(DISABLED_MSG);
-      } else if (e.code === 'auth/web-storage-unsupported') {
-        alert('El navegador ha bloqueado las cookies necesarias para continuar. Intenta habilitarlas o abre la aplicación desde un dominio configurado en Firebase.');
-      } else {
-        console.error('Error login Google', e);
-        alert('Error al iniciar sesión con Google');
-      }
+      console.error('Error login Google', e);
+      alert(buildFirebaseAuthErrorMessage(e, 'Google'));
     }
   }
 }
@@ -350,6 +413,10 @@ async function loginApple(){
   } catch(initErr){
     console.error('No se pudo inicializar Firebase', initErr);
     alert('Error de inicialización de Firebase');
+    return;
+  }
+  if(!isAppleAuthEnabled()){
+    alert('Apple no está habilitado para esta aplicación. Si desean usar ese botón, actívenlo en Firebase Authentication > Sign-in method y publíquenlo en la configuración del sitio.');
     return;
   }
   try{
@@ -363,14 +430,8 @@ async function loginApple(){
     try{
       await auth.signInWithRedirect(appleProvider);
     }catch(e){
-      if (e.code === 'auth/user-disabled') {
-        alert(DISABLED_MSG);
-      } else if (e.code === 'auth/web-storage-unsupported') {
-        alert('El navegador ha bloqueado las cookies necesarias para continuar. Intenta habilitarlas o abre la aplicación desde un dominio configurado en Firebase.');
-      } else {
-        console.error('Error login Apple', e);
-        alert('Error al iniciar sesión con Apple');
-      }
+      console.error('Error login Apple', e);
+      alert(buildFirebaseAuthErrorMessage(e, 'Apple'));
     }
   }
 }
@@ -402,9 +463,7 @@ async function handleRedirect(){
       redirectByRole(role);
     }
   } catch(err){
-    if (err.code === 'auth/web-storage-unsupported') {
-      alert('El navegador impide usar el almacenamiento necesario para mantener la sesión. Abre la aplicación desde un dominio configurado en Firebase o habilita las cookies.');
-    }
+    if (err?.code) alert(buildFirebaseAuthErrorMessage(err, 'el proveedor configurado'));
     console.error('Error processing redirect login', err);
   }
 }
@@ -844,4 +903,4 @@ function startUserStatusWatcher(){
   },60000);
 }
 
-if (typeof module !== "undefined") { module.exports = { getUserRole, redirectByRole, ensureAuth, setupSuperadminExit, verificarRolFuerte, reautenticarConPopup, registrarReautenticacionReciente, tieneReautenticacionReciente }; }
+if (typeof module !== "undefined") { module.exports = { getUserRole, redirectByRole, ensureAuth, setupSuperadminExit, verificarRolFuerte, reautenticarConPopup, registrarReautenticacionReciente, tieneReautenticacionReciente, isGoogleAuthEnabled, isAppleAuthEnabled, buildFirebaseAuthErrorMessage }; }
