@@ -63,6 +63,35 @@ function isAppleAuthEnabled(){
   return isProviderEnabled('apple', false);
 }
 
+function getAuthorizedDomains(){
+  const settings = getAuthRuntimeSettings();
+  const domains = settings.authorizedDomains;
+  if(!Array.isArray(domains)) return [];
+  return domains
+    .map(domain => typeof domain === 'string' ? domain.trim().toLowerCase() : '')
+    .filter(Boolean);
+}
+
+function isCurrentDomainPublished(){
+  const hostname = getCurrentHostname().trim().toLowerCase();
+  if(!hostname) return false;
+  return getAuthorizedDomains().includes(hostname);
+}
+
+function getPublishedProviderLabels(){
+  const labels = [];
+  if(isGoogleAuthEnabled()) labels.push('Google');
+  if(isAppleAuthEnabled()) labels.push('Apple');
+  return labels;
+}
+
+function describePublishedProviders(){
+  const labels = getPublishedProviderLabels();
+  if(labels.length === 0) return 'ningún proveedor publicado';
+  if(labels.length === 1) return labels[0];
+  return `${labels.slice(0, -1).join(', ')} y ${labels[labels.length - 1]}`;
+}
+
 function getCurrentHostname(){
   if(!hasWindow() || !window.location) return '';
   if(window.location.hostname || window.location.host){
@@ -93,7 +122,9 @@ function buildFirebaseAuthErrorMessage(error, providerLabel = 'el proveedor sele
     return 'El navegador bloqueó el almacenamiento o las cookies necesarias para iniciar sesión. Limpia caché/cookies, habilita cookies de terceros si aplica y prueba nuevamente desde un dominio autorizado en Firebase.';
   }
   if(code === 'auth/unauthorized-domain'){
-    return `Firebase bloqueó el acceso porque el dominio actual (${hostname || 'sin dominio detectado'}) no está autorizado. Revisa Authentication > Settings > Authorized domains y agrega ese dominio exacto.`;
+    const publishedDomains = getAuthorizedDomains();
+    const publishedDomainsText = publishedDomains.length ? publishedDomains.join(', ') : 'ninguno publicado en firebase-config.js';
+    return `Firebase bloqueó el acceso porque el dominio actual (${hostname || 'sin dominio detectado'}) no está autorizado. Revisa Authentication > Settings > Authorized domains y agrega ese dominio exacto, junto con cualquier subdominio o entorno de pruebas necesario. Dominios publicados en la app: ${publishedDomainsText}.`;
   }
   if(code === 'auth/operation-not-allowed'){
     return `Firebase no tiene habilitado ${providerLabel}. Revisa Authentication > Sign-in method y activa ${providerLabel}.`;
@@ -908,4 +939,4 @@ function startUserStatusWatcher(){
   },60000);
 }
 
-if (typeof module !== "undefined") { module.exports = { getUserRole, redirectByRole, ensureAuth, setupSuperadminExit, verificarRolFuerte, reautenticarConPopup, registrarReautenticacionReciente, tieneReautenticacionReciente, isGoogleAuthEnabled, isAppleAuthEnabled, buildFirebaseAuthErrorMessage }; }
+if (typeof module !== "undefined") { module.exports = { getUserRole, redirectByRole, ensureAuth, setupSuperadminExit, verificarRolFuerte, reautenticarConPopup, registrarReautenticacionReciente, tieneReautenticacionReciente, isGoogleAuthEnabled, isAppleAuthEnabled, getAuthorizedDomains, isCurrentDomainPublished, getPublishedProviderLabels, describePublishedProviders, buildFirebaseAuthErrorMessage }; }

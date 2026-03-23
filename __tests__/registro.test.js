@@ -30,5 +30,7 @@ describe('registrarse.html - validaciones y botón registrar', () => {
     expect(html).toMatch(/function sincronizarBotonesProveedores\(\)/);
     expect(html).toMatch(/loginAppleBtn\.hidden = !appleHabilitado;/);
     expect(html).toMatch(/Apple permanecerá oculto hasta habilitarlo explícitamente\./);
+    expect(html).toMatch(/Dominio actual: \$\{dominioActual\}/);
+    expect(html).toMatch(/Dominios publicados: \$\{textoDominios\}/);
   });
 });
