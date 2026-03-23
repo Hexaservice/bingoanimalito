@@ -461,6 +461,8 @@
     const emailLabel = document.getElementById('email');
     const statusCuenta = document.getElementById('status-cuenta');
     const codigoReferidoInputEl = document.getElementById('codigo-referido');
+    const loginGoogleBtn = document.getElementById('login-google');
+    const loginAppleBtn = document.getElementById('login-apple');
 
     const phoneByCountry = {
       '+58':'VE', '+57':'CO', '+52':'MX', '+1':'US', '+54':'AR', '+56':'CL', '+51':'PE'
@@ -554,7 +556,9 @@
     function validarPaso2(mostrarErrores=true){
       const d=obtenerDatosFormulario();
       let ok=true;
-      if(!auth?.currentUser?.email){ ok=false; if(mostrarErrores) setFieldMessage('cuenta','Selecciona una cuenta Google o Apple.'); } else if(mostrarErrores) setFieldMessage('cuenta','Cuenta autenticada.',true);
+      const appleDisponible = typeof isAppleAuthEnabled === 'function' ? isAppleAuthEnabled() : false;
+      const proveedores = appleDisponible ? 'Google o Apple' : 'Google';
+      if(!auth?.currentUser?.email){ ok=false; if(mostrarErrores) setFieldMessage('cuenta',`Selecciona una cuenta ${proveedores}.`); } else if(mostrarErrores) setFieldMessage('cuenta','Cuenta autenticada.',true);
       if(!d.aceptoTerminos){ ok=false; if(mostrarErrores) setFieldMessage('terminos','Debes aceptar términos y condiciones.'); } else if(mostrarErrores) setFieldMessage('terminos','Términos aceptados.',true);
       return ok;
     }
@@ -582,15 +586,48 @@
       const d=obtenerDatosFormulario();
       const resumen=document.getElementById('resumen-confirmacion');
       if(!resumen) return;
+      const proveedoresDisponibles = [
+        (typeof isGoogleAuthEnabled === 'function' && isGoogleAuthEnabled()) ? 'Google' : null,
+        (typeof isAppleAuthEnabled === 'function' && isAppleAuthEnabled()) ? 'Apple' : null
+      ].filter(Boolean);
+      const textoProveedores = proveedoresDisponibles.length ? proveedoresDisponibles.join(' o ') : 'un proveedor configurado';
       const tel=validarTelefono(d);
       resumen.innerHTML = `
         <strong>Revisa antes de guardar:</strong><br>
         Nombre: ${d.nombre || '-'} ${d.apellido || '-'}<br>
         Alias visible: ${d.alias || '-'}<br>
         Teléfono: ${tel.e164 || (d.codigoPais+d.celularLocal) || '-'}<br>
-        Correo de cuenta: ${auth?.currentUser?.email || 'No autenticada'}<br>
+        Correo de cuenta: ${auth?.currentUser?.email || `No autenticada (${textoProveedores})`}<br>
         Código referido: ${d.codigoReferido || 'No aplica'}
       `;
+    }
+
+    function sincronizarBotonesProveedores(){
+      const googleHabilitado = typeof isGoogleAuthEnabled === 'function' ? isGoogleAuthEnabled() : true;
+      const appleHabilitado = typeof isAppleAuthEnabled === 'function' ? isAppleAuthEnabled() : false;
+
+      if(loginGoogleBtn){
+        loginGoogleBtn.disabled = !googleHabilitado;
+        loginGoogleBtn.hidden = !googleHabilitado;
+        loginGoogleBtn.setAttribute('aria-hidden', googleHabilitado ? 'false' : 'true');
+      }
+
+      if(loginAppleBtn){
+        loginAppleBtn.disabled = !appleHabilitado;
+        loginAppleBtn.hidden = !appleHabilitado;
+        loginAppleBtn.setAttribute('aria-hidden', appleHabilitado ? 'false' : 'true');
+      }
+
+      if(!googleHabilitado && !appleHabilitado){
+        setFieldMessage('cuenta','No hay proveedores de autenticación habilitados. Revisa Firebase Authentication > Sign-in method.');
+        return;
+      }
+
+      if(appleHabilitado){
+        setFieldMessage('cuenta','Puedes continuar con Google o Apple.');
+      }else{
+        setFieldMessage('cuenta','Puedes continuar con Google. Apple permanecerá oculto hasta habilitarlo explícitamente.');
+      }
     }
 
     async function validarCuentaRegistrada(email){
@@ -722,10 +759,11 @@
         window.location.href='index.html';
         return;
       }
+      sincronizarBotonesProveedores();
       const pendienteInicial = cargarRegistroPendiente();
       if(pendienteInicial){ aplicarDatosFormulario(pendienteInicial); }
       auth.onAuthStateChanged(async user=>{
-        emailLabel.textContent = user?.email || 'Selecciona una cuenta de Google o Apple para completar el registro.';
+        emailLabel.textContent = user?.email || `Selecciona una cuenta de ${(typeof isAppleAuthEnabled === 'function' && isAppleAuthEnabled()) ? 'Google o Apple' : 'Google'} para completar el registro.`;
         if(user?.email){ await validarCuentaRegistrada(user.email); }
         else { statusCuenta.textContent=''; }
         await actualizarEstadoRegistro();

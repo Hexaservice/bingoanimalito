@@ -227,4 +227,31 @@ describe('auth.js', () => {
     expect(tieneReautenticacionReciente({ maxAgeMs: 60 * 1000 })).toBe(false);
   });
 
+  test('isAppleAuthEnabled retorna false por defecto e isGoogleAuthEnabled true', () => {
+    setupWindow();
+    global.firebase = buildFirebaseMock();
+
+    let isAppleAuthEnabled, isGoogleAuthEnabled;
+    jest.isolateModules(() => {
+      ({ isAppleAuthEnabled, isGoogleAuthEnabled } = require('../public/js/auth.js'));
+    });
+
+    expect(isAppleAuthEnabled()).toBe(false);
+    expect(isGoogleAuthEnabled()).toBe(true);
+  });
+
+  test('buildFirebaseAuthErrorMessage describe unauthorized-domain con el host actual', () => {
+    setupWindow();
+    global.firebase = buildFirebaseMock();
+
+    let buildFirebaseAuthErrorMessage;
+    jest.isolateModules(() => {
+      ({ buildFirebaseAuthErrorMessage } = require('../public/js/auth.js'));
+    });
+
+    const mensaje = buildFirebaseAuthErrorMessage({ code: 'auth/unauthorized-domain' }, 'Google');
+    expect(mensaje).toMatch(/app\.test/);
+    expect(mensaje).toMatch(/Authorized domains/);
+  });
+
 });

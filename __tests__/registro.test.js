@@ -10,6 +10,7 @@ describe('registrarse.html - validaciones y botón registrar', () => {
     expect(html).toMatch(/Alias obligatorio \(máx\. 60 caracteres\)\./);
     expect(html).toMatch(/function validarPaso2\(mostrarErrores=true\)/);
     expect(html).toMatch(/Debes aceptar términos y condiciones\./);
+    expect(html).toMatch(/Selecciona una cuenta \$\{proveedores\}\./);
   });
 
   test('actualizarEstadoRegistro controla estado disabled del botón', () => {
@@ -23,5 +24,11 @@ describe('registrarse.html - validaciones y botón registrar', () => {
     expect(html).toMatch(/if\(registroEnProceso\) return;/);
     expect(html).toMatch(/registroEnProceso = true;/);
     expect(html).toMatch(/finally\{\s*registroEnProceso = false;\s*\}/);
+  });
+
+  test('sincroniza visibilidad de proveedores y oculta Apple por configuración', () => {
+    expect(html).toMatch(/function sincronizarBotonesProveedores\(\)/);
+    expect(html).toMatch(/loginAppleBtn\.hidden = !appleHabilitado;/);
+    expect(html).toMatch(/Apple permanecerá oculto hasta habilitarlo explícitamente\./);
   });
 });
