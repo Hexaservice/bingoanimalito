@@ -118,6 +118,36 @@ function getAuthDomain(){
   return cfg?.authDomain || '';
 }
 
+function isStoragePersistenceError(error){
+  const code = (error?.code || '').toLowerCase();
+  const message = (error?.message || '').toLowerCase();
+  return [
+    'auth/web-storage-unsupported',
+    'auth/web-storage-unavailable',
+    'auth/web-storage-error'
+  ].includes(code)
+    || message.includes('storage')
+    || message.includes('cookie')
+    || message.includes('cookies')
+    || message.includes('localstorage')
+    || message.includes('sessionstorage')
+    || message.includes('indexeddb');
+}
+
+function getPersistenceModeLabel(mode){
+  if(mode === firebase?.auth?.Auth?.Persistence?.LOCAL) return 'LOCAL';
+  if(mode === firebase?.auth?.Auth?.Persistence?.SESSION) return 'SESSION';
+  if(mode === firebase?.auth?.Auth?.Persistence?.NONE) return 'NONE';
+  return 'DESCONOCIDO';
+}
+
+function buildFirebaseInitializationErrorMessage(error){
+  if(isStoragePersistenceError(error)){
+    return 'No se pudo preparar el acceso porque el navegador está bloqueando el almacenamiento o las cookies necesarias para Firebase. Habilita cookies/almacenamiento del sitio y vuelve a intentarlo.';
+  }
+  return 'No se pudo inicializar Firebase en este momento. Recarga la página e inténtalo nuevamente.';
+}
+
 function buildFirebaseAuthErrorMessage(error, providerLabel = 'el proveedor seleccionado'){
   const code = error?.code || '';
   const hostname = getCurrentHostname();
@@ -125,7 +155,7 @@ function buildFirebaseAuthErrorMessage(error, providerLabel = 'el proveedor sele
   if(code === 'auth/user-disabled'){
     return DISABLED_MSG;
   }
-  if(code === 'auth/web-storage-unsupported'){
+  if(isStoragePersistenceError(error)){
     return 'El navegador bloqueó el almacenamiento o las cookies necesarias para iniciar sesión. Limpia caché/cookies, habilita cookies de terceros si aplica y prueba nuevamente desde un dominio autorizado en Firebase.';
   }
   if(code === 'auth/unauthorized-domain'){
@@ -207,7 +237,38 @@ async function initFirebase(){
     appleProvider = new firebase.auth.OAuthProvider('apple.com');
     appleProvider.addScope('email');
     appleProvider.addScope('name');
-    await auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
+
+    const persistenceModes = [
+      firebase.auth.Auth.Persistence.LOCAL,
+      firebase.auth.Auth.Persistence.SESSION,
+      firebase.auth.Auth.Persistence.NONE
+    ];
+    let originalPersistenceError = null;
+    let persistenceModeUsed = null;
+
+    for(const mode of persistenceModes){
+      try{
+        await auth.setPersistence(mode);
+        persistenceModeUsed = mode;
+        break;
+      }catch(persistenceError){
+        if(!originalPersistenceError){
+          originalPersistenceError = persistenceError;
+          console.error('Error original al configurar la persistencia de Firebase', persistenceError);
+        }else{
+          console.warn(`Falló el fallback de persistencia ${getPersistenceModeLabel(mode)}`, persistenceError);
+        }
+
+        if(!isStoragePersistenceError(persistenceError) || mode === firebase.auth.Auth.Persistence.NONE){
+          throw persistenceError;
+        }
+      }
+    }
+
+    console.info('Modo de persistencia usado por Firebase', {
+      mode: getPersistenceModeLabel(persistenceModeUsed),
+      fallbackApplied: !!originalPersistenceError
+    });
     return app;
   })();
 
@@ -418,7 +479,7 @@ async function loginGoogle(){
     await initFirebase();
   } catch(initErr){
     console.error('No se pudo inicializar Firebase', initErr);
-    alert('Error de inicialización de Firebase');
+    alert(buildFirebaseInitializationErrorMessage(initErr));
     return;
   }
   if(!isGoogleAuthEnabled()){
@@ -450,7 +511,7 @@ async function loginApple(){
     await initFirebase();
   } catch(initErr){
     console.error('No se pudo inicializar Firebase', initErr);
-    alert('Error de inicialización de Firebase');
+    alert(buildFirebaseInitializationErrorMessage(initErr));
     return;
   }
   if(!isAppleAuthEnabled()){
@@ -823,7 +884,7 @@ function ensureAuth(roleExpected){
     })
     .catch(err => {
       console.error('No se pudo iniciar la autenticación', err);
-      alert('Error de inicialización de Firebase. Intente más tarde.');
+      alert(buildFirebaseInitializationErrorMessage(err));
       if(hasWindow()){
         window.location.href = 'index.html';
       }

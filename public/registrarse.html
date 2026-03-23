@@ -484,6 +484,30 @@
       if(texto && !ok){ trackEvent('registro_error_campo', {campo, mensaje:texto}); }
     }
 
+
+    function describirMotivoErrorRegistro(error, fallback='No se pudo completar la operación.'){
+      if(!error) return fallback;
+      if(typeof buildFirebaseInitializationErrorMessage === 'function' && (error?.code || error?.message)){
+        if(error?.code && error.code.startsWith('auth/')){
+          const motivoAuth = buildFirebaseAuthErrorMessage(error, 'el método de autenticación seleccionado');
+          if(motivoAuth) return `${motivoAuth}${error.code ? ` (${error.code})` : ''}`;
+        }
+        if(typeof isStoragePersistenceError === 'function' && isStoragePersistenceError(error)){
+          const motivoInit = buildFirebaseInitializationErrorMessage(error);
+          return `${motivoInit}${error?.code ? ` (${error.code})` : ''}`;
+        }
+      }
+      if(error?.code === 'permission-denied'){
+        return 'Firebase rechazó el alta del perfil. Revisa las reglas de Firestore para permitir crear usuarios nuevos con rol Jugador. (permission-denied)';
+      }
+      if(error?.message === 'telefono_invalido') return 'El número de teléfono no es válido para el país seleccionado.';
+      if(error?.message === 'codigo_referido_invalido') return 'El código promocional ingresado no existe o ya no está disponible.';
+      if(error?.message === 'codigo_propio') return 'No puedes usar tu propio código promocional.';
+      if(error?.code) return `${fallback} (${error.code})`;
+      if(error?.message) return `${fallback} Motivo: ${error.message}`;
+      return fallback;
+    }
+
     function obtenerDatosFormulario(){
       return {
         nombre: document.getElementById('nombre').value.trim(),
@@ -712,10 +736,8 @@
       }catch(err){
         console.error('Error completando registro de usuario', err);
         limpiarRegistroPendiente();
-        if(err?.code === 'permission-denied'){
-          setFieldMessage('confirmacion','Firebase rechazó el alta del perfil. Revisa las reglas de Firestore para permitir crear usuarios nuevos con rol Jugador.');
-        }else if(err?.message!=='telefono_invalido'){
-          setFieldMessage('confirmacion','No se pudo completar el registro. Revisa tus datos.');
+        if(err?.message !== 'telefono_invalido'){
+          setFieldMessage('confirmacion', describirMotivoErrorRegistro(err, 'No se pudo completar el registro.'));
         }
       }finally{
         registroEnProceso = false;
@@ -769,11 +791,12 @@
       try{ await initFirebase(); }
       catch(err){
         console.error('No se pudo inicializar Firebase en registrarse.html', err);
-        emailLabel.textContent='No se pudo preparar el registro. Recarga esta página e inténtalo nuevamente.';
-        statusCuenta.textContent='⚠️ La página de registro no pudo inicializar la sesión y se mantendrá abierta para que no pierdas el formulario.';
+        const motivoInicializacion = describirMotivoErrorRegistro(err, 'No se pudo preparar el registro.');
+        emailLabel.textContent=motivoInicializacion;
+        statusCuenta.textContent=`⚠️ ${motivoInicializacion} La página permanecerá abierta para que no pierdas el formulario.`;
         statusCuenta.style.color='#b91c1c';
         registrarBtn.disabled = true;
-        alert('No se pudo preparar el registro. Recarga esta página e inténtalo nuevamente.');
+        alert(motivoInicializacion);
         return;
       }
       sincronizarBotonesProveedores();
