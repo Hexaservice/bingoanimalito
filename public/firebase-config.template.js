@@ -17,3 +17,9 @@ window.__FIREBASE_AUTH_SETTINGS__ = {
   },
   authorizedDomains: __FIREBASE_AUTH_AUTHORIZED_DOMAINS__
 };
+
+window.__APP_CONFIG__ = {
+  uploadEndpoint: "__UPLOAD_ENDPOINT__"
+};
+
+window.UPLOAD_ENDPOINT = window.__APP_CONFIG__.uploadEndpoint;

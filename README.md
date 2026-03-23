@@ -42,6 +42,61 @@ Con esa publicación:
 - `public/js/auth.js` informa si Google o Apple están habilitados y muestra mejor los errores de dominio no autorizado.
 - `public/registrarse.html` muestra u oculta el botón Apple, muestra el dominio actual y lista los dominios autorizados publicados para diagnóstico.
 
+## Configurar y ejecutar `uploadServer.js`
+
+El backend `uploadServer.js` **no arranca** si faltan estas variables obligatorias:
+
+- `GOOGLE_APPLICATION_CREDENTIALS`
+- `FIREBASE_STORAGE_BUCKET`
+
+Puedes tomar `.env.example` como base y luego iniciar localmente así:
+
+```bash
+cp .env.example .env
+npm start
+```
+
+Ejemplo mínimo:
+
+```env
+GOOGLE_APPLICATION_CREDENTIALS=/ruta/absoluta/serviceAccountKey.json
+FIREBASE_STORAGE_BUCKET=bingoanimalito.appspot.com
+ALLOWED_ORIGINS=https://bingoanimalito.web.app,https://app.midominio.com
+UPLOAD_ENDPOINT=https://api.midominio.com/upload
+PORT=3000
+```
+
+### CORS: `ALLOWED_ORIGINS`
+
+`uploadServer.js` usa `ALLOWED_ORIGINS` para permitir llamadas del frontend. Debe contener el **dominio real** donde está publicado el cliente, separado por comas si hay más de uno.
+
+Ejemplos:
+
+- Producción en Hosting: `ALLOWED_ORIGINS=https://bingoanimalito.web.app`
+- Producción + staging: `ALLOWED_ORIGINS=https://bingoanimalito.web.app,https://staging.midominio.com`
+- Desarrollo local + producción: `ALLOWED_ORIGINS=http://localhost:3000,https://bingoanimalito.web.app`
+
+Si el frontend llama desde un origen no incluido, el backend responderá `403` por CORS.
+
+### `UPLOAD_ENDPOINT` para `/upload`, `/syncClaims` y `/admin/session/*`
+
+Ahora el deploy publica `UPLOAD_ENDPOINT` dentro de `public/firebase-config.js`, y `public/js/auth.js` lo reutiliza para construir la base de:
+
+- `/syncClaims`
+- `/admin/session/register`
+- `/admin/session/status`
+
+La recomendación es una de estas dos:
+
+1. **Mismo origen**: exponer el backend detrás del mismo dominio del frontend y usar `UPLOAD_ENDPOINT=https://tu-dominio.com/upload`.
+2. **Origen separado**: publicar el backend en otro dominio HTTPS y definir `UPLOAD_ENDPOINT=https://api.tu-dominio.com/upload`.
+
+En GitHub Actions, define también el secret:
+
+- `UPLOAD_ENDPOINT`
+
+Así `public/firebase-config.js` quedará alineado con el backend real y `auth.js` no intentará llamar endpoints administrativos al origen equivocado.
+
 ## Provisionar un Superadmin real en Firebase
 
 Para que un correo quede como **usuario real** en Firebase Authentication con proveedor de Google, primero debe iniciar sesión en la app con Google al menos una vez. Después de eso, el script `scripts/assignRoleClaims.js` puede validar que el usuario ya tenga `google.com` enlazado y sincronizar tanto los custom claims como el documento `users/{email}` en Firestore.
@@ -56,4 +111,3 @@ node scripts/assignRoleClaims.js \
 ```
 
 Ese flujo deja en Authentication los claims `{ role: 'Superadmin', roles: ['Superadmin'], admin: true }` y en Firestore actualiza `users/{email}` con al menos `email`, `role`, `roles`, `admin` y `uid`.
-

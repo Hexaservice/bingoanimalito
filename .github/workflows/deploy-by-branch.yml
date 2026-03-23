@@ -39,6 +39,7 @@ jobs:
           AUTH_GOOGLE_ENABLED="${FIREBASE_AUTH_GOOGLE_ENABLED:-true}"
           AUTH_APPLE_ENABLED="${FIREBASE_AUTH_APPLE_ENABLED:-false}"
           AUTH_AUTHORIZED_DOMAINS="${FIREBASE_AUTH_AUTHORIZED_DOMAINS_JSON:-[]}"
+          RESOLVED_UPLOAD_ENDPOINT="${UPLOAD_ENDPOINT:-}"
           sed -i "s|__FIREBASE_API_KEY__|${FIREBASE_API_KEY}|g" public/firebase-config.js
           sed -i "s|__FIREBASE_AUTH_DOMAIN__|${FIREBASE_AUTH_DOMAIN}|g" public/firebase-config.js
           sed -i "s|__FIREBASE_DATABASE_URL__|${FIREBASE_DATABASE_URL}|g" public/firebase-config.js
@@ -49,6 +50,7 @@ jobs:
           sed -i "s|__FIREBASE_AUTH_GOOGLE_ENABLED__|${AUTH_GOOGLE_ENABLED}|g" public/firebase-config.js
           sed -i "s|__FIREBASE_AUTH_APPLE_ENABLED__|${AUTH_APPLE_ENABLED}|g" public/firebase-config.js
           sed -i "s|__FIREBASE_AUTH_AUTHORIZED_DOMAINS__|${AUTH_AUTHORIZED_DOMAINS}|g" public/firebase-config.js
+          sed -i "s|__UPLOAD_ENDPOINT__|${RESOLVED_UPLOAD_ENDPOINT}|g" public/firebase-config.js
         env:
           FIREBASE_API_KEY: ${{ secrets.FIREBASE_WEB_API_KEY }}
           FIREBASE_AUTH_DOMAIN: ${{ secrets.FIREBASE_AUTH_DOMAIN }}
@@ -60,6 +62,7 @@ jobs:
           FIREBASE_AUTH_GOOGLE_ENABLED: ${{ secrets.FIREBASE_AUTH_GOOGLE_ENABLED }}
           FIREBASE_AUTH_APPLE_ENABLED: ${{ secrets.FIREBASE_AUTH_APPLE_ENABLED }}
           FIREBASE_AUTH_AUTHORIZED_DOMAINS_JSON: ${{ secrets.FIREBASE_AUTH_AUTHORIZED_DOMAINS_JSON }}
+          UPLOAD_ENDPOINT: ${{ secrets.UPLOAD_ENDPOINT }}
 
       - name: Deploy to Firebase Hosting
         if: env.HAS_FIREBASE_SECRETS == 'true'
