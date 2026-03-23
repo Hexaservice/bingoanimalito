@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'v3';
+const CACHE_VERSION = 'v4';
 const APP_SHELL_CACHE = `bingo-app-shell-${CACHE_VERSION}`;
 const AUDIO_CACHE = `bingo-audio-runtime-${CACHE_VERSION}`;
 
@@ -6,6 +6,7 @@ const AUDIO_CACHE = `bingo-audio-runtime-${CACHE_VERSION}`;
 const APP_SHELL_URLS = [
   '/',
   '/index.html',
+  '/registrarse.html',
   '/css/desktopFrame.css',
   '/img/Logo-BingOnline-nuevo500p.png',
   '/img/apple-touch-icon.png',
@@ -66,7 +67,11 @@ self.addEventListener('fetch', (event) => {
         })
         .catch(async () => {
           const cache = await caches.open(APP_SHELL_CACHE);
-          return (await cache.match(event.request)) || (await cache.match('/index.html'));
+          const cachedExact =
+            (await cache.match(event.request, { ignoreSearch: false })) ||
+            (await cache.match(new URL(event.request.url).pathname, { ignoreSearch: true }));
+          if (cachedExact) return cachedExact;
+          return await cache.match('/index.html');
         }),
     );
     return;
