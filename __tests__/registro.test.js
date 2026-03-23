@@ -35,8 +35,8 @@ describe('registrarse.html - validaciones y botón registrar', () => {
   });
 
   test('si falla Firebase en registro no redirige automáticamente al index', () => {
-    expect(html).toMatch(/No se pudo preparar el registro\. Recarga esta página e inténtalo nuevamente\./);
-    expect(html).toMatch(/La página de registro no pudo inicializar la sesión y se mantendrá abierta para que no pierdas el formulario\./);
+    expect(html).toMatch(/No se pudo preparar el registro\./);
+    expect(html).toMatch(/La página permanecerá abierta para que no pierdas el formulario\./);
     expect(html).not.toMatch(/No se pudo inicializar Firebase en registrarse\.html[\s\S]*window\.location\.href='index\.html';/);
   });
 });

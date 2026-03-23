@@ -9,3 +9,20 @@ window.__FIREBASE_CONFIG__ = {
 };
 
 window.firebaseConfig = window.__FIREBASE_CONFIG__;
+
+window.__FIREBASE_AUTH_SETTINGS__ = {
+  providers: {
+    google: true,
+    apple: false
+  },
+  authorizedDomains: [
+    "bingoanimalito.web.app",
+    "bingoanimalito.firebaseapp.com"
+  ]
+};
+
+window.__APP_CONFIG__ = {
+  uploadEndpoint: ""
+};
+
+window.UPLOAD_ENDPOINT = window.__APP_CONFIG__.uploadEndpoint;
