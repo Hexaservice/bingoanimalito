@@ -47,7 +47,8 @@
       height: auto;
       margin-bottom: 15px;
     }
-    #login-btn {
+    #login-btn,
+    .provider-btn {
       width: 220px;
       height: 80px;
       font-family: 'Bangers', cursive;
@@ -61,9 +62,39 @@
       cursor: pointer;
       transition: transform 0.3s, box-shadow 0.3s, background 0.3s;
     }
-    #login-btn:hover {
+    #login-btn:hover,
+    .provider-btn:hover {
       transform: scale(1.05);
       box-shadow: 0 0 15px rgba(255, 215, 0, 0.8);
+    }
+    #login-providers {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+      margin-top: 18px;
+    }
+    #login-providers.visible {
+      display: flex;
+    }
+    .provider-btn {
+      height: 62px;
+      font-size: 1.3rem;
+      background: rgba(67, 56, 202, 0.88);
+    }
+    .provider-btn.apple {
+      background: rgba(17, 24, 39, 0.92);
+    }
+    .provider-btn[disabled] {
+      opacity: 0.6;
+      cursor: wait;
+    }
+    #login-help {
+      max-width: 340px;
+      margin: 10px auto 0;
+      font-family: 'Poppins', sans-serif;
+      font-size: 0.9rem;
+      color: #111827;
     }
     #login-footer {
       margin: 30px 0 10px;
@@ -108,7 +139,12 @@
   <div id="login-container">
     <img id="logo-bingo" src="img/Logo-BingOnline-nuevo500p.png" alt="Logo de Bingo Animalito" />
     <button id="login-btn">Iniciar Sesión</button>
-    <div id="register-container" style="margin-top:10px;font-size:1rem;">¿Aún no tienes cuenta? <a href="#" id="register-link">Regístrate</a></div>
+    <div id="login-providers" aria-live="polite">
+      <button id="login-google-btn" class="provider-btn" type="button">Continuar con Google</button>
+      <button id="login-apple-btn" class="provider-btn apple" type="button" hidden>Continuar con Apple</button>
+      <div id="login-help">Elige un proveedor para iniciar sesión. Si todavía no tienes cuenta, entra primero al registro.</div>
+    </div>
+    <div id="register-container" style="margin-top:10px;font-size:1rem;">¿Aún no tienes cuenta? <a href="registrarse.html" id="register-link">Regístrate</a></div>
   </div>
   <div id="login-footer">
     <div id="fecha-hora"></div>
@@ -140,6 +176,45 @@
       await handleRedirect();
       initFechaHora('fecha-hora', { ocultarHora: true });
       const registerContainer=document.getElementById('register-container');
+      const loginBtn = document.getElementById('login-btn');
+      const providersContainer = document.getElementById('login-providers');
+      const googleBtn = document.getElementById('login-google-btn');
+      const appleBtn = document.getElementById('login-apple-btn');
+      const loginHelp = document.getElementById('login-help');
+      let loginEnProceso = false;
+
+      function sincronizarProveedoresInicio(){
+        const googleHabilitado = typeof isGoogleAuthEnabled === 'function' ? isGoogleAuthEnabled() : true;
+        const appleHabilitado = typeof isAppleAuthEnabled === 'function' ? isAppleAuthEnabled() : false;
+        googleBtn.hidden = !googleHabilitado;
+        appleBtn.hidden = !appleHabilitado;
+        if(!googleHabilitado && !appleHabilitado){
+          loginHelp.textContent = 'No hay proveedores de acceso habilitados. Revisa Firebase Authentication > Sign-in method.';
+          loginBtn.disabled = true;
+          return;
+        }
+        const proveedoresTexto = appleHabilitado ? 'Google o Apple' : 'Google';
+        loginHelp.textContent = `Elige ${proveedoresTexto} para iniciar sesión. Si aún no tienes cuenta, entra al registro para completar tus datos.`;
+      }
+
+      async function iniciarLoginConProveedor(tipo){
+        if(loginEnProceso) return;
+        loginEnProceso = true;
+        googleBtn.disabled = true;
+        appleBtn.disabled = true;
+        loginBtn.disabled = true;
+        try{
+          if(tipo === 'apple'){ await loginApple(); }
+          else { await loginGoogle(); }
+        }finally{
+          loginEnProceso = false;
+          googleBtn.disabled = false;
+          appleBtn.disabled = false;
+          loginBtn.disabled = false;
+        }
+      }
+
+      sincronizarProveedoresInicio();
       document.getElementById('login-btn').addEventListener('click', async () => {
         const user = auth.currentUser;
         if(user){
@@ -157,16 +232,13 @@
             return;
           }
         }
-        loginGoogle();
+        providersContainer.classList.toggle('visible');
       });
+      googleBtn.addEventListener('click', ()=>iniciarLoginConProveedor('google'));
+      appleBtn.addEventListener('click', ()=>iniciarLoginConProveedor('apple'));
       document.getElementById('register-link').addEventListener('click', e => {
         e.preventDefault();
-        const user = auth.currentUser;
-        if(user){
-          window.location.href='registrarse.html';
-          return;
-        }
-        loginGoogle();
+        window.location.href='registrarse.html';
       });
       const logoutLink = document.getElementById('logout-link');
       if (logoutLink) {
@@ -186,6 +258,7 @@
             if(registerContainer){
               registerContainer.style.display='none';
             }
+            providersContainer.classList.remove('visible');
             redirectByRole(role);
           }catch(err){
             console.error('No se pudo validar la sesión existente', err);
