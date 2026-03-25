@@ -593,7 +593,11 @@ async function getUserRole(user){
   }
 
   try{
-    const ref = db.collection('users').doc(user.email);
+    const emailId = (user?.email || '').trim().toLowerCase();
+    if(!emailId){
+      return { role: 'Jugador', exists: false };
+    }
+    const ref = db.collection('users').doc(emailId);
     const doc = await ref.get();
     if(!doc.exists){
       return { role: 'Jugador', exists: false };
