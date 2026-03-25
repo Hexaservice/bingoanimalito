@@ -10,6 +10,8 @@ window.__FIREBASE_CONFIG__ = {
   appId: "__FIREBASE_APP_ID__"
 };
 
+window.firebaseConfig = window.__FIREBASE_CONFIG__;
+
 window.__FIREBASE_AUTH_SETTINGS__ = {
   providers: {
     google: __FIREBASE_AUTH_GOOGLE_ENABLED__,
