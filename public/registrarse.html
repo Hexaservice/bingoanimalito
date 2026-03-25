@@ -366,6 +366,10 @@
       return base;
     }
 
+    function normalizeEmailId(email){
+      return (email || '').trim().toLowerCase();
+    }
+
     function hoySinHora(){
       const ahora = new Date();
       return new Date(ahora.getFullYear(), ahora.getMonth(), ahora.getDate());
@@ -416,7 +420,9 @@
 
     async function actualizarBilletera(email, cartonesAgregar){
       if(!cartonesAgregar || cartonesAgregar <= 0) return;
-      const ref = db.collection('Billetera').doc(email);
+      const emailId = normalizeEmailId(email);
+      if(!emailId) return;
+      const ref = db.collection('Billetera').doc(emailId);
       await db.runTransaction(async tx => {
         const doc = await tx.get(ref);
         const data = doc.exists ? doc.data() || {} : {};
@@ -427,8 +433,10 @@
     }
 
     async function registrarReferido({campana, nuevoEmail, referidoEmail}){
-      if(!campana || !referidoEmail || !nuevoEmail) return { premioReferidor: 0 };
-      const ref = db.collection('Referidos').doc(referidoEmail).collection('campanas').doc(campana.id);
+      const nuevoEmailId = normalizeEmailId(nuevoEmail);
+      const referidoEmailId = normalizeEmailId(referidoEmail);
+      if(!campana || !referidoEmailId || !nuevoEmailId) return { premioReferidor: 0 };
+      const ref = db.collection('Referidos').doc(referidoEmailId).collection('campanas').doc(campana.id);
       let premioReferidor = 0;
       await db.runTransaction(async tx => {
         const doc = await tx.get(ref);
@@ -444,7 +452,7 @@
         tx.set(ref, {
           totalReferidos: total,
           premiosEntregados: premiosEntregados + premiosPorDar,
-          ultimoReferido: nuevoEmail,
+          ultimoReferido: nuevoEmailId,
           actualizadoEn: new Date().toISOString()
         }, { merge:true });
       });
@@ -669,8 +677,9 @@
     }
 
     async function validarCuentaRegistrada(email){
-      if(!email){ statusCuenta.textContent=''; return false; }
-      const doc=await db.collection('users').doc(email).get();
+      const emailId = normalizeEmailId(email);
+      if(!emailId){ statusCuenta.textContent=''; return false; }
+      const doc=await db.collection('users').doc(emailId).get();
       if(doc.exists){
         statusCuenta.textContent='⚠️ Esta cuenta ya está registrada. Al continuar se iniciará sesión.';
         statusCuenta.style.color='#b91c1c';
@@ -685,7 +694,12 @@
       if(registroEnProceso) return;
       registroEnProceso = true;
       try{
-        const existente = await db.collection('users').doc(user.email).get();
+        const emailId = normalizeEmailId(user?.email);
+        if(!emailId){
+          setFieldMessage('cuenta','No se pudo leer el correo de la cuenta autenticada.');
+          throw new Error('email_no_disponible');
+        }
+        const existente = await db.collection('users').doc(emailId).get();
         if(existente.exists){
           mostrarToast('Esta cuenta ya está registrada, se iniciará sesión.');
           limpiarRegistroPendiente();
@@ -696,7 +710,7 @@
         const tel=validarTelefono(datos);
         if(!tel.ok){ setFieldMessage('celular', tel.mensaje); throw new Error('telefono_invalido'); }
         const numeroCompleto = tel.e164 || `${datos.codigoPais || ''}${datos.celularLocal || ''}`;
-        const codigoPromocional = generarCodigoPromocional(user.email, numeroCompleto);
+        const codigoPromocional = generarCodigoPromocional(emailId, numeroCompleto);
         const codigoReferido = (datos.codigoReferido || '').trim().toUpperCase();
         let campanaActiva = null;
         let usuarioReferidor = null;
@@ -706,32 +720,34 @@
             setFieldMessage('confirmacion','Este código promocional no existe.');
             throw new Error('codigo_referido_invalido');
           }
-          if(usuarioReferidor.email === user.email || usuarioReferidor.id === user.email){
+          const emailReferidorId = normalizeEmailId(usuarioReferidor.email || usuarioReferidor.id);
+          if(emailReferidorId === emailId){
             setFieldMessage('confirmacion','No puedes usar tu propio código promocional.');
             throw new Error('codigo_propio');
           }
           campanaActiva = await obtenerCampanaActiva();
         }
-        await db.collection('users').doc(user.email).set({
+        const referidoPorEmail = usuarioReferidor ? normalizeEmailId(usuarioReferidor.email || usuarioReferidor.id) : '';
+        await db.collection('users').doc(emailId).set({
           name:datos.nombre, apellido:datos.apellido, alias:datos.alias,
-          celular:numeroCompleto, numerocel:numeroCompleto, email:user.email,
+          celular:numeroCompleto, numerocel:numeroCompleto, email:emailId,
           photoURL:user.photoURL, role:'Jugador', aceptoNotificaciones:'NO',
           codigoPromocional, codigoReferidoUsado: codigoReferido || '',
-          referidoPorEmail: usuarioReferidor ? (usuarioReferidor.email || usuarioReferidor.id || '') : '',
+          referidoPorEmail,
           campanaReferidosId: campanaActiva ? campanaActiva.id : '',
           fechaRegistro: new Date().toISOString()
         });
-        if(codigoReferido && usuarioReferidor && campanaActiva){
+        if(codigoReferido && referidoPorEmail && campanaActiva){
           const cartonesNuevo = Number(campanaActiva.cartonesNuevo || 0) || 0;
           if(cartonesNuevo > 0){
-            await actualizarBilletera(user.email, cartonesNuevo);
+            await actualizarBilletera(emailId, cartonesNuevo);
             mostrarToast(`¡Código exitoso! ganaste ${cartonesNuevo} cartones GRATIS`);
           }
-          const { premioReferidor } = await registrarReferido({ campana: campanaActiva, nuevoEmail: user.email, referidoEmail: usuarioReferidor.email || usuarioReferidor.id });
-          if(premioReferidor > 0){ await actualizarBilletera(usuarioReferidor.email || usuarioReferidor.id, premioReferidor); }
+          const { premioReferidor } = await registrarReferido({ campana: campanaActiva, nuevoEmail: emailId, referidoEmail: referidoPorEmail });
+          if(premioReferidor > 0){ await actualizarBilletera(referidoPorEmail, premioReferidor); }
         }
         limpiarRegistroPendiente();
-        trackEvent('registro_exito',{email:user.email});
+        trackEvent('registro_exito',{email:emailId});
         window.location.href='player.html';
       }catch(err){
         console.error('Error completando registro de usuario', err);
