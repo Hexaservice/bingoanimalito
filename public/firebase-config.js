@@ -1,7 +1,10 @@
-// Configuración publicada de Firebase para el cliente web.
+// Archivo generado por scripts/generateFirebaseConfig.js.
+// Plantilla para generar la configuración de Firebase durante los despliegues.
+// Los valores __FIREBASE_*__ se reemplazan en los workflows de GitHub Actions.
 window.__FIREBASE_CONFIG__ = {
   apiKey: "AIzaSyDFDwPoH0Gl6GO3O0gLVmcTtcaXsYgUSV0",
   authDomain: "bingoanimalito.firebaseapp.com",
+  databaseURL: "",
   projectId: "bingoanimalito",
   storageBucket: "bingoanimalito.firebasestorage.app",
   messagingSenderId: "396029548802",
@@ -17,7 +20,9 @@ window.__FIREBASE_AUTH_SETTINGS__ = {
   },
   authorizedDomains: [
     "bingoanimalito.web.app",
-    "bingoanimalito.firebaseapp.com"
+    "bingoanimalito.firebaseapp.com",
+    "www.bingo.juega-online.com",
+    "localhost"
   ]
 };
 
