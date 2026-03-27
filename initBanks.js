@@ -50,11 +50,17 @@ function initializeFirebase() {
   return admin.firestore();
 }
 
-async function ensureBankForPlayers(db, nombre) {
+const DEFAULT_CATEGORIES = ['Bingo', 'Jugadores'];
+
+function buildBankDocumentId(categoria, nombre) {
+  return `${categoria}__${nombre}`;
+}
+
+async function ensureBankByCategory(db, nombre, categoria) {
   const existing = await db
     .collection('Bancos')
     .where('nombre', '==', nombre)
-    .where('categoria', '==', 'Jugadores')
+    .where('categoria', '==', categoria)
     .limit(1)
     .get();
 
@@ -64,39 +70,41 @@ async function ensureBankForPlayers(db, nombre) {
       {
         id: doc.id,
         nombre,
-        categoria: 'Jugadores',
+        categoria,
         estado: 'Activo',
       },
       { merge: true }
     );
-    return { action: 'updated', id: doc.id, nombre };
+    return { action: 'updated', id: doc.id, nombre, categoria };
   }
 
-  const newRef = db.collection('Bancos').doc();
+  const newRef = db.collection('Bancos').doc(buildBankDocumentId(categoria, nombre));
   await newRef.set({
     id: newRef.id,
     nombre,
-    categoria: 'Jugadores',
+    categoria,
     estado: 'Activo',
-  });
+  }, { merge: true });
 
-  return { action: 'created', id: newRef.id, nombre };
+  return { action: 'created', id: newRef.id, nombre, categoria };
 }
 
 async function main() {
   const db = initializeFirebase();
   const results = [];
 
-  for (const nombre of BANK_NAMES_FROM_BINGO_ONLINE) {
-    // eslint-disable-next-line no-await-in-loop
-    const result = await ensureBankForPlayers(db, nombre);
-    results.push(result);
+  for (const categoria of DEFAULT_CATEGORIES) {
+    for (const nombre of BANK_NAMES_FROM_BINGO_ONLINE) {
+      // eslint-disable-next-line no-await-in-loop
+      const result = await ensureBankByCategory(db, nombre, categoria);
+      results.push(result);
+    }
   }
 
   const created = results.filter(r => r.action === 'created').length;
   const updated = results.filter(r => r.action === 'updated').length;
 
-  console.log('Colección Bancos sincronizada para categoría Jugadores.');
+  console.log(`Colección Bancos sincronizada para categorías: ${DEFAULT_CATEGORIES.join(', ')}.`);
   console.log(`Creados: ${created} | Actualizados: ${updated} | Total: ${results.length}`);
 }
 
