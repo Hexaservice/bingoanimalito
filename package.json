@@ -10,7 +10,8 @@
     "assign-role": "node scripts/assignRoleClaims.js",
     "test:coverage": "jest --coverage",
     "reconciliar-premios": "node scripts/reconciliarPremiosPendientes.js",
-    "generate:firebase-config": "node scripts/generateFirebaseConfig.js"
+    "generate:firebase-config": "node scripts/generateFirebaseConfig.js",
+    "init-banks": "node initBanks.js"
   },
   "keywords": [],
   "author": "",
