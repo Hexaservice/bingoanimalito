@@ -212,19 +212,11 @@
   <script src="js/auth.js"></script>
   <script src="js/notificationCenter.js"></script>
   <script>
-    ensureAuth('Superadmin');
+    ensureAuth();
+
+    const USUARIO_DESARROLLADOR_PARAMETROS = 'jhoseph.q@gmail.com';
 
     const camposContrasenaLegacy = ['contrasenasu','contrasenaSu','contrasenaSU','Contrasenasu','ContrasenaSu','ContrasenaSU'];
-
-    async function validarAutorizacionFuerteSuperadmin(){
-      const verificacion = await verificarRolFuerte('Superadmin', { forceRefresh: true });
-      if(!verificacion.ok){
-        throw new Error('CLAIMS_SUPERADMIN_NO_VIGENTES');
-      }
-      if(!tieneReautenticacionReciente({ maxAgeMs: 10 * 60 * 1000 })){
-        throw new Error('REAUTENTICACION_REQUERIDA_DESDE_MENU_SUPERADMIN');
-      }
-    }
 
     async function migrarContrasenaLegacyParametros(){
       const ref = db.collection('Variablesglobales').doc('Parametros');
@@ -356,20 +348,21 @@
         .then(()=>{
           auth.onAuthStateChanged(async usuario=>{
             if(!usuario || parametrosYaInicializados) return;
+
+            const emailActual = (usuario.email || '').trim().toLowerCase();
+            if(emailActual !== USUARIO_DESARROLLADOR_PARAMETROS){
+              alert('No estás autorizado para acceder a la ventana de parámetros.');
+              window.location.href='super.html';
+              return;
+            }
+
             try{
-              await validarAutorizacionFuerteSuperadmin();
               await iniciarParametros();
               parametrosYaInicializados=true;
             }catch(err){
               parametrosYaInicializados=false;
               console.error('Fallo al cargar parámetros tras autenticar',err);
-              if(err && err.message === 'REAUTENTICACION_REQUERIDA_DESDE_MENU_SUPERADMIN'){
-                alert('Para abrir Parámetros Globales, vuelve al menú Superadmin y toca tu nombre para validar el acceso una sola vez.');
-              }else if(err && err.message === 'CLAIMS_SUPERADMIN_NO_VIGENTES'){
-                alert('Tus claims de Superadmin no están vigentes, cierre y abra sesión.');
-              }else{
-                alert('Tu sesión no cumple la autorización fuerte de Superadmin para acceder a Parámetros.');
-              }
+              alert('No fue posible cargar los parámetros en este momento. Intenta nuevamente.');
               window.location.href='super.html';
             }
           });
