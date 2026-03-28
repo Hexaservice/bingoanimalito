@@ -142,22 +142,14 @@
   <script src="js/notificationCenter.js"></script>
   <script>
   ensureAuth('Superadmin');
-  async function intentarAbrirParametros(){
-    try{
-      const verificacion = await verificarRolFuerte('Superadmin', { forceRefresh: true });
-      if(!verificacion.ok){
-        alert('No tienes claims de Superadmin vigentes. Vuelve a iniciar sesión o contacta al administrador del sistema.');
-        window.location.href='super.html';
-        return;
-      }
+  const USUARIO_DESARROLLADOR_PARAMETROS = 'jhoseph.q@gmail.com';
 
-      await reautenticarConPopup();
-    }catch(error){
-      console.error('No fue posible completar la autorización fuerte para Parámetros', error);
-      alert('No fue posible completar la reautenticación de Firebase. Intenta nuevamente.');
+  function intentarAbrirParametros(){
+    const emailActual = (auth?.currentUser?.email || '').trim().toLowerCase();
+    if(emailActual !== USUARIO_DESARROLLADOR_PARAMETROS){
+      alert('Solo el usuario desarrollador autorizado puede abrir la ventana de parámetros.');
       return;
     }
-
     window.location.href='parametros.html';
   }
   document.getElementById("acceder-usuario-btn").addEventListener("click",()=>{window.location.href="accederusuario.html";});
