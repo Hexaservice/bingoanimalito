@@ -26,12 +26,22 @@ describe('registrarse.html - validaciones y botón registrar', () => {
     expect(html).toMatch(/finally\{\s*registroEnProceso = false;\s*\}/);
   });
 
-  test('sincroniza visibilidad de proveedores y oculta Apple por configuración', () => {
+  test('sincroniza visibilidad de proveedores sin mostrar mensajes de dominio', () => {
     expect(html).toMatch(/function sincronizarBotonesProveedores\(\)/);
     expect(html).toMatch(/loginAppleBtn\.hidden = !appleHabilitado;/);
-    expect(html).toMatch(/Apple permanecerá oculto hasta habilitarlo explícitamente\./);
-    expect(html).toMatch(/Dominio actual: \$\{dominioActual\}/);
-    expect(html).toMatch(/Dominios publicados: \$\{textoDominios\}/);
+    expect(html).toMatch(/Puedes continuar con Google o Apple\./);
+    expect(html).not.toMatch(/Apple permanecerá oculto hasta habilitarlo explícitamente\./);
+    expect(html).not.toMatch(/Dominio actual:/);
+    expect(html).not.toMatch(/Dominios publicados:/);
+  });
+
+  test('incluye iconos de proveedores y animación para CTAs', () => {
+    expect(html).toMatch(/<button id="login-google"[\s\S]*<svg viewBox="0 0 24 24"[\s\S]*Google/);
+    expect(html).toMatch(/<button id="login-apple"[\s\S]*<svg viewBox="0 0 24 24"[\s\S]*Apple/);
+    expect(html).toMatch(/function actualizarAnimacionesCTA\(\)/);
+    expect(html).toMatch(/btnPaso1Next\?\.classList\.toggle\('cta-ready'/);
+    expect(html).toMatch(/btnPaso2Next\?\.classList\.toggle\('cta-ready'/);
+    expect(html).toMatch(/registrarBtn\?\.classList\.toggle\('cta-ready'/);
   });
 
   test('si falla Firebase en registro no redirige automáticamente al index', () => {
