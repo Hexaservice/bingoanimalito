@@ -1096,7 +1096,9 @@
       text-align: left;
     }
     .loterias-header h3 {
-      color: #6a1b9a;
+      font-family: 'Bangers', cursive;
+      letter-spacing: 0.5px;
+      color: #b07a4a;
     }
     #loterias-content {
       display: none;
@@ -1112,21 +1114,21 @@
     }
     .loterias-toolbar button,
     #guardar-loterias-btn {
-      border: 1px solid #6a1b9a;
+      border: 1px solid #b07a4a;
       border-radius: 8px;
       font-weight: 700;
       padding: 7px 10px;
       cursor: pointer;
     }
-    #agregar-loteria-btn { background: #f3e8ff; color: #4a148c; }
-    #guardar-loterias-btn { background: #6a1b9a; color: #fff; width: 100%; margin-top: 10px; }
+    #agregar-loteria-btn { background: #f6ede4; color: #7c4a25; }
+    #guardar-loterias-btn { background: #b07a4a; color: #fff; width: 100%; margin-top: 10px; }
     .loterias-help {
       font-size: 0.8rem;
-      color: #4b5563;
+      color: #7c4a25;
       margin: 0;
     }
     .loteria-card {
-      border: 1px solid #d8b4fe;
+      border: 1px solid #d8b089;
       border-radius: 10px;
       background: rgba(255,255,255,0.85);
       padding: 8px;
@@ -1141,12 +1143,12 @@
       width: 52px;
       height: 52px;
       border-radius: 10px;
-      border: 1px dashed #8b5cf6;
+      border: 1px dashed #b07a4a;
       background-size: cover;
       background-position: center;
-      background-color: #f5f3ff;
+      background-color: #f6ede4;
       font-size: 0.65rem;
-      color: #4a148c;
+      color: #7c4a25;
       cursor: pointer;
       flex: 0 0 52px;
     }
@@ -1159,7 +1161,7 @@
     .loteria-fields input[type="text"] {
       width: 100%;
       border-radius: 8px;
-      border: 1px solid #c4b5fd;
+      border: 1px solid #d8b089;
       padding: 6px 8px;
       box-sizing: border-box;
       font-size: 0.9rem;
@@ -1176,20 +1178,35 @@
     .jerarquia-chip {
       padding: 2px 7px;
       border-radius: 999px;
-      background: #ede9fe;
-      color: #5b21b6;
+      background: #f6ede4;
+      color: #7c4a25;
       font-weight: 700;
-      border: 1px solid #c4b5fd;
+      border: 1px solid #d8b089;
     }
     .bloques-wrap {
       margin-top: 8px;
-      border-top: 1px solid #e9d5ff;
+      border-top: 1px solid #efd7c2;
       padding-top: 7px;
+    }
+    .bloques-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 5px;
     }
     .bloques-title {
       font-size: 0.78rem;
-      color: #6b7280;
-      margin-bottom: 5px;
+      color: #7c4a25;
+      margin: 0;
+      font-weight: 700;
+    }
+    .bloques-intermedios-toggle {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.72rem;
+      color: #7c4a25;
     }
     .bloques-grid {
       display: grid;
@@ -1201,6 +1218,22 @@
       display: inline-flex;
       align-items: center;
       gap: 4px;
+      border-radius: 8px;
+      padding: 4px 6px;
+      color: #1f2937;
+      font-weight: 700;
+    }
+    .bloques-grid label.bloque-entero {
+      background: #dbeafe;
+    }
+    .bloques-grid label.bloque-intermedio {
+      background: #ffedd5;
+    }
+    .bloques-grid input[type="checkbox"] {
+      accent-color: #2563eb;
+    }
+    .bloques-grid label.bloque-intermedio input[type="checkbox"] {
+      accent-color: #f97316;
     }
     #loterias-status {
       margin-top: 8px;
@@ -1685,12 +1718,14 @@
       cont.style.display=toggle.checked?'block':'none';
       if(toggle.checked) cargarDatos();
     });
-    const BLOQUES_HORARIOS=Array.from({length:12},(_,index)=>{
-      const hora24=index+8;
+    function formatearHora(hora24,minuto){
       const periodo=hora24>=12?'pm':'am';
       const hora12=((hora24+11)%12)+1;
-      return `${hora12.toString().padStart(2,'0')}:00 ${periodo}`;
-    });
+      return `${hora12.toString().padStart(2,'0')}:${minuto.toString().padStart(2,'0')} ${periodo}`;
+    }
+    const BLOQUES_HORARIOS_ENTEROS=Array.from({length:14},(_,index)=>formatearHora(index+8,0));
+    const BLOQUES_HORARIOS_INTERMEDIOS=Array.from({length:14},(_,index)=>formatearHora(index+8,30));
+    const BLOQUES_HORARIOS=BLOQUES_HORARIOS_ENTEROS.flatMap((bloque,index)=>[bloque,BLOQUES_HORARIOS_INTERMEDIOS[index]]);
     const IMAGENES_LOTERIA=[
       'img/loterias/la-granjita.png',
       'img/loterias/lotto-activo.png',
@@ -1715,7 +1750,7 @@
         estado:'Inactiva',
         jerarquia:null,
         imagen:'',
-        bloquesHorarios:[BLOQUES_HORARIOS[0]]
+        bloquesHorarios:[BLOQUES_HORARIOS_ENTEROS[0]]
       };
     }
     function limpiarLoteria(item){
@@ -1729,7 +1764,7 @@
         estado,
         jerarquia:jerarquia>=1&&jerarquia<=4?jerarquia:null,
         imagen:item?.imagen||'',
-        bloquesHorarios:bloques.length?bloques:[BLOQUES_HORARIOS[0]]
+        bloquesHorarios:bloques.length?bloques:[BLOQUES_HORARIOS_ENTEROS[0]]
       };
     }
     function ordenarBloques(lista){
@@ -1767,6 +1802,7 @@
       loteriasData.forEach((item,index)=>{
         const card=document.createElement('article');
         card.className='loteria-card';
+        const mostrarIntermedios=item.bloquesHorarios.some((bloque)=>BLOQUES_HORARIOS_INTERMEDIOS.includes(bloque));
         const jerarquiaTexto=item.estado==='Activa' ? `Jerarquía ${item.jerarquia||'-'}` : 'Inactiva';
         card.innerHTML=`
           <div class="loteria-head">
@@ -1783,9 +1819,24 @@
             </div>
           </div>
           <div class="bloques-wrap">
-            <div class="bloques-title">Bloques horarios (mínimo 1):</div>
+            <div class="bloques-header">
+              <div class="bloques-title">Bloques horarios (mínimo 1):</div>
+              <label class="bloques-intermedios-toggle">
+                <span>Bloques intermedios</span>
+                <span class="switch">
+                  <input type="checkbox" data-accion="mostrar-intermedios" data-index="${index}" ${mostrarIntermedios?'checked':''}>
+                  <span class="slider"></span>
+                </span>
+              </label>
+            </div>
             <div class="bloques-grid">
-              ${BLOQUES_HORARIOS.map(b=>`<label><input type="checkbox" data-accion="bloque" data-index="${index}" data-bloque="${b}" ${item.bloquesHorarios.includes(b)?'checked':''}>${b}</label>`).join('')}
+              ${BLOQUES_HORARIOS_ENTEROS.map((b,horarioIndex)=>{
+                const bloqueIntermedio=BLOQUES_HORARIOS_INTERMEDIOS[horarioIndex];
+                const bloqueEntero=`<label class="bloque-entero"><input type="checkbox" data-accion="bloque" data-index="${index}" data-bloque="${b}" ${item.bloquesHorarios.includes(b)?'checked':''}>${b}</label>`;
+                if(!mostrarIntermedios) return bloqueEntero;
+                const intermedio=`<label class="bloque-intermedio"><input type="checkbox" data-accion="bloque" data-index="${index}" data-bloque="${bloqueIntermedio}" ${item.bloquesHorarios.includes(bloqueIntermedio)?'checked':''}>${bloqueIntermedio}</label>`;
+                return `${bloqueEntero}${intermedio}`;
+              }).join('')}
             </div>
           </div>
         `;
@@ -1886,6 +1937,20 @@
       const accion=event.target.dataset.accion;
       const loteria=loteriasData[index];
       if(!loteria) return;
+      if(accion==='mostrar-intermedios'){
+        const activar=!!event.target.checked;
+        if(!activar){
+          const bloquesCompletos=loteria.bloquesHorarios.filter((bloque)=>BLOQUES_HORARIOS_ENTEROS.includes(bloque));
+          if(!bloquesCompletos.length){
+            loteria.bloquesHorarios=[BLOQUES_HORARIOS_ENTEROS[0]];
+            mostrarEstadoLoterias('Se mantuvo al menos un bloque horario completo seleccionado.');
+          }else{
+            loteria.bloquesHorarios=ordenarBloques(bloquesCompletos);
+          }
+        }
+        renderLoterias();
+        return;
+      }
       if(accion==='estado'){
         const activas=loteriasData.filter(item=>item.estado==='Activa').length;
         const activar=!!event.target.checked;
