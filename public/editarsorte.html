@@ -95,6 +95,18 @@
     .cartones-forma-2{border:2px solid #ff8c00;}
     .cartones-total-2{color:#ff8c00;font-size:1.2rem;}
     #nombre-sorteo{font-weight:bold;color:purple;}
+    .nombre-sorteo-row{display:flex;align-items:center;justify-content:center;gap:8px;width:calc(100% - 12px);margin:4px 6px;}
+    .nombre-sorteo-row #nombre-sorteo{flex:1;margin:0;min-width:0;}
+    .loterias-btn{font-family:'Bangers',cursive;font-size:0.9rem;padding:6px 12px;border-radius:8px;border:2px solid #6f42c1;background:linear-gradient(#6f42c1,#ffffff);color:#fff;text-shadow:1px 1px 2px #000;cursor:pointer;}
+    #loterias-modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.75);align-items:center;justify-content:center;z-index:2600;padding:16px;box-sizing:border-box;}
+    #loterias-modal.visible{display:flex;}
+    .loterias-dialog{background:#fff;border-radius:16px;padding:16px;width:min(560px,95vw);max-height:88vh;display:flex;flex-direction:column;gap:12px;position:relative;}
+    .loterias-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(95px,1fr));gap:10px;overflow-y:auto;max-height:58vh;padding:2px;}
+    .loteria-item{border:2px solid #d2d2d2;border-radius:10px;padding:8px;display:flex;flex-direction:column;align-items:center;gap:6px;cursor:pointer;}
+    .loteria-item.selected{border-color:#1e90ff;box-shadow:0 0 0 2px rgba(30,144,255,0.25);}
+    .loteria-item img{width:54px;height:54px;object-fit:cover;border-radius:8px;background:#f4f4f4;}
+    .loteria-item .check-wrap{display:flex;align-items:center;gap:4px;font-family:'Poppins',sans-serif;font-size:0.68rem;}
+    .loterias-empty{font-family:'Poppins',sans-serif;font-size:0.9rem;color:#555;text-align:center;padding:10px;}
     .toggle-group{display:flex;justify-content:center;gap:5px;margin:3px 0;}
     .toggle-group button{flex:0 0 auto;width:95px;padding:5px 10px;border-radius:20px;border:1px solid #ccc;font-family:'Bangers',cursive;font-size:1rem;cursor:pointer;background:#808080;color:#fff;text-shadow:1px 1px 2px #333;}
     .toggle-group .premio-inicial-input{flex:1;max-width:160px;margin:0;width:auto;}
@@ -235,7 +247,10 @@
 <body>
   <button id="volver-btn" class="menu-btn back-btn" data-compact-back="true"><span class="icon">&#9664;</span><span class="label">Volver</span></button>
   <h2 style="margin-top:0;">Editar Sorteo</h2>
-  <input id="nombre-sorteo" maxlength="70" placeholder="Nombre de sorteo">
+  <div class="nombre-sorteo-row">
+    <input id="nombre-sorteo" maxlength="70" placeholder="Nombre de sorteo">
+    <button type="button" id="loterias-btn" class="loterias-btn">Loterías</button>
+  </div>
   <div id="tipo-sorteo-group" class="toggle-group">
     <button data-value="Sorteo Especial">Especial</button>
     <button data-value="Sorteo Diario">Diario</button>
@@ -278,6 +293,16 @@
       </div>
     </div>
   </div>
+  <div id="loterias-modal">
+    <div class="loterias-dialog">
+      <button type="button" class="cerrar-formas" id="cerrar-loterias-modal">✖</button>
+      <h3 class="formas-titulo">Selecciona loterías activas</h3>
+      <div id="loterias-grid" class="loterias-grid"></div>
+      <div class="formas-modal-acciones">
+        <button type="button" class="action-btn" id="guardar-loterias-btn">Guardar selección</button>
+      </div>
+    </div>
+  </div>
   <button id="actualizar-sorteo-btn">Actualizar Sorteo</button>
   <script src="https://www.gstatic.com/firebasejs/11.5.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/11.5.0/firebase-firestore-compat.js"></script>
@@ -308,6 +333,8 @@
   let modalFormaIdx=null;
   let formasModalDatos=[];
   let formaSeleccionadaId=null;
+  let loteriasActivas=[];
+  const loteriasSeleccionadas=new Set();
   let premioInicialBase=0;
   let totalPremiosBase=0;
 
@@ -382,6 +409,7 @@
     const data={
       nombre,tipo:tipoBtn?tipoBtn.dataset.value:'',fecha,hora,cierre,maxcg,valor,premioInicial,
       estado:estadoBtn?estadoBtn.dataset.value:'',
+      loterias:Array.from(loteriasSeleccionadas),
       formas:[]
     };
     document.querySelectorAll('.tab-content').forEach(div=>{
@@ -426,6 +454,10 @@
         const eb=document.querySelector(`#estado-group button[data-value="${data.estado}"]`);
         if(eb) eb.classList.add('active');
       }
+      loteriasSeleccionadas.clear();
+      if(Array.isArray(data.loterias)){
+        data.loterias.forEach(id=>loteriasSeleccionadas.add(String(id)));
+      }
       const divs=document.querySelectorAll('.tab-content');
       data.formas&&data.formas.forEach((f,i)=>{
         const div=divs[i];
@@ -461,6 +493,7 @@
           });
         });
         actualizarTotales();
+        refrescarBotonLoterias();
       }catch(e){console.error('loadState',e);}
     }
 
@@ -485,6 +518,80 @@
     }));
   }
 
+  function refrescarBotonLoterias(){
+    const btn=document.getElementById('loterias-btn');
+    if(!btn) return;
+    const total=loteriasSeleccionadas.size;
+    btn.textContent=total>0?`Loterías (${total})`:'Loterías';
+  }
+
+  function renderLoteriasGrid(){
+    const grid=document.getElementById('loterias-grid');
+    if(!grid) return;
+    if(!loteriasActivas.length){
+      grid.innerHTML='<div class="loterias-empty">No hay loterías activas disponibles.</div>';
+      return;
+    }
+    const frag=document.createDocumentFragment();
+    loteriasActivas.forEach(loteria=>{
+      const item=document.createElement('div');
+      item.className='loteria-item';
+      item.dataset.id=loteria.id;
+      if(loteriasSeleccionadas.has(loteria.id)) item.classList.add('selected');
+      item.innerHTML=`<img src="${loteria.imagen}" alt="${loteria.nombre}"><div class="check-wrap"><input type="checkbox" ${loteriasSeleccionadas.has(loteria.id)?'checked':''}> <span>${loteria.nombre}</span></div>`;
+      const toggle=()=>{
+        if(loteriasSeleccionadas.has(loteria.id)){
+          loteriasSeleccionadas.delete(loteria.id);
+        }else{
+          loteriasSeleccionadas.add(loteria.id);
+        }
+        renderLoteriasGrid();
+      };
+      item.addEventListener('click',toggle);
+      item.querySelector('input').addEventListener('click',e=>{e.stopPropagation();toggle();});
+      frag.appendChild(item);
+    });
+    grid.innerHTML='';
+    grid.appendChild(frag);
+  }
+
+  async function cargarLoteriasActivas(){
+    if(loteriasActivas.length) return;
+    const snap=await db.collection('loterias').get();
+    loteriasActivas=snap.docs.map(doc=>{
+      const d=doc.data()||{};
+      const estado=(d.estado||'').toString().toLowerCase();
+      const activa=estado==='activa'||estado==='activo'||d.activa===true||d.activo===true;
+      return {
+        id:doc.id,
+        nombre:d.nombre||'Lotería',
+        imagen:d.imagenMiniatura||d.imagen||d.logo||'img/android-chrome-192x192.png',
+        activa
+      };
+    }).filter(item=>item.activa);
+  }
+
+  async function abrirLoteriasModal(){
+    try{
+      await cargarLoteriasActivas();
+      renderLoteriasGrid();
+      document.getElementById('loterias-modal')?.classList.add('visible');
+      document.body.classList.add('modal-open');
+    }catch(e){
+      console.error('cargarLoteriasActivas',e);
+      alert('No se pudieron cargar las loterías activas');
+    }
+  }
+
+  function cerrarLoteriasModal(){
+    document.getElementById('loterias-modal')?.classList.remove('visible');
+    if(!document.getElementById('formas-modal')?.classList.contains('visible')){
+      document.body.classList.remove('modal-open');
+    }
+    refrescarBotonLoterias();
+    saveState();
+  }
+
   function selectTab(idx){
     const tabs=document.querySelector('.tabs');
     if(!tabs) return;
@@ -500,7 +607,7 @@
     if(d.condicion==='ARCHIVADO') est='Archivado';
     premioInicialBase=Number(d.premioInicial||0) || 0;
     totalPremiosBase=Number(d.totalPremios||0) || 0;
-    const data={nombre:d.nombre||'',tipo:d.tipo||'',fecha:d.fecha||'',hora:d.hora||'',cierre:d.horacierre||d.cierre||'',maxcg:(d.maxcartongratis??''),valor:d.valorCarton||'',premioInicial:d.premioInicial??'',estado:est,formas:[]};
+    const data={nombre:d.nombre||'',tipo:d.tipo||'',fecha:d.fecha||'',hora:d.hora||'',cierre:d.horacierre||d.cierre||'',maxcg:(d.maxcartongratis??''),valor:d.valorCarton||'',premioInicial:d.premioInicial??'',estado:est,loterias:Array.isArray(d.loteriasActivas)?d.loteriasActivas:[],formas:[]};
     const snap=await db.collection('formas').where('sorteoId','==',sorteoId).get();
     const arr=[];snap.forEach(s=>arr.push(s.data()));
     arr.sort((a,b)=>(a.idx||0)-(b.idx||0));
@@ -983,6 +1090,11 @@ firebase.auth().onAuthStateChanged(u=>{
 
   crearFormas();
   actualizarTotales();
+  refrescarBotonLoterias();
+  document.getElementById('loterias-btn').addEventListener('click',abrirLoteriasModal);
+  document.getElementById('cerrar-loterias-modal').addEventListener('click',cerrarLoteriasModal);
+  document.getElementById('guardar-loterias-btn').addEventListener('click',cerrarLoteriasModal);
+  document.getElementById('loterias-modal').addEventListener('click',e=>{if(e.target.id==='loterias-modal') cerrarLoteriasModal();});
 
   document.getElementById('cerrar-formas-modal').addEventListener('click',cerrarFormasModal);
   document.getElementById('formas-modal').addEventListener('click',e=>{if(e.target.id==='formas-modal') cerrarFormasModal();});
@@ -1079,6 +1191,7 @@ firebase.auth().onAuthStateChanged(u=>{
     if(!hora){alert('Debes elegir una hora para el Sorteo');horaInput.focus();return;}
     if(!cierreVal){alert('Elije una hora de cierre previo de Jugadas');cierreInput.focus();return;}
     if(!valorVal){alert('Coloca un valor para el cartón');valorInput.focus();return;}
+    if(loteriasSeleccionadas.size===0){alert('Debes seleccionar al menos una lotería activa para el sorteo.');return;}
     if(cierreVal && hora && cierreVal>hora){
       alert('La hora de cierre no puede ser mayor a la hora del sorteo');
       cierreInput.focus();
@@ -1145,7 +1258,7 @@ firebase.auth().onAuthStateChanged(u=>{
     try{
       const premioInicialFinal=premioInicialVal??0;
       const totalPremiosNuevo=Math.max(0,totalPremiosBase-premioInicialBase+premioInicialFinal);
-      const updateData={nombre,tipo,fecha,hora,horacierre:cierre,valorCarton:valor,estado,condicion,totalPremios:totalPremiosNuevo};
+      const updateData={nombre,tipo,fecha,hora,horacierre:cierre,valorCarton:valor,estado,condicion,totalPremios:totalPremiosNuevo,loteriasActivas:Array.from(loteriasSeleccionadas)};
       if(premioInicialVal!==null){
         updateData.premioInicial=premioInicialVal;
       }else{
