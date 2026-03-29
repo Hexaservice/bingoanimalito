@@ -651,6 +651,12 @@
       z-index:18050 !important;
     }
     .modal-content{background:#fff;padding:10px;border-radius:10px;display:flex;flex-direction:column;align-items:flex-start;gap:5px;width:max-content;box-sizing:border-box;}
+    #number-modal-content{
+      width:min(96vw,520px);
+      align-items:stretch;
+      padding:clamp(12px,2.8vw,16px);
+      gap:8px;
+    }
     #sorteos-list div{display:block;font-weight:bold;font-size:1rem;cursor:pointer;font-family:'Poppins',sans-serif;margin-bottom:2px;}
     #sorteos-list .sorteo-index{display:inline-block;width:30px;margin-right:2px;}
     #sorteos-list div .sorteo-detalle{display:flex;align-items:center;gap:4px;font-size:0.6rem;font-weight:normal;pointer-events:none;color:inherit;font-family:'Poppins',sans-serif;margin-top:-2px;padding-left:30px;}
@@ -668,14 +674,15 @@
       align-self:center;
       max-width:340px;
     }
-    #number-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;justify-items:stretch;width:100%;}
-    .animal-option{width:100%;min-height:66px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-size:1.35rem;text-shadow:0 0 4px green;cursor:pointer;border:1px solid #d7d7d7;border-radius:8px;background:#fff;}
-    .animal-option small{font-size:0.5rem;line-height:1.1;text-shadow:none;color:#444;font-weight:600;}
+    #number-grid{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:6px;justify-items:stretch;width:100%;}
+    .animal-option{width:100%;aspect-ratio:1/1;min-height:68px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;font-size:clamp(1.15rem,3.5vw,1.5rem);text-shadow:0 0 4px green;cursor:pointer;border:1px solid #d7d7d7;border-radius:10px;background:#fff;padding:4px 2px;box-sizing:border-box;}
+    .animal-option small{font-size:clamp(0.58rem,1.95vw,0.73rem);line-height:1.08;text-shadow:none;color:#444;font-weight:700;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
     .animal-option.disabled{opacity:0.45;cursor:not-allowed;background:#ececec;color:#666;text-shadow:none;}
     #number-modal-actions{display:none;width:100%;justify-content:center;}
     #borrar-animalito-btn{font-family:'Bangers',cursive;border:2px solid #a10000;background:linear-gradient(#d9534f,#ffffff);color:#fff;text-shadow:1px 1px 2px #000;padding:8px 14px;border-radius:8px;cursor:pointer;}
-    .animal-cell{display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1;}
-    .animal-cell small{font-size:0.45rem;color:#4a4a4a;text-shadow:none;margin-top:2px;max-width:100%;overflow:hidden;text-overflow:ellipsis;}
+    .animal-cell{display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1;width:100%;}
+    .animal-cell span{font-size:1em;line-height:0.9;}
+    .animal-cell small{font-size:0.62rem;color:#4a4a4a;text-shadow:none;margin-top:4px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;line-height:1.05;}
     #jugados-content,#cartones-content{width:max-content;max-width:100%;margin:auto;max-height:80vh;align-items:center;position:relative;padding:5px;box-sizing:border-box;display:flex;flex-direction:column;}
     #jugados-grid,#cartones-grid{display:grid;grid-template-columns:repeat(2,auto);gap:8px;justify-items:center;overflow-y:auto;flex-grow:1;min-height:0;}
     #jugados-nombre-sorteo,#cargar-jugado-btn,#editar-jugado-btn,#cartones-titulo,#cargar-guardado-btn,#editar-guardado-btn{flex-shrink:0;}
@@ -3455,14 +3462,15 @@ function toggleForma(idx){
     currentCell=cell;
     const grid=document.getElementById('number-grid');
     const actions=document.getElementById('number-modal-actions');
+    const titulo=document.getElementById('number-modal-title');
     grid.innerHTML='';
     const valorActual=(cell.dataset.value||'').toString().trim();
+    titulo.textContent=valorActual?'Cambiando Animalito':'Selecciona un Animalito';
     if(valorActual){
       actions.style.display='flex';
-      grid.style.display='none';
-      return document.getElementById('number-modal').style.display='flex';
+    }else{
+      actions.style.display='none';
     }
-    actions.style.display='none';
     grid.style.display='grid';
     const usados=new Set();
     document.querySelectorAll('#bingo-board td').forEach(td=>{
@@ -3484,7 +3492,7 @@ function toggleForma(idx){
     });
     document.getElementById('number-modal').style.display='flex';
     reiniciarScrollModal(grid);
-    if(tutorialState.activo && tutorialAuto){
+    if(tutorialState.activo && tutorialAuto && !valorActual){
       ejecutarAutoSeleccionModalTutorial(cell,{animarMano:true,esperaInicial:500});
     }
   }
