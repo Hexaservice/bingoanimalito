@@ -737,7 +737,7 @@
       font-family: 'Poppins', sans-serif;
       font-weight: 700;
       color: #0b4dda;
-      line-height: 1.2;
+      line-height: 1.1;
       text-align: left;
       padding-left: 10px;
       background: linear-gradient(160deg, rgba(240,248,255,0.95), rgba(227,240,255,0.92));
@@ -747,13 +747,13 @@
       display: block;
       color: #0b4dda;
       font-weight: 800;
-      font-size: 1.02rem;
+      font-size: 0.92rem;
     }
     .resultado-hora-cell .hora-intermedia {
       display: block;
       color: #ff7a00;
       font-weight: 800;
-      font-size: 0.98rem;
+      font-size: 0.88rem;
       margin-top: 4px;
     }
     .resultado-cell {
@@ -771,9 +771,10 @@
     }
     .resultado-cell .resultado-item {
       display: flex;
-      align-items: baseline;
+      flex-direction: column;
+      align-items: center;
       justify-content: center;
-      gap: 4px;
+      gap: 2px;
       line-height: 1;
     }
     .resultado-cell .resultado-numero {
@@ -789,8 +790,10 @@
       text-transform: uppercase;
       letter-spacing: 0.2px;
     }
-    .resultado-cell .resultado-item.exacta .resultado-numero { color: #0b4dda; }
-    .resultado-cell .resultado-item.intermedia .resultado-numero { color: #ff7a00; }
+    .resultado-cell .resultado-item.exacta .resultado-numero,
+    .resultado-cell .resultado-item.exacta .resultado-nombre { color: #0b4dda; }
+    .resultado-cell .resultado-item.intermedia .resultado-numero,
+    .resultado-cell .resultado-item.intermedia .resultado-nombre { color: #ff7a00; }
     .resultado-cell .resultado-item + .resultado-item { margin-top: 5px; }
     .modal-resultado {
       display: none;
@@ -3149,7 +3152,7 @@
             td.innerHTML = '<span class="resultado-vacio">—</span>';
           } else {
             td.addEventListener('click', ()=>manejarCantoClick(clave, fila));
-            td.innerHTML = '<span class="resultado-vacio">Seleccionar</span>';
+            td.innerHTML = '<span class="resultado-vacio" aria-hidden="true"></span>';
           }
           cantoCeldas.set(clave, td);
         }
@@ -3229,7 +3232,7 @@
       const exacta = resultados.exacta;
       const intermedia = resultados.intermedia;
       if(!exacta && !intermedia){
-        if(!celda.classList.contains('inactiva')) celda.innerHTML = '<span class="resultado-vacio">Seleccionar</span>';
+        if(!celda.classList.contains('inactiva')) celda.innerHTML = '<span class="resultado-vacio" aria-hidden="true"></span>';
         return;
       }
       const html = [];
@@ -3274,8 +3277,16 @@
     modalResultadoContexto = null;
   }
 
-  function seleccionarBloqueResultado(bloque){
+  async function seleccionarBloqueResultado(bloque){
     if(!modalResultadoContexto) return;
+    const clave = (modalResultadoContexto.clave || '').toUpperCase();
+    const resultadosActuales = resultadosPorCelda.get(clave) || {};
+    const resultadoCargado = resultadosActuales?.[bloque];
+    if(resultadoCargado){
+      const tipoBloque = bloque === 'intermedia' ? 'hora intermedia' : 'hora exacta';
+      const confirmarCambio = await preguntarAccionEstado(`Este bloque (${tipoBloque}) ya tiene cargado el número ${formatearNumeroResultado(resultadoCargado)} (${obtenerNombreAnimal(resultadoCargado)}). ¿Deseas cambiarlo?`);
+      if(!confirmarCambio) return;
+    }
     modalResultadoContexto.bloque = bloque;
     resultadoBloqueExactaBtn.classList.toggle('activo', bloque === 'exacta');
     resultadoBloqueIntermediaBtn.classList.toggle('activo', bloque === 'intermedia');
