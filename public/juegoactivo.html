@@ -11228,6 +11228,14 @@
     });
   }
 
+  function formatearHoraFallbackDesde24h(horaBase, minuto){
+    const hora24Normalizada=((Number(horaBase)%24)+24)%24;
+    const minutoNormalizado=Number(minuto)===30?30:0;
+    const sufijo=hora24Normalizada>=12?'PM':'AM';
+    const hora12=(hora24Normalizada%12)||12;
+    return `${String(hora12).padStart(2,'0')}:${String(minutoNormalizado).padStart(2,'0')} ${sufijo}`;
+  }
+
   function procesarCantos(data){
     const payload=Array.isArray(data)?{numeros:data}:data&&typeof data==='object'?data:{};
     cantosBloquesData = construirBloquesDesdePayload(payload);
@@ -11329,8 +11337,8 @@
     const permitirAnimacionConducto=ventanaEnFoco && !cantosRecientesSinAnimacion;
     if(!cantosBloquesData.length){
       cantosBloquesData = Array.from({length:15},(_,fila)=>({
-        horaExacta:`${String((8+fila)%12||12).padStart(2,'0')}:00 AM`,
-        horaIntermedia:`${String((8+fila)%12||12).padStart(2,'0')}:30 AM`,
+        horaExacta:formatearHoraFallbackDesde24h(8+fila,0),
+        horaIntermedia:formatearHoraFallbackDesde24h(8+fila,30),
         exactos:[1,2,3,4].map((_,idx)=>{
           const numero=normalizados[fila + (idx+1)*15];
           return Number.isFinite(numero)?numero:null;
