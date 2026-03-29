@@ -668,8 +668,14 @@
       align-self:center;
       max-width:340px;
     }
-    #number-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;justify-items:center;}
-    #number-grid div{width:60px;height:60px;display:flex;align-items:center;justify-content:center;font-size:1.8rem;text-shadow:0 0 5px green;cursor:pointer;}
+    #number-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;justify-items:stretch;width:100%;}
+    .animal-option{width:100%;min-height:66px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-size:1.35rem;text-shadow:0 0 4px green;cursor:pointer;border:1px solid #d7d7d7;border-radius:8px;background:#fff;}
+    .animal-option small{font-size:0.5rem;line-height:1.1;text-shadow:none;color:#444;font-weight:600;}
+    .animal-option.disabled{opacity:0.45;cursor:not-allowed;background:#ececec;color:#666;text-shadow:none;}
+    #number-modal-actions{display:none;width:100%;justify-content:center;}
+    #borrar-animalito-btn{font-family:'Bangers',cursive;border:2px solid #a10000;background:linear-gradient(#d9534f,#ffffff);color:#fff;text-shadow:1px 1px 2px #000;padding:8px 14px;border-radius:8px;cursor:pointer;}
+    .animal-cell{display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1;}
+    .animal-cell small{font-size:0.45rem;color:#4a4a4a;text-shadow:none;margin-top:2px;max-width:100%;overflow:hidden;text-overflow:ellipsis;}
     #jugados-content,#cartones-content{width:max-content;max-width:100%;margin:auto;max-height:80vh;align-items:center;position:relative;padding:5px;box-sizing:border-box;display:flex;flex-direction:column;}
     #jugados-grid,#cartones-grid{display:grid;grid-template-columns:repeat(2,auto);gap:8px;justify-items:center;overflow-y:auto;flex-grow:1;min-height:0;}
     #jugados-nombre-sorteo,#cargar-jugado-btn,#editar-jugado-btn,#cartones-titulo,#cargar-guardado-btn,#editar-guardado-btn{flex-shrink:0;}
@@ -1065,7 +1071,10 @@
   <div id="derechos">Todos los derechos reservados ® Hexaservice <span class="current-year"></span></div>
   <div id="number-modal" class="modal" onclick="this.style.display='none'">
     <div id="number-modal-content" class="modal-content" onclick="event.stopPropagation();">
-      <div id="number-modal-title">Selecciona un número</div>
+      <div id="number-modal-title">Selecciona un Animalito</div>
+      <div id="number-modal-actions">
+        <button type="button" id="borrar-animalito-btn">Borrar Animalito</button>
+      </div>
       <div id="number-grid"></div>
     </div>
   </div>
@@ -1198,7 +1207,10 @@
   initServerTime();
   iniciarControlSorteos();
 
-  const ranges=[[1,15],[16,30],[31,45],[46,60],[61,75]];
+  const ANIMALITOS_MAP={
+    '0':'Defín','00':'Ballena','1':'Carnero','2':'Toro','3':'Ciempiés','4':'Alacrán','5':'León','6':'Rana','7':'Perico','8':'Ratón','9':'Águila','10':'Tigre','11':'Gato','12':'Caballo','13':'Mono','14':'Paloma','15':'Zorro','16':'Oso','17':'Pavo','18':'Burro','19':'Chivo','20':'Cerdo','21':'Gallo','22':'Camello','23':'Cebra','24':'Iguana','25':'Gallina','26':'Vaca','27':'Perro','28':'Zamuro','29':'Elefante','30':'Caimán','31':'Lapa','32':'Ardilla','33':'Pescado','34':'Venado','35':'Jirafa','36':'Culebra'
+  };
+  const ANIMALITOS_OPCIONES=['0','00',...Array.from({length:36},(_,idx)=>String(idx+1))];
   const board=document.getElementById('bingo-board');
   let currentCell=null;
   let sorteoInterval=null;
@@ -1346,21 +1358,26 @@
 
   function calcularNumeroAleatorioValidoParaCelda(celda){
     if(!celda) return null;
-    const col=parseInt(celda.dataset.col,10);
-    if(Number.isNaN(col) || !ranges[col]) return null;
-    const [start,end]=ranges[col];
-    const usadosColumna=new Set();
-    document.querySelectorAll(`#bingo-board td[data-col="${col}"]`).forEach(td=>{
+    const usados=new Set();
+    document.querySelectorAll('#bingo-board td').forEach(td=>{
       if(td===celda || td.classList.contains('free')) return;
       const valor=(td.dataset.value||'').toString().trim();
-      if(valor!=='') usadosColumna.add(valor);
+      if(valor!=='') usados.add(valor);
     });
-    const disponibles=[];
-    for(let valor=start;valor<=end;valor++){
-      if(!usadosColumna.has(String(valor))) disponibles.push(valor);
-    }
+    const disponibles=ANIMALITOS_OPCIONES.filter(valor=>!usados.has(valor));
     if(!disponibles.length) return null;
     return disponibles[Math.floor(Math.random()*disponibles.length)];
+  }
+
+  function renderCeldaAnimalito(td,valor){
+    const numero=(valor??'').toString().trim();
+    td.dataset.value=numero;
+    if(!numero){
+      td.textContent='';
+      return;
+    }
+    const nombre=ANIMALITOS_MAP[numero]||'Animalito';
+    td.innerHTML=`<div class="animal-cell"><span>${numero}</span><small>${nombre}</small></div>`;
   }
 
   function limpiarNumerosTemporalesTutorial(){
@@ -2093,8 +2110,8 @@
     {
       id:'recorrido-carton',
       ejecutar:async ({token})=>{
-        const mensaje='Pulsa una de las celdas del cartón para elegir tu jugada. Nota: no se pueden repetir números en la misma columna';
-        const mensajeHtml='<p>Pulsa una de las celdas del cartón para elegir tu jugada.</p><p><span class="tutorial-nota">Nota:</span> no se pueden repetir números en la misma columna.</p>';
+        const mensaje='Pulsa una de las celdas del cartón para elegir tu jugada. Nota: no se pueden repetir animalitos en todo el cartón';
+        const mensajeHtml='<p>Pulsa una de las celdas del cartón para elegir tu jugada.</p><p><span class="tutorial-nota">Nota:</span> no se pueden repetir animalitos en todo el cartón.</p>';
         if(tutorialHand){
           tutorialHand.src='img/Mano-arri-izq.png';
           tutorialHand.classList.remove('tutorial-hand-pulse');
@@ -3436,16 +3453,35 @@ function toggleForma(idx){
 
   function openModal(cell,{tutorialAuto=true}={}){
     currentCell=cell;
-    const col=parseInt(cell.dataset.col);
-    const [start,end]=ranges[col];
     const grid=document.getElementById('number-grid');
+    const actions=document.getElementById('number-modal-actions');
     grid.innerHTML='';
-    for(let i=start;i<=end;i++){
-      const div=document.createElement('div');
-      div.textContent=i;
-      div.addEventListener('click',()=>selectNumber(i));
-      grid.appendChild(div);
+    const valorActual=(cell.dataset.value||'').toString().trim();
+    if(valorActual){
+      actions.style.display='flex';
+      grid.style.display='none';
+      return document.getElementById('number-modal').style.display='flex';
     }
+    actions.style.display='none';
+    grid.style.display='grid';
+    const usados=new Set();
+    document.querySelectorAll('#bingo-board td').forEach(td=>{
+      if(td===cell || td.classList.contains('free')) return;
+      const valor=(td.dataset.value||'').toString().trim();
+      if(valor) usados.add(valor);
+    });
+    ANIMALITOS_OPCIONES.forEach(numero=>{
+      const div=document.createElement('div');
+      div.className='animal-option';
+      const nombre=ANIMALITOS_MAP[numero]||'Animalito';
+      div.innerHTML=`<span>${numero}</span><small>${nombre}</small>`;
+      if(usados.has(numero)){
+        div.classList.add('disabled');
+      }else{
+        div.addEventListener('click',()=>selectNumber(numero));
+      }
+      grid.appendChild(div);
+    });
     document.getElementById('number-modal').style.display='flex';
     reiniciarScrollModal(grid);
     if(tutorialState.activo && tutorialAuto){
@@ -3455,8 +3491,7 @@ function toggleForma(idx){
 
   function selectNumber(num,{tutorialTemporal=false}={}){
     if(!currentCell) return;
-    currentCell.textContent=num;
-    currentCell.dataset.value=num;
+    renderCeldaAnimalito(currentCell,num);
     const clave=obtenerClaveCeldaTutorial(currentCell);
     if(tutorialTemporal){
       currentCell.dataset.tutorialTemp='1';
@@ -3476,20 +3511,19 @@ function toggleForma(idx){
   }
 
     function validateBoard(checkEmpty=false){
-      let cols=[[],[],[],[],[]];
+      const usados=new Set();
       let ok=true;
       document.querySelectorAll('#bingo-board td').forEach(td=>{
-        const col=parseInt(td.dataset.col);
         if(td.classList.contains('free')) return;
-        const val=td.dataset.value||'';
-        const duplicate=val!=='' && cols[col].includes(val);
+        const val=(td.dataset.value||'').toString().trim();
+        const duplicate=val!=='' && usados.has(val);
         const empty=val==='';
         if(duplicate || (checkEmpty && empty)){
           td.classList.add('error');
           ok=false;
         }else{
           td.classList.remove('error');
-          if(val!=='') cols[col].push(val);
+          if(val!=='') usados.add(val);
         }
       });
       return ok;
@@ -3520,27 +3554,19 @@ function toggleForma(idx){
       const r=parseInt(td.dataset.row);
       const c=parseInt(td.dataset.col);
       const val=carton[r][c]||'';
-      td.dataset.value=val;
-      td.textContent=val;
+      renderCeldaAnimalito(td,val);
     });
     validateBoard();
   }
 
   function cargarAzar(){
     limpiarcarton();
-    for(let c=0;c<5;c++){
-      const [start,end]=ranges[c];
-      const nums=[];
-      for(let n=start;n<=end;n++) nums.push(n);
-      for(let i=nums.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[nums[i],nums[j]]=[nums[j],nums[i]];}
-      for(let r=0;r<5;r++){
-        if(r===2&&c===2) continue;
-        const td=document.querySelector(`#bingo-board td[data-row="${r}"][data-col="${c}"]`);
-        const val=nums.pop();
-        td.dataset.value=val;
-        td.textContent=val;
-      }
-    }
+    const disponibles=[...ANIMALITOS_OPCIONES];
+    for(let i=disponibles.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[disponibles[i],disponibles[j]]=[disponibles[j],disponibles[i]];}
+    document.querySelectorAll('#bingo-board td').forEach(td=>{
+      if(td.classList.contains('free')) return;
+      renderCeldaAnimalito(td,disponibles.pop()||'');
+    });
     validateBoard();
     saveToCookie();
   }
@@ -4710,6 +4736,16 @@ function toggleForma(idx){
   }
 
   document.getElementById('sorteo-btn').addEventListener('click',abrirSorteosModal);
+  document.getElementById('borrar-animalito-btn').addEventListener('click',()=>{
+    if(!currentCell) return;
+    renderCeldaAnimalito(currentCell,'');
+    currentCell.removeAttribute('data-tutorial-temp');
+    const clave=obtenerClaveCeldaTutorial(currentCell);
+    if(clave) tutorialState.celdasTemporales.delete(clave);
+    validateBoard();
+    saveToCookie();
+    openModal(currentCell,{tutorialAuto:false});
+  });
 document.getElementById('jugar-carton-btn').addEventListener('click',()=>{
   if(editandoTipo){
     confirmarEdicion();
