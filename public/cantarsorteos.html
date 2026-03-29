@@ -1922,6 +1922,7 @@
   <script src="js/notificationCenter.js"></script>
   <script src="js/timezone.js"></script>
   <script src="js/estadoPagoPremio.js"></script>
+  <script src="js/cantosCanonicos.js"></script>
   <script>
   ensureAuth('Administrador');
   initServerTime().then(()=>{
@@ -3184,10 +3185,9 @@
 
   function actualizarCantosSeleccionados(lista){
     const valores = Array.isArray(lista) ? lista : [];
-    cantosSeleccionados = new Set(valores.map(v=>{
-      const texto = (v ?? '').toString();
-      return texto.toUpperCase();
-    }));
+    cantosSeleccionados = new Set(valores
+      .map(v=>window.CantosCanonicos?.normalizarNumeroCanonico(v))
+      .filter(Boolean));
     cantoCeldas.forEach((celda, clave)=>{
       if(cantosSeleccionados.has(clave)) celda.classList.add('selected');
       else celda.classList.remove('selected');
@@ -3324,16 +3324,20 @@
       const data = snap.exists ? (snap.data() || {}) : {};
       const resultados = (data.resultadosPorCelda && typeof data.resultadosPorCelda === 'object') ? { ...data.resultadosPorCelda } : {};
       const celda = (resultados[claveMayus] && typeof resultados[claveMayus] === 'object') ? { ...resultados[claveMayus] } : {};
-      celda[bloque] = Number(numero);
+      const numeroCanonico = window.CantosCanonicos?.normalizarNumeroCanonico(numero);
+      if(!numeroCanonico) return;
+      celda[bloque] = numeroCanonico;
       celda.actualizadoPor = usuario.uid || '';
       celda.actualizadoEn = getPreciseTimestamp() || getServerTimestamp();
       resultados[claveMayus] = celda;
       const numerosSet = new Set();
       Object.values(resultados).forEach(val=>{
-        if(val && Number.isFinite(Number(val.exacta))) numerosSet.add(Number(val.exacta));
-        if(val && Number.isFinite(Number(val.intermedia))) numerosSet.add(Number(val.intermedia));
+        const exacta = window.CantosCanonicos?.normalizarNumeroCanonico(val?.exacta);
+        const intermedia = window.CantosCanonicos?.normalizarNumeroCanonico(val?.intermedia);
+        if(exacta) numerosSet.add(exacta);
+        if(intermedia) numerosSet.add(intermedia);
       });
-      const numeros = Array.from(numerosSet).sort((a,b)=>a-b).map(n=>`B-${String(n).padStart(2,'0')}`);
+      const numeros = window.CantosCanonicos?.ordenarNumerosCanonicos(Array.from(numerosSet)) || Array.from(numerosSet);
       tx.set(ref, {
         resultadosPorCelda: resultados,
         numeros,
@@ -3351,8 +3355,8 @@
     Object.entries(mapaResultados).forEach(([clave, valor])=>{
       if(!valor || typeof valor !== 'object') return;
       resultadosPorCelda.set(clave.toUpperCase(), {
-        exacta: Number.isFinite(Number(valor.exacta)) ? Number(valor.exacta) : null,
-        intermedia: Number.isFinite(Number(valor.intermedia)) ? Number(valor.intermedia) : null
+        exacta: window.CantosCanonicos?.normalizarNumeroCanonico(valor.exacta),
+        intermedia: window.CantosCanonicos?.normalizarNumeroCanonico(valor.intermedia)
       });
     });
     const numeros = Array.isArray(payload.numeros) ? payload.numeros : [];
@@ -3446,21 +3450,8 @@
   }
 
   function normalizarNumero(valor){
-    if(typeof valor === 'number' && Number.isFinite(valor)) return valor;
-    if(typeof valor === 'string'){
-      const texto = valor.trim();
-      if(!texto) return null;
-      const match = texto.toUpperCase().match(/^([BINGO])[-\s]?0*(\d{1,2})$/);
-      if(match){
-        const numero = parseInt(match[2], 10);
-        if(Number.isFinite(numero)){
-          return numero;
-        }
-      }
-      const numeroPlano = parseInt(texto, 10);
-      if(Number.isFinite(numeroPlano)) return numeroPlano;
-    }
-    return null;
+    const canonico = window.CantosCanonicos?.normalizarNumeroCanonico(valor);
+    return canonico;
   }
 
   function normalizarCartonesGratisValor(valor){
@@ -4134,7 +4125,7 @@
             valido = false;
             break;
           }
-          const paso = cantosIndiceMap.get(valor);
+          const paso = cantosIndiceMap.get(normalizarNumero(valor));
           if(paso === undefined){
             valido = false;
             break;
@@ -4354,10 +4345,10 @@
           const span = document.createElement('span');
           span.className = 'cell-content';
           if(valor !== undefined && valor !== null){
-            const numero = Number(valor);
-            const texto = Number.isFinite(numero) ? String(numero).padStart(2,'0') : String(valor);
+            const numero = normalizarNumero(valor);
+            const texto = numero !== null ? String(numero).padStart(2,'0') : String(valor);
             span.textContent = texto;
-            if(Number.isFinite(numero)){
+            if(numero !== null){
               td.dataset.valor = numero;
               const estadoCanto = cantosResultadoMap instanceof Map ? cantosResultadoMap.get(numero) : undefined;
               if(typeof estadoCanto === 'string'){
@@ -4699,7 +4690,7 @@
           faltantes = 2;
           break;
         }
-        const paso = cantosIndiceMap.get(valor);
+        const paso = cantosIndiceMap.get(normalizarNumero(valor));
         if(paso === undefined || paso > pasoLimite){
           faltantes += 1;
           if(faltantes > 1) break;

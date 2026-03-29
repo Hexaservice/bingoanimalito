@@ -4545,6 +4545,7 @@
   <script src="js/audioManager.js"></script>
   <script src="js/audioControls.js"></script>
   <script src="js/serviceWorkerRegistration.js"></script>
+  <script src="js/cantosCanonicos.js"></script>
   <script>
   ensureAuth();
   initFechaHora('fecha-hora');
@@ -8557,13 +8558,15 @@
           const span=document.createElement('span');
           span.className='cell-content';
           if(valor!==undefined && valor!==null){
-            const numero=Number(valor);
-            const texto=Number.isFinite(numero)?String(numero).padStart(2,'0'):String(valor);
+            const numero=normalizarNumero(valor);
+            const texto=numero!==null?String(numero).padStart(2,'0'):String(valor);
             span.textContent=texto;
-            td.dataset.valor=numero;
-            if(cantosIndiceMap.has(numero) && esCantoGanador(numero)){
-              cantada='1';
-              td.classList.add('celda-cantada');
+            if(numero!==null){
+              td.dataset.valor=numero;
+              if(cantosIndiceMap.has(numero) && esCantoGanador(numero)){
+                cantada='1';
+                td.classList.add('celda-cantada');
+              }
             }
           }else{
             span.textContent='';
@@ -9223,25 +9226,12 @@
   }
 
   function normalizarNumero(valor){
-    if(typeof valor==='number' && Number.isFinite(valor)) return valor;
-    if(typeof valor==='string'){
-      const texto=valor.trim();
-      if(texto==='') return null;
-      const match=texto.toUpperCase().match(/^([BINGO])[-\s]?0*(\d{1,2})$/);
-      if(match){
-        const numero=parseInt(match[2],10);
-        if(Number.isFinite(numero)){
-          return numero;
-        }
-      }
-      const n=parseInt(texto,10);
-      if(Number.isFinite(n)) return n;
-    }
-    return null;
+    const canonico = window.CantosCanonicos?.normalizarNumeroCanonico(valor);
+    return canonico;
   }
 
   function esCantoComplementario(numero){
-    if(!Number.isFinite(numero)) return false;
+    if(!normalizarNumero(numero)) return false;
     if(!todasFormasConGanadores || !Number.isInteger(indiceUltimoGanador)) return false;
     if(!(cantosIndiceMap instanceof Map)) return false;
     if(!cantosIndiceMap.has(numero)) return false;
@@ -9250,7 +9240,7 @@
   }
 
   function esCantoGanador(numero){
-    if(!Number.isFinite(numero)) return false;
+    if(!normalizarNumero(numero)) return false;
     if(esCantoComplementario(numero)) return false;
     if(!(cantosResultadoMap instanceof Map) || cantosResultadoMap.size===0){
       return true;
@@ -9266,9 +9256,11 @@
   }
 
   function generarEtiquetaDesdeNumero(numero){
-    if(!Number.isFinite(numero)) return '';
-    const entero=Math.trunc(numero);
-    if(entero<=0) return numero.toString();
+    const canonico=normalizarNumero(numero);
+    if(!canonico) return '';
+    if(canonico==='00' || canonico==='0') return canonico;
+    const entero=Number(canonico);
+    if(!Number.isFinite(entero) || entero<=0) return canonico;
     const indice=Math.min(BINGO_LETRAS.length-1, Math.max(0, Math.floor((entero-1)/15)));
     const letra=BINGO_LETRAS[indice];
     return `${letra}-${String(entero).padStart(2,'0')}`;
@@ -11162,7 +11154,7 @@
         id:carton.id||'',
         userId:usuarioActual.uid,
         alias:(carton.alias||carton.nombre||'').toString(),
-        cartonNum:Number.isFinite(numeroCarton)?numeroCarton:null,
+        cartonNum:Number.isFinite(Number(numeroCarton))?Number(numeroCarton):null,
         posiciones
       };
     });
@@ -11222,14 +11214,14 @@
 
   function existeNumeroMarcadoEnCartones(numeros){
     if(!Array.isArray(numeros) || !numeros.length) return false;
-    const setNumeros = new Set(numeros.map(num=>Number(num)).filter(Number.isFinite));
+    const setNumeros = new Set(numeros.map(num=>normalizarNumero(num)).filter(Boolean));
     if(!setNumeros.size) return false;
     const cartonesJugador = obtenerCartonesJugadorActual();
     return cartonesJugador.some(carton=>{
       const posiciones = Array.isArray(carton?.posiciones) ? carton.posiciones : [];
       return posiciones.some(pos=>{
         const numero = normalizarNumero(pos?.valor ?? pos?.numero ?? pos?.value);
-        return numero !== null && setNumeros.has(Number(numero));
+        return numero !== null && setNumeros.has(numero);
       });
     });
   }
@@ -11353,22 +11345,22 @@
         exactos:columnasVisibles.map(columna=>{
           const indice=(columna*15)+fila;
           const numero=normalizados[indice];
-          return Number.isFinite(numero)?numero:null;
+          return numero!==null?numero:null;
         }),
         intermedios:columnasVisibles.map(columna=>{
           const indice=(columna*15)+fila;
           const numero=normalizados[indice];
-          return Number.isFinite(numero)?numero:null;
+          return numero!==null?numero:null;
         }),
         loterias:LOTERIAS_MINI_DEFAULT
       }));
       const primeraFila=cantosBloquesData[0];
       const ultimaFila=cantosBloquesData[cantosBloquesData.length-1];
       if(primeraFila && ultimaFila){
-        const esperadoPrimera=columnasVisibles.map(columna=>normalizados[(columna*15)]).filter(Number.isFinite);
-        const esperadoUltima=columnasVisibles.map(columna=>normalizados[(columna*15)+14]).filter(Number.isFinite);
-        const primeraVisible=(primeraFila.exactos||[]).filter(Number.isFinite);
-        const ultimaVisible=(ultimaFila.exactos||[]).filter(Number.isFinite);
+        const esperadoPrimera=columnasVisibles.map(columna=>normalizados[(columna*15)]).filter(num=>num!==null);
+        const esperadoUltima=columnasVisibles.map(columna=>normalizados[(columna*15)+14]).filter(num=>num!==null);
+        const primeraVisible=(primeraFila.exactos||[]).filter(num=>num!==null);
+        const ultimaVisible=(ultimaFila.exactos||[]).filter(num=>num!==null);
         const primeraOk=primeraVisible.length===esperadoPrimera.length && primeraVisible.every((v,idx)=>v===esperadoPrimera[idx]);
         const ultimaOk=ultimaVisible.length===esperadoUltima.length && ultimaVisible.every((v,idx)=>v===esperadoUltima[idx]);
         if(!primeraOk || !ultimaOk){
