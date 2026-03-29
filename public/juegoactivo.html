@@ -7390,14 +7390,20 @@
     const fuente=Array.isArray(payload?.bloques)?payload.bloques:[];
     if(!fuente.length) return [];
     return fuente.slice(0,15).map((bloque,idx)=>{
-      const exactos=Array.isArray(bloque?.exactos)?bloque.exactos:Array.isArray(bloque?.numeros)?bloque.numeros:[];
-      const intermedios=Array.isArray(bloque?.intermedios)?bloque.intermedios:Array.isArray(bloque?.numerosIntermedios)?bloque.numerosIntermedios:exactos;
+      // Evitamos reutilizar el mismo origen para ambos arreglos cuando el payload
+      // no entrega explícitamente exactos e intermedios por separado.
+      const exactosOrigen=Array.isArray(bloque?.exactos)
+        ? bloque.exactos
+        : (Array.isArray(bloque?.numeros) ? bloque.numeros : []);
+      const intermediosOrigen=Array.isArray(bloque?.intermedios)
+        ? bloque.intermedios
+        : (Array.isArray(bloque?.numerosIntermedios) ? bloque.numerosIntermedios : []);
       const loterias=Array.isArray(bloque?.loterias)?bloque.loterias:Array.isArray(payload?.loterias)?payload.loterias:LOTERIAS_MINI_DEFAULT;
       return {
         horaExacta:(bloque?.horaExacta??bloque?.hora??'').toString().trim(),
         horaIntermedia:(bloque?.horaIntermedia??bloque?.horaBloqueIntermedio??'').toString().trim(),
-        exactos:exactos.slice(0,4).map(v=>Number(v)).filter(Number.isFinite),
-        intermedios:intermedios.slice(0,4).map(v=>Number(v)).filter(Number.isFinite),
+        exactos:exactosOrigen.slice(0,4).map(v=>Number(v)).filter(Number.isFinite),
+        intermedios:intermediosOrigen.slice(0,4).map(v=>Number(v)).filter(Number.isFinite),
         loterias:loterias.slice(0,4).map(normalizarMiniaturaLoteria).filter(Boolean),
         idx
       };
@@ -11336,19 +11342,44 @@
     }
     const permitirAnimacionConducto=ventanaEnFoco && !cantosRecientesSinAnimacion;
     if(!cantosBloquesData.length){
+      // Orden esperado de payload.numeros: por columna (B, I, N, G, O) y dentro de
+      // cada columna ascendente por fila (1..15). Ejemplo: 1..15, 16..30, ... 61..75.
+      // Fórmula de mapeo fila/columna->índice (0-based): indice = (columna * 15) + fila.
+      // Aquí se muestran solo columnas I..O (columna 1..4), igual que cantarsorteos.html.
+      const columnasVisibles=[1,2,3,4];
       cantosBloquesData = Array.from({length:15},(_,fila)=>({
         horaExacta:formatearHoraFallbackDesde24h(8+fila,0),
         horaIntermedia:formatearHoraFallbackDesde24h(8+fila,30),
-        exactos:[1,2,3,4].map((_,idx)=>{
-          const numero=normalizados[fila + (idx+1)*15];
+        exactos:columnasVisibles.map(columna=>{
+          const indice=(columna*15)+fila;
+          const numero=normalizados[indice];
           return Number.isFinite(numero)?numero:null;
         }),
-        intermedios:[1,2,3,4].map((_,idx)=>{
-          const numero=normalizados[fila + (idx+1)*15];
+        intermedios:columnasVisibles.map(columna=>{
+          const indice=(columna*15)+fila;
+          const numero=normalizados[indice];
           return Number.isFinite(numero)?numero:null;
         }),
         loterias:LOTERIAS_MINI_DEFAULT
       }));
+      const primeraFila=cantosBloquesData[0];
+      const ultimaFila=cantosBloquesData[cantosBloquesData.length-1];
+      if(primeraFila && ultimaFila){
+        const esperadoPrimera=columnasVisibles.map(columna=>normalizados[(columna*15)]).filter(Number.isFinite);
+        const esperadoUltima=columnasVisibles.map(columna=>normalizados[(columna*15)+14]).filter(Number.isFinite);
+        const primeraVisible=(primeraFila.exactos||[]).filter(Number.isFinite);
+        const ultimaVisible=(ultimaFila.exactos||[]).filter(Number.isFinite);
+        const primeraOk=primeraVisible.length===esperadoPrimera.length && primeraVisible.every((v,idx)=>v===esperadoPrimera[idx]);
+        const ultimaOk=ultimaVisible.length===esperadoUltima.length && ultimaVisible.every((v,idx)=>v===esperadoUltima[idx]);
+        if(!primeraOk || !ultimaOk){
+          console.warn('[cantos fallback] Validación visual rápida falló', {
+            primeraFila:primeraVisible,
+            primeraEsperada:esperadoPrimera,
+            ultimaFila:ultimaVisible,
+            ultimaEsperada:esperadoUltima
+          });
+        }
+      }
     }
     calcularGanadores();
     actualizarMapaColoresConducto();
