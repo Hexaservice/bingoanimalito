@@ -754,6 +754,124 @@
       pointer-events: none;
       cursor: default;
     }
+
+    .resultado-hora-cell {
+      font-family: 'Poppins', sans-serif;
+      font-weight: 700;
+      color: #0b4dda;
+      line-height: 1.2;
+      text-align: left;
+      padding-left: 10px;
+      background: linear-gradient(160deg, rgba(240,248,255,0.95), rgba(227,240,255,0.92));
+      border: 2px solid rgba(11,77,218,0.25);
+    }
+    .resultado-hora-cell .hora-exacta {
+      display: block;
+      color: #0b4dda;
+      font-weight: 800;
+      font-size: 1.02rem;
+    }
+    .resultado-hora-cell .hora-intermedia {
+      display: block;
+      color: #ff7a00;
+      font-weight: 800;
+      font-size: 0.98rem;
+      margin-top: 4px;
+    }
+    .resultado-cell {
+      min-height: 56px;
+      padding: 6px 4px;
+    }
+    .resultado-cell.inactiva {
+      background: linear-gradient(160deg, rgba(240,240,240,0.94), rgba(220,220,220,0.94));
+      border-color: rgba(120,120,120,0.35);
+      cursor: default;
+    }
+    .resultado-cell .resultado-vacio {
+      color: #a0a0a0;
+      font-size: 0.9rem;
+    }
+    .resultado-cell .resultado-item {
+      display: flex;
+      align-items: baseline;
+      justify-content: center;
+      gap: 4px;
+      line-height: 1;
+    }
+    .resultado-cell .resultado-numero {
+      font-size: 1.8rem;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+      text-shadow: 0 0 4px rgba(255,255,255,0.8);
+    }
+    .resultado-cell .resultado-nombre {
+      font-size: 0.54rem;
+      font-weight: 600;
+      color: #333;
+      text-transform: uppercase;
+      letter-spacing: 0.2px;
+    }
+    .resultado-cell .resultado-item.exacta .resultado-numero { color: #0b4dda; }
+    .resultado-cell .resultado-item.intermedia .resultado-numero { color: #ff7a00; }
+    .resultado-cell .resultado-item + .resultado-item { margin-top: 5px; }
+    .modal-resultado {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.75);
+      z-index: 3200;
+      align-items: center;
+      justify-content: center;
+      padding: 10px;
+      box-sizing: border-box;
+    }
+    .modal-resultado.activo { display: flex; }
+    .modal-resultado__box {
+      background: #fff;
+      border-radius: 12px;
+      width: min(760px, 96vw);
+      max-height: 92vh;
+      overflow: hidden;
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .modal-resultado__titulo { margin: 0; text-align: center; color: #1f1f1f; }
+    .modal-resultado__loteria { text-align: center; font-size: 0.9rem; color: #5f5f5f; }
+    .modal-resultado__bloques { display:flex; justify-content:center; gap:10px; }
+    .modal-resultado__bloque-btn { border:2px solid #ccc; background:#f8f8f8; border-radius:10px; padding:7px 12px; font-weight:700; cursor:pointer; }
+    .modal-resultado__bloque-btn.exacta { color:#0b4dda; border-color:#0b4dda; }
+    .modal-resultado__bloque-btn.intermedia { color:#ff7a00; border-color:#ff7a00; }
+    .modal-resultado__bloque-btn.activo { box-shadow: 0 0 0 2px rgba(0,0,0,0.08) inset; background:#fff; }
+    .modal-resultado__bloque-btn:disabled { opacity:0.45; cursor:not-allowed; }
+    .modal-resultado__grid {
+      display: grid;
+      grid-template-columns: repeat(10, minmax(56px, 1fr));
+      gap: 6px;
+      overflow-y: auto;
+      padding: 4px;
+      max-height: 62vh;
+    }
+    .animal-option-resultado {
+      border:1px solid #d7d7d7;
+      border-radius:10px;
+      background:#fff;
+      min-height:60px;
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+      justify-content:center;
+      cursor:pointer;
+      font-weight:700;
+    }
+    .animal-option-resultado.no-jugado {
+      background: linear-gradient(160deg, rgba(70,70,70,0.95), rgba(20,20,20,0.95));
+      color:#fff;
+    }
+    .animal-option-resultado.no-jugado small { color:#fff; }
+    .animal-option-resultado small { font-size:0.56rem; color:#555; font-weight:600; }
+    .animal-option-resultado:disabled { opacity:0.4; cursor:not-allowed; }
     .modal {
       display: none;
       position: fixed;
@@ -1773,6 +1891,17 @@
       </div>
     </div>
   </div>
+  <div id="resultado-select-modal" class="modal-resultado" role="dialog" aria-modal="true" aria-labelledby="resultado-select-titulo">
+    <div class="modal-resultado__box" onclick="event.stopPropagation();">
+      <h3 id="resultado-select-titulo" class="modal-resultado__titulo">Selecciona el resultado para el horario</h3>
+      <div id="resultado-select-loteria" class="modal-resultado__loteria"></div>
+      <div class="modal-resultado__bloques">
+        <button type="button" id="resultado-bloque-exacta" class="modal-resultado__bloque-btn exacta">Hora Exacta</button>
+        <button type="button" id="resultado-bloque-intermedia" class="modal-resultado__bloque-btn intermedia">Hora intermedia</button>
+      </div>
+      <div id="resultado-select-grid" class="modal-resultado__grid"></div>
+    </div>
+  </div>
   <div id="pdf-confirm-modal" class="confirm-modal" role="dialog" aria-modal="true" aria-labelledby="pdf-confirm-title">
     <div class="pdf-confirm-box">
       <h3 id="pdf-confirm-title">Guardar PDF</h3>
@@ -1892,8 +2021,21 @@
   const avisoModalTituloEl = document.getElementById('aviso-modal-titulo');
   const avisoModalMensajeEl = document.getElementById('aviso-modal-mensaje');
   const avisoModalAceptarBtn = document.getElementById('aviso-modal-aceptar');
+  const resultadoSelectModalEl = document.getElementById('resultado-select-modal');
+  const resultadoSelectLoteriaEl = document.getElementById('resultado-select-loteria');
+  const resultadoBloqueExactaBtn = document.getElementById('resultado-bloque-exacta');
+  const resultadoBloqueIntermediaBtn = document.getElementById('resultado-bloque-intermedia');
+  const resultadoSelectGridEl = document.getElementById('resultado-select-grid');
   const cantoCeldas = new Map();
   let cantosSeleccionados = new Set();
+  const resultadosPorCelda = new Map();
+  const loteriasSorteo = [];
+  const loteriasPorColumna = ['B','I','N','G','O'].map(letra=>({ letra, loteria: null }));
+  const BLOQUES_RESULTADO = [
+    { id: 'exacta', label: 'Hora Exacta', className: 'exacta', color: '#0b4dda' },
+    { id: 'intermedia', label: 'Hora intermedia', className: 'intermedia', color: '#ff7a00' }
+  ];
+  let modalResultadoContexto = null;
   let cantosUnsub = null;
   const sorteoCookieDefaultKey = 'cantarsorteos_default';
   let sorteoCookieKey = sorteoCookieDefaultKey;
@@ -2439,8 +2581,25 @@
       if(avisoModalEl?.classList?.contains('activa')){
         cerrarAvisoSimple();
       }
+      if(resultadoSelectModalEl?.classList?.contains('activo')){
+        cerrarModalSeleccionResultado();
+      }
     }
   });
+
+  if(resultadoSelectModalEl){
+    resultadoSelectModalEl.addEventListener('click', evento=>{
+      if(evento.target === resultadoSelectModalEl){
+        cerrarModalSeleccionResultado();
+      }
+    });
+  }
+  if(resultadoBloqueExactaBtn){
+    resultadoBloqueExactaBtn.addEventListener('click', ()=>seleccionarBloqueResultado('exacta'));
+  }
+  if(resultadoBloqueIntermediaBtn){
+    resultadoBloqueIntermediaBtn.addEventListener('click', ()=>seleccionarBloqueResultado('intermedia'));
+  }
 
   document.getElementById('salir-btn').addEventListener('click',()=>{ window.location.href='admin.html'; });
   btnSorteo.addEventListener('click', abrirModalSorteos);
@@ -2966,10 +3125,24 @@
     tabla.id = 'tabla-cantos';
     const thead = document.createElement('thead');
     const headRow = document.createElement('tr');
-    const letras = ['B','I','N','G','O'];
-    letras.forEach(letra=>{
+    const columnas = loteriasPorColumna;
+    columnas.forEach(({ letra, loteria })=>{
       const th = document.createElement('th');
-      th.textContent = letra;
+      if(letra === 'B'){
+        th.textContent = 'HORA';
+      } else if(loteria && loteria.imagen){
+        const img = document.createElement('img');
+        img.src = loteria.imagen;
+        img.alt = loteria.nombre || `Lotería ${letra}`;
+        img.style.width = '44px';
+        img.style.height = '44px';
+        img.style.objectFit = 'cover';
+        img.style.borderRadius = '8px';
+        th.appendChild(img);
+      } else {
+        th.textContent = letra;
+        th.style.opacity = '0.35';
+      }
       headRow.appendChild(th);
     });
     thead.appendChild(headRow);
@@ -2977,34 +3150,47 @@
     const tbody = document.createElement('tbody');
     for(let fila=0; fila<15; fila++){
       const tr = document.createElement('tr');
-      letras.forEach((letra, idx)=>{
+      columnas.forEach(({ letra, loteria }, idx)=>{
         const base = idx * 15 + 1;
         const numero = base + fila;
         const numeroTexto = numero.toString().padStart(2,'0');
         const clave = `${letra}-${numeroTexto}`;
         const td = document.createElement('td');
-        td.className = 'canto-cell';
         td.dataset.key = clave;
         td.dataset.numero = String(numero);
-        const wrapper = document.createElement('span');
-        wrapper.className = 'canto-texto';
-        const letraSpan = document.createElement('span');
-        letraSpan.className = 'canto-letra';
-        letraSpan.textContent = `${letra}-`;
-        const numeroSpan = document.createElement('span');
-        numeroSpan.className = 'canto-numero';
-        numeroSpan.textContent = numeroTexto;
-        wrapper.appendChild(letraSpan);
-        wrapper.appendChild(numeroSpan);
-        td.appendChild(wrapper);
-        td.addEventListener('click', ()=>manejarCantoClick(clave));
-        cantoCeldas.set(clave, td);
+        if(letra === 'B'){
+          td.className = 'resultado-hora-cell';
+          const exacta = document.createElement('span');
+          exacta.className = 'hora-exacta';
+          exacta.textContent = formatearHoraDesdeNumeroFila(fila, false);
+          const intermedia = document.createElement('span');
+          intermedia.className = 'hora-intermedia';
+          intermedia.textContent = formatearHoraDesdeNumeroFila(fila, true);
+          td.append(exacta, intermedia);
+        } else {
+          td.className = 'canto-cell resultado-cell';
+          if(!loteria){
+            td.classList.add('inactiva');
+            td.innerHTML = '<span class="resultado-vacio">—</span>';
+          } else {
+            td.addEventListener('click', ()=>manejarCantoClick(clave));
+            td.innerHTML = '<span class="resultado-vacio">Seleccionar</span>';
+          }
+          cantoCeldas.set(clave, td);
+        }
         tr.appendChild(td);
       });
       tbody.appendChild(tr);
     }
     tabla.appendChild(tbody);
     tablaCantosContainer.appendChild(tabla);
+    refrescarResultadosEnTabla();
+  }
+
+  function formatearHoraDesdeNumeroFila(fila, intermedia=false){
+    const baseHora = 8 + fila;
+    const fecha = new Date(2000,0,1,baseHora, intermedia ? 30 : 0, 0, 0);
+    return fecha.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }).toLowerCase();
   }
 
   async function manejarCantoClick(clave){
@@ -3012,59 +3198,11 @@
     if(tablaCantosContainer.classList.contains('disabled')) return;
     if(tablaCantosContainer.classList.contains('bloqueado')) return;
     const claveNormalizada = (clave ?? '').toString().toUpperCase();
-    if(!claveNormalizada) return;
-    if(cantosSeleccionados.has(claveNormalizada)) return;
-    const usuario = auth?.currentUser;
-    if(!usuario){
-      mostrarAvisoSimple('Debes iniciar sesión nuevamente para registrar los cantos.');
-      return;
-    }
-    const confirmar = await mostrarConfirmacionCanto(claveNormalizada);
-    if(!confirmar) return;
-    try {
-      await db.runTransaction(async tx => {
-        const docRef = db.collection('cantos').doc(currentSorteoId);
-        const snap = await tx.get(docRef);
-        const data = snap.exists ? (snap.data() || {}) : {};
-        const numerosExistentes = Array.isArray(data.numeros)
-          ? data.numeros.map(item => (item ?? '').toString().toUpperCase())
-          : [];
-        if(numerosExistentes.includes(claveNormalizada)){
-          return;
-        }
-        numerosExistentes.push(claveNormalizada);
-        const detallesExistentes = Array.isArray(data.detalles) ? [...data.detalles] : [];
-        const timestampServidor = getServerTimestamp();
-        const timestampPreciso = getPreciseTimestamp();
-        const marcaTiempo = timestampServidor || timestampPreciso;
-        const marcaTiempoDetalle = timestampPreciso || normalizarValorTimestamp(timestampServidor);
-        detallesExistentes.push({
-          numero: claveNormalizada,
-          orden: numerosExistentes.length - 1,
-          estatus: 'g',
-          adminId: usuario.uid || '',
-          adminEmail: usuario.email || '',
-          creado: marcaTiempoDetalle
-        });
-        const payload = {
-          numeros: numerosExistentes,
-          detalles: detallesExistentes,
-          actualizado: marcaTiempo
-        };
-        if(!data.iniciocantos){
-          payload.iniciocantos = marcaTiempo;
-        }
-        if(numerosExistentes.length >= 75 && !data.fincantos){
-          payload.fincantos = marcaTiempo;
-        }
-        tx.set(docRef, payload, { merge: true });
-      });
-      mensajeEl.textContent = `Se registró la jugada ${claveNormalizada}.`;
-      solicitarSincronizacionMetadatos();
-    } catch (err) {
-      console.error('Error registrando canto', err);
-      alert('No fue posible registrar el canto.');
-    }
+    if(!claveNormalizada || !cantoCeldas.has(claveNormalizada)) return;
+    const letra = claveNormalizada.charAt(0);
+    const col = loteriasPorColumna.find(item=>item.letra===letra);
+    if(!col || !col.loteria) return;
+    abrirModalSeleccionResultado(claveNormalizada, col.loteria);
   }
 
   function actualizarCantosSeleccionados(lista){
@@ -3077,12 +3215,166 @@
       if(cantosSeleccionados.has(clave)) celda.classList.add('selected');
       else celda.classList.remove('selected');
     });
+    refrescarResultadosEnTabla();
+  }
+
+
+  function obtenerNombreAnimal(numero){
+    const mapa = {
+      '00':'Ballena','0':'Defín','1':'Carnero','2':'Toro','3':'Ciempiés','4':'Alacrán','5':'León','6':'Rana','7':'Perico','8':'Ratón','9':'Águila',
+      '10':'Tigre','11':'Gato','12':'Caballo','13':'Mono','14':'Paloma','15':'Zorro','16':'Oso','17':'Pavo','18':'Burro','19':'Chivo','20':'Cerdo',
+      '21':'Gallo','22':'Camello','23':'Cebra','24':'Iguana','25':'Gallina','26':'Vaca','27':'Perro','28':'Zamuro','29':'Elefante','30':'Caimán',
+      '31':'Lapa','32':'Ardilla','33':'Pescado','34':'Venado','35':'Jirafa','36':'Culebra'
+    };
+    const key = String(Number(numero));
+    return mapa[key] || `Animal ${String(numero).padStart(2,'0')}`;
+  }
+
+  function refrescarResultadosEnTabla(){
+    cantoCeldas.forEach((celda, clave)=>{
+      const resultados = resultadosPorCelda.get(clave) || {};
+      const exacta = resultados.exacta;
+      const intermedia = resultados.intermedia;
+      if(!exacta && !intermedia){
+        if(!celda.classList.contains('inactiva')) celda.innerHTML = '<span class="resultado-vacio">Seleccionar</span>';
+        return;
+      }
+      const html = [];
+      if(exacta){
+        html.push(`<div class="resultado-item exacta"><span class="resultado-numero">${String(exacta).padStart(2,'0')}</span><span class="resultado-nombre">${obtenerNombreAnimal(exacta)}</span></div>`);
+      }
+      if(intermedia){
+        html.push(`<div class="resultado-item intermedia"><span class="resultado-numero">${String(intermedia).padStart(2,'0')}</span><span class="resultado-nombre">${obtenerNombreAnimal(intermedia)}</span></div>`);
+      }
+      celda.innerHTML = html.join('');
+    });
+  }
+
+  function obtenerBloquesHabilitadosLoteria(loteria){
+    const fuente = loteria || {};
+    const exacta = fuente.horaExacta ?? fuente.bloqueExacta ?? fuente.exacta ?? true;
+    const intermedia = fuente.horaIntermedia ?? fuente.bloqueIntermedia ?? fuente.intermedia ?? true;
+    return { exacta: Boolean(exacta), intermedia: Boolean(intermedia) };
+  }
+
+  function abrirModalSeleccionResultado(clave, loteria){
+    if(!resultadoSelectModalEl || !resultadoSelectGridEl) return;
+    modalResultadoContexto = { clave, loteria, bloque: null };
+    const habilitacion = obtenerBloquesHabilitadosLoteria(loteria);
+    resultadoBloqueExactaBtn.disabled = !habilitacion.exacta;
+    resultadoBloqueIntermediaBtn.disabled = !habilitacion.intermedia;
+    resultadoBloqueExactaBtn.classList.remove('activo');
+    resultadoBloqueIntermediaBtn.classList.remove('activo');
+    if(resultadoSelectLoteriaEl){
+      resultadoSelectLoteriaEl.textContent = (loteria?.nombre || 'Lotería') + ' · ' + clave;
+    }
+    renderizarGridModalResultados();
+    resultadoSelectModalEl.classList.add('activo');
+    resultadoSelectModalEl.setAttribute('aria-hidden','false');
+  }
+
+  function cerrarModalSeleccionResultado(){
+    if(!resultadoSelectModalEl) return;
+    resultadoSelectModalEl.classList.remove('activo');
+    resultadoSelectModalEl.setAttribute('aria-hidden','true');
+    modalResultadoContexto = null;
+  }
+
+  function seleccionarBloqueResultado(bloque){
+    if(!modalResultadoContexto) return;
+    modalResultadoContexto.bloque = bloque;
+    resultadoBloqueExactaBtn.classList.toggle('activo', bloque === 'exacta');
+    resultadoBloqueIntermediaBtn.classList.toggle('activo', bloque === 'intermedia');
+    renderizarGridModalResultados();
+  }
+
+  function renderizarGridModalResultados(){
+    if(!resultadoSelectGridEl) return;
+    resultadoSelectGridEl.innerHTML = '';
+    const bloqueActivo = modalResultadoContexto?.bloque || null;
+    for(let n=1; n<=75; n++){
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'animal-option-resultado';
+      btn.dataset.numero = String(n);
+      btn.innerHTML = `<span>${String(n).padStart(2,'0')}</span><small>${obtenerNombreAnimal(n)}</small>`;
+      if(!bloqueActivo){
+        btn.disabled = true;
+      }
+      if(!esNumeroJugadoEnCartones(n)){
+        btn.classList.add('no-jugado');
+      }
+      btn.addEventListener('click', ()=>confirmarSeleccionResultado(n));
+      resultadoSelectGridEl.appendChild(btn);
+    }
+  }
+
+  function esNumeroJugadoEnCartones(numero){
+    let usado = false;
+    cartonesSorteo.forEach(carton=>{
+      if(usado) return;
+      carton.valorPorPos.forEach(valor=>{
+        if(Number(valor) === Number(numero)) usado = true;
+      });
+    });
+    return usado;
+  }
+
+  async function confirmarSeleccionResultado(numero){
+    if(!modalResultadoContexto?.bloque || !modalResultadoContexto?.clave) return;
+    const bloque = modalResultadoContexto.bloque;
+    const clave = modalResultadoContexto.clave;
+    const fila = Number((clave.split('-')[1] || '1')) - 1;
+    const horaTexto = formatearHoraDesdeNumeroFila(Math.max(0, fila), bloque === 'intermedia');
+    const mensaje = `¿Seguro que desea elegir este Numero ${String(numero).padStart(2,'0')} para este bloque horario ${horaTexto}?`;
+    const confirmar = await preguntarAccionEstado(mensaje);
+    if(!confirmar) return;
+    await guardarResultadoPorBloque(clave, bloque, numero);
+    cerrarModalSeleccionResultado();
+  }
+
+  async function guardarResultadoPorBloque(clave, bloque, numero){
+    if(!currentSorteoId || !db) return;
+    const usuario = auth?.currentUser;
+    if(!usuario) return;
+    const claveMayus = (clave || '').toUpperCase();
+    await db.runTransaction(async tx=>{
+      const ref = db.collection('cantos').doc(currentSorteoId);
+      const snap = await tx.get(ref);
+      const data = snap.exists ? (snap.data() || {}) : {};
+      const resultados = (data.resultadosPorCelda && typeof data.resultadosPorCelda === 'object') ? { ...data.resultadosPorCelda } : {};
+      const celda = (resultados[claveMayus] && typeof resultados[claveMayus] === 'object') ? { ...resultados[claveMayus] } : {};
+      celda[bloque] = Number(numero);
+      celda.actualizadoPor = usuario.uid || '';
+      celda.actualizadoEn = getPreciseTimestamp() || getServerTimestamp();
+      resultados[claveMayus] = celda;
+      const numerosSet = new Set();
+      Object.values(resultados).forEach(val=>{
+        if(val && Number.isFinite(Number(val.exacta))) numerosSet.add(Number(val.exacta));
+        if(val && Number.isFinite(Number(val.intermedia))) numerosSet.add(Number(val.intermedia));
+      });
+      const numeros = Array.from(numerosSet).sort((a,b)=>a-b).map(n=>`B-${String(n).padStart(2,'0')}`);
+      tx.set(ref, {
+        resultadosPorCelda: resultados,
+        numeros,
+        actualizado: getServerTimestamp() || getPreciseTimestamp()
+      }, { merge: true });
+    });
   }
 
   function aplicarDatosCantos(datos){
     const payload = Array.isArray(datos)
       ? { numeros: datos }
       : (datos && typeof datos === 'object' ? datos : { numeros: [] });
+    resultadosPorCelda.clear();
+    const mapaResultados = (payload.resultadosPorCelda && typeof payload.resultadosPorCelda === 'object') ? payload.resultadosPorCelda : {};
+    Object.entries(mapaResultados).forEach(([clave, valor])=>{
+      if(!valor || typeof valor !== 'object') return;
+      resultadosPorCelda.set(clave.toUpperCase(), {
+        exacta: Number.isFinite(Number(valor.exacta)) ? Number(valor.exacta) : null,
+        intermedia: Number.isFinite(Number(valor.intermedia)) ? Number(valor.intermedia) : null
+      });
+    });
     const numeros = Array.isArray(payload.numeros) ? payload.numeros : [];
     actualizarCantosSeleccionados(numeros);
     procesarCantos(payload);
@@ -5408,6 +5700,38 @@
     });
   }
 
+  async function cargarLoteriasSorteoActual(){
+    loteriasSorteo.length = 0;
+    loteriasPorColumna.forEach(item=>{ item.loteria = null; });
+    const ids = Array.isArray(currentSorteoData?.loteriasActivas)
+      ? currentSorteoData.loteriasActivas.map(id=>String(id)).filter(Boolean)
+      : [];
+    if(!ids.length || !db){
+      construirTablaCantos();
+      return;
+    }
+    const docs = await Promise.all(ids.slice(0,4).map(id=>db.collection('loterias').doc(id).get().catch(()=>null)));
+    docs.forEach(doc=>{
+      if(!doc || !doc.exists) return;
+      const data = doc.data() || {};
+      loteriasSorteo.push({
+        id: doc.id,
+        nombre: data.nombre || doc.id,
+        imagen: data.imagen || '',
+        jerarquia: Number(data.jerarquia ?? data.orden ?? 999),
+        horaExacta: data.horaExacta ?? data.bloqueExacta ?? true,
+        horaIntermedia: data.horaIntermedia ?? data.bloqueIntermedia ?? true
+      });
+    });
+    loteriasSorteo.sort((a,b)=>a.jerarquia-b.jerarquia);
+    const columnasDestino = ['I','N','G','O'];
+    columnasDestino.forEach((letra, idx)=>{
+      const col = loteriasPorColumna.find(c=>c.letra===letra);
+      if(col) col.loteria = loteriasSorteo[idx] || null;
+    });
+    construirTablaCantos();
+  }
+
   async function cargarSorteos(opciones = {}){
     const forzar = opciones.forzar === true;
     const ahora = Date.now();
@@ -5647,6 +5971,7 @@
         sorteos[idx].condicion = (sorteos[idx].condicion || sorteos[idx]['condición'] || '').toString().trim().toUpperCase() || 'VISIBLE';
       }
       guardarSorteoSeleccionado(currentSorteoData);
+      cargarLoteriasSorteoActual().catch(err=>console.error('Error actualizando loterías del sorteo', err));
       mostrarDatos();
     }, err=>console.error('Error escuchando sorteo', err));
   }
@@ -5666,6 +5991,7 @@
     } else {
       aplicarDatosCantos([]);
     }
+    cargarLoteriasSorteoActual().catch(err=>console.error('Error cargando loterías del sorteo', err));
     escucharSorteo(id);
     escucharCantos(id);
     escucharFormas(id);
