@@ -727,28 +727,6 @@
       font-weight: 700;
       line-height: 1;
     }
-    .canto-cell.no-jugado {
-      background: linear-gradient(160deg, rgba(70,70,70,0.92), rgba(25,25,25,0.95));
-      border-color: rgba(255,255,255,0.45);
-      box-shadow: 0 0 8px rgba(0,0,0,0.4);
-    }
-    .canto-cell.no-jugado .canto-letra {
-      color: #f3f3f3;
-      text-shadow: 0 0 6px rgba(0,0,0,0.85);
-    }
-    .canto-cell.no-jugado .canto-numero {
-      color: #ffffff;
-      text-shadow: 0 0 6px rgba(0,0,0,0.9), 0 0 12px rgba(0,0,0,0.85);
-    }
-    .canto-cell.selected.no-jugado {
-      background: radial-gradient(circle at center, rgba(120,120,120,0.9), rgba(35,35,35,0.95));
-      color: #ffffff;
-    }
-    .canto-cell.selected.no-jugado .canto-letra,
-    .canto-cell.selected.no-jugado .canto-numero {
-      color: #ffffff;
-      text-shadow: 0 0 6px rgba(0,0,0,0.9), 0 0 14px rgba(0,0,0,0.8);
-    }
     #tabla-cantos-container.disabled .canto-cell,
     #tabla-cantos-container.bloqueado .canto-cell {
       pointer-events: none;
@@ -865,11 +843,6 @@
       cursor:pointer;
       font-weight:700;
     }
-    .animal-option-resultado.no-jugado {
-      background: linear-gradient(160deg, rgba(70,70,70,0.95), rgba(20,20,20,0.95));
-      color:#fff;
-    }
-    .animal-option-resultado.no-jugado small { color:#fff; }
     .animal-option-resultado small { font-size:0.56rem; color:#555; font-weight:600; }
     .animal-option-resultado:disabled { opacity:0.4; cursor:not-allowed; }
     .modal {
@@ -3317,23 +3290,9 @@
       if(!bloqueActivo){
         btn.disabled = true;
       }
-      if(!esNumeroJugadoEnCartones(valorCatalogo)){
-        btn.classList.add('no-jugado');
-      }
       btn.addEventListener('click', ()=>confirmarSeleccionResultado(valorCatalogo));
       resultadoSelectGridEl.appendChild(btn);
     });
-  }
-
-  function esNumeroJugadoEnCartones(numero){
-    let usado = false;
-    cartonesSorteo.forEach(carton=>{
-      if(usado) return;
-      carton.valorPorPos.forEach(valor=>{
-        if(Number(valor) === Number(numero)) usado = true;
-      });
-    });
-    return usado;
   }
 
   async function confirmarSeleccionResultado(numero){
@@ -3707,7 +3666,6 @@
     }
     cartonesSorteo = mapa;
     cartonesDatosListos = true;
-    actualizarNumerosNoJugados();
     calcularGanadores();
     // Flujo instantáneo deshabilitado: la acreditación se gestiona desde Centro de Pagos.
   }
@@ -3719,16 +3677,12 @@
     }
     cartonesSorteo = new Map();
     cartonesDatosListos = false;
-    actualizarNumerosNoJugados();
     calcularGanadores();
   }
 
   function escucharCartones(id){
     detenerCartones();
     if(!id){
-      cartonesSorteo = new Map();
-      actualizarNumerosNoJugados();
-      calcularGanadores();
       return;
     }
     cartonesUnsub = db.collection('CartonJugado')
@@ -3788,7 +3742,6 @@
       }
     });
     cantosResultadoMap = resultadoMapa;
-    actualizarNumerosNoJugados();
     calcularGanadores();
     revisarGanadoresNuevos({
       mapaPrevio: mapaGanadoresPrevio,
@@ -4210,28 +4163,7 @@
   }
 
   function actualizarNumerosNoJugados(){
-    if(!cantoCeldas.size){
-      return;
-    }
-    if(!cartonesDatosListos){
-      cantoCeldas.forEach(celda=>celda.classList.remove('no-jugado'));
-      return;
-    }
-    const numerosUsados = new Set();
-    cartonesSorteo.forEach(carton=>{
-      carton.valorPorPos.forEach(valor=>{
-        if(Number.isFinite(valor)) numerosUsados.add(valor);
-      });
-    });
-    cantoCeldas.forEach(celda=>{
-      const numero = Number(celda.dataset.numero);
-      if(!Number.isFinite(numero)){
-        celda.classList.remove('no-jugado');
-        return;
-      }
-      if(numerosUsados.has(numero)) celda.classList.remove('no-jugado');
-      else celda.classList.add('no-jugado');
-    });
+    // Neutralizado: no aplicar estilos por números no jugados.
   }
 
   function normalizarTipoCarton(carton){
@@ -4822,7 +4754,6 @@
     }
     cerrarModalComplementarios();
     cerrarAvisoSimple();
-    cantoCeldas.forEach(celda=>celda.classList.remove('no-jugado'));
     actualizarBotonesFormas();
   }
 
