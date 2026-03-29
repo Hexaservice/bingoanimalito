@@ -145,6 +145,11 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    match /loterias/{docId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
     match /PagosAdministracion/{docId} {
       allow read: if isSignedIn();
       allow write: if isPrivilegedOperator();
