@@ -757,6 +757,77 @@
           outline: 2px solid rgba(255,255,255,0.85);
           outline-offset: 2px;
       }
+
+      .canto-cell.encabezado-hora {
+          cursor: pointer;
+          position: relative;
+      }
+      .canto-cell.encabezado-hora::after {
+          content: attr(data-tooltip);
+          position: absolute;
+          bottom: calc(100% + 6px);
+          left: 50%;
+          transform: translateX(-50%) scale(0.92);
+          background: rgba(24,24,24,0.92);
+          color: #fff;
+          font-size: 0.58rem;
+          letter-spacing: 0.5px;
+          padding: 2px 6px;
+          border-radius: 6px;
+          opacity: 0;
+          pointer-events: none;
+          transition: opacity 0.18s ease, transform 0.18s ease;
+          white-space: nowrap;
+      }
+      .canto-cell.encabezado-hora.mostrar-tooltip::after {
+          opacity: 1;
+          transform: translateX(-50%) scale(1);
+      }
+      .canto-cell.encabezado-loteria {
+          padding: 1px;
+          overflow: hidden;
+      }
+      .canto-cell.encabezado-loteria img {
+          width: 88%;
+          height: 88%;
+          object-fit: contain;
+          pointer-events: none;
+      }
+      .canto-cell.hora-celda {
+          flex-direction: column;
+          gap: 0;
+          cursor: pointer;
+          line-height: 1;
+          font-size: 0.52rem;
+          font-weight: 700;
+          letter-spacing: 0;
+      }
+      .canto-cell.hora-celda .hora-principal {
+          font-size: 0.6rem;
+      }
+      .canto-cell.hora-celda .hora-sufijo {
+          font-size: 0.48rem;
+      }
+      .canto-cell.hora-celda.modo-exacto {
+          color: #0b4cc2;
+          background: #ffffff;
+      }
+      .canto-cell.hora-celda.modo-intermedio {
+          color: #ff8f00;
+          background: #ffffff;
+      }
+      .canto-cell.resultado-numero {
+          background: #ffffff;
+          text-shadow: none;
+          font-weight: 700;
+      }
+      .canto-cell.resultado-numero.modo-exacto {
+          color: #0b4cc2;
+      }
+      .canto-cell.resultado-numero.modo-intermedio {
+          color: #ff8f00;
+      }
+
       #cantos-conducto-grid {
           --conducto-gap: 0px;
           --conducto-cell-size: calc(100% / 5);
@@ -4234,8 +4305,8 @@
   <button id="whatsapp-flotante" class="whatsapp-flotante" type="button" aria-label="Abrir grupo de WhatsApp">
     <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/5/5e/WhatsApp_icon.png/598px-WhatsApp_icon.png" alt="">
   </button>
-  <button id="live-stream-toggle" class="live-stream-toggle" type="button" aria-label="Mostrar transmisión en vivo">LIVE</button>
-  <div id="live-stream-window" class="live-stream-window" aria-hidden="true" role="dialog" aria-label="Transmisión en vivo">
+  <!-- Transmisión en vivo deshabilitada en esta vista -->
+  <div id="live-stream-window" class="live-stream-window" aria-hidden="true" role="dialog" aria-label="Transmisión en vivo" hidden>
     <div id="live-stream-handle" class="live-stream-header">
       <span class="live-stream-titulo">Transmisión en vivo</span>
       <button id="live-stream-close" type="button" class="live-stream-close live-stream-control" aria-label="Cerrar transmisión">&times;</button>
@@ -4780,6 +4851,14 @@
   let cantosEtiquetas = [];
   let cantosIndiceMap = new Map();
   let cantosResultadoMap = new Map();
+  let cantosBloquesData = [];
+  const cantosModoFilaMap = new Map();
+  const LOTERIAS_MINI_DEFAULT = Object.freeze([
+    'img/loterias/lotto-activo.png',
+    'img/loterias/la-granjita.png',
+    'img/loterias/selva-plus.png',
+    'img/loterias/lotto-activo.png'
+  ]);
   let formasActivas = [];
   let cartonesSorteo = new Map();
   let cartonesGanadoresPorForma = new Map();
@@ -5238,7 +5317,7 @@
   let conductoTablaInicializada = false;
   let conductoPositions = [];
   let conductoSyncPendiente = false;
-  let vistaConductoActiva = true;
+  let vistaConductoActiva = false;
   const conductoIngresoCola = [];
   let conductoAnimacionEntradaActiva = false;
   let conductoAnimacionBloqueada = false;
@@ -7300,42 +7379,128 @@
     complementariosAvisoEl.setAttribute('aria-hidden','true');
   }
 
+  function normalizarMiniaturaLoteria(valor){
+    const texto=(valor??'').toString().trim();
+    if(!texto) return '';
+    if(/^https?:\/\//i.test(texto) || texto.startsWith('img/')) return texto;
+    return `img/loterias/${texto.replace(/^\/+/, '')}`;
+  }
+
+  function construirBloquesDesdePayload(payload){
+    const fuente=Array.isArray(payload?.bloques)?payload.bloques:[];
+    if(!fuente.length) return [];
+    return fuente.slice(0,15).map((bloque,idx)=>{
+      const exactos=Array.isArray(bloque?.exactos)?bloque.exactos:Array.isArray(bloque?.numeros)?bloque.numeros:[];
+      const intermedios=Array.isArray(bloque?.intermedios)?bloque.intermedios:Array.isArray(bloque?.numerosIntermedios)?bloque.numerosIntermedios:exactos;
+      const loterias=Array.isArray(bloque?.loterias)?bloque.loterias:Array.isArray(payload?.loterias)?payload.loterias:LOTERIAS_MINI_DEFAULT;
+      return {
+        horaExacta:(bloque?.horaExacta??bloque?.hora??'').toString().trim(),
+        horaIntermedia:(bloque?.horaIntermedia??bloque?.horaBloqueIntermedio??'').toString().trim(),
+        exactos:exactos.slice(0,4).map(v=>Number(v)).filter(Number.isFinite),
+        intermedios:intermedios.slice(0,4).map(v=>Number(v)).filter(Number.isFinite),
+        loterias:loterias.slice(0,4).map(normalizarMiniaturaLoteria).filter(Boolean),
+        idx
+      };
+    });
+  }
+
+  function mostrarTooltipHora(encabezado){
+    if(!encabezado) return;
+    encabezado.classList.add('mostrar-tooltip');
+    setTimeout(()=>encabezado.classList.remove('mostrar-tooltip'), 1200);
+  }
+
+  function formatearHoraBloquePequena(valor){
+    const hora=formatearHoraAmPm((valor||'').toString().trim()) || (valor||'').toString().trim() || '--:-- AM';
+    const [base,suf=''] = hora.split(/\s+/);
+    return {base, sufijo:(suf||'AM').toUpperCase()};
+  }
+
+  function refrescarVistaBloquesCantos(){
+    for(let fila=0; fila<15; fila++){
+      const modoIntermedio = cantosModoFilaMap.get(fila) === 'intermedio';
+      const bloque = cantosBloquesData[fila] || {};
+      const horaCelda = document.querySelector(`.canto-cell.hora-celda[data-fila="${fila}"]`);
+      const horaValor = modoIntermedio ? (bloque.horaIntermedia || bloque.horaExacta) : (bloque.horaExacta || bloque.horaIntermedia);
+      if(horaCelda){
+        const {base,sufijo} = formatearHoraBloquePequena(horaValor);
+        horaCelda.innerHTML = `<span class="hora-principal">${base}</span><span class="hora-sufijo">${sufijo}</span>`;
+        horaCelda.classList.toggle('modo-intermedio', modoIntermedio);
+        horaCelda.classList.toggle('modo-exacto', !modoIntermedio);
+      }
+      for(let col=1; col<5; col++){
+        const numeroCelda = document.querySelector(`.canto-cell.resultado-numero[data-fila="${fila}"][data-col="${col}"]`);
+        if(!numeroCelda) continue;
+        const arr = modoIntermedio ? (bloque.intermedios||[]) : (bloque.exactos||[]);
+        const valor = Number(arr[col-1]);
+        numeroCelda.textContent = Number.isFinite(valor) ? String(valor).padStart(2,'0') : '--';
+        numeroCelda.classList.toggle('modo-intermedio', modoIntermedio);
+        numeroCelda.classList.toggle('modo-exacto', !modoIntermedio);
+      }
+    }
+  }
+
   function crearGridCantos(){
     cantosGridEl.innerHTML='';
     cantoCellsMap.clear();
-    BINGO_LETRAS.forEach(letra=>{
+    const encabezados=['H','I','N','G','O'];
+    encabezados.forEach((letra,idx)=>{
       const celda=document.createElement('div');
       celda.textContent=letra;
       celda.className='canto-cell encabezado';
+      if(idx===0){
+        celda.classList.add('encabezado-hora');
+        celda.dataset.tooltip='HORA';
+        celda.addEventListener('click',()=>mostrarTooltipHora(celda));
+      }else{
+        celda.classList.add('encabezado-loteria');
+        const img=document.createElement('img');
+        const mini=(cantosBloquesData[0]?.loterias?.[idx-1] || LOTERIAS_MINI_DEFAULT[idx-1] || LOTERIAS_MINI_DEFAULT[0]);
+        img.src=mini;
+        img.alt=`Lotería ${idx}`;
+        celda.textContent='';
+        celda.appendChild(img);
+      }
       cantosGridEl.appendChild(celda);
     });
     for(let fila=0;fila<15;fila++){
       for(let col=0;col<5;col++){
         const numero=fila+1+col*15;
-        const celda=document.createElement('div');
         const etiquetaBase=generarEtiquetaDesdeNumero(numero);
-        celda.textContent=String(numero).padStart(2,'0');
+        const celda=document.createElement('div');
         celda.dataset.numero=numero;
+        celda.dataset.fila=String(fila);
+        celda.dataset.col=String(col);
         celda.dataset.tituloBase=etiquetaBase;
         celda.title=etiquetaBase;
-        celda.className='canto-cell';
         celda.setAttribute('aria-label', etiquetaBase);
         celda.tabIndex=-1;
-        celda.addEventListener('click',evento=>{
-          evento.stopPropagation();
-          manejarInteraccionCantoGanador(numero);
-        });
-        celda.addEventListener('keydown',evento=>{
-          if(evento.key==='Enter' || evento.key===' '){
-            evento.preventDefault();
+        if(col===0){
+          celda.className='canto-cell hora-celda modo-exacto';
+          celda.addEventListener('click',()=>{
+            const actual=cantosModoFilaMap.get(fila)==='intermedio'?'exacto':'intermedio';
+            cantosModoFilaMap.set(fila, actual);
+            refrescarVistaBloquesCantos();
+          });
+        }else{
+          celda.className='canto-cell resultado-numero modo-exacto';
+          celda.addEventListener('click',evento=>{
             evento.stopPropagation();
             manejarInteraccionCantoGanador(numero);
-          }
-        });
+          });
+          celda.addEventListener('keydown',evento=>{
+            if(evento.key==='Enter' || evento.key===' '){
+              evento.preventDefault();
+              evento.stopPropagation();
+              manejarInteraccionCantoGanador(numero);
+            }
+          });
+        }
         cantosGridEl.appendChild(celda);
         cantoCellsMap.set(numero,celda);
       }
     }
+    refrescarVistaBloquesCantos();
   }
 
   function aplicarBordesHorizontalesConducto(fila, filaCeldas, totalFilas){
@@ -10655,9 +10820,11 @@
   if(liveStreamAudioBtn){
     liveStreamAudioBtn.addEventListener('click',()=>solicitarPermisoAudioLive(true));
   }
-  sincronizarEstadoLiveInicial();
-  configurarArrastreLive();
-  configurarRedimensionLive();
+  if(liveStreamToggleBtn){
+    sincronizarEstadoLiveInicial();
+    configurarArrastreLive();
+    configurarRedimensionLive();
+  }
 
   window.addEventListener('resize',()=>{
     if(sinCartonesActivosEl?.classList?.contains('visible')){
@@ -11063,6 +11230,7 @@
 
   function procesarCantos(data){
     const payload=Array.isArray(data)?{numeros:data}:data&&typeof data==='object'?data:{};
+    cantosBloquesData = construirBloquesDesdePayload(payload);
     const cantosPrevios=Array.isArray(cantosOrdenados)?new Set(cantosOrdenados):new Set();
     const listaNumeros=Array.isArray(payload?.numeros)?payload.numeros:[];
     const detallesLista=Array.isArray(payload?.detalles)?payload.detalles:[];
@@ -11159,9 +11327,25 @@
       cantosRecientesSinAnimacion=true;
     }
     const permitirAnimacionConducto=ventanaEnFoco && !cantosRecientesSinAnimacion;
+    if(!cantosBloquesData.length){
+      cantosBloquesData = Array.from({length:15},(_,fila)=>({
+        horaExacta:`${String((8+fila)%12||12).padStart(2,'0')}:00 AM`,
+        horaIntermedia:`${String((8+fila)%12||12).padStart(2,'0')}:30 AM`,
+        exactos:[1,2,3,4].map((_,idx)=>{
+          const numero=normalizados[fila + (idx+1)*15];
+          return Number.isFinite(numero)?numero:null;
+        }),
+        intermedios:[1,2,3,4].map((_,idx)=>{
+          const numero=normalizados[fila + (idx+1)*15];
+          return Number.isFinite(numero)?numero:null;
+        }),
+        loterias:LOTERIAS_MINI_DEFAULT
+      }));
+    }
     calcularGanadores();
     actualizarMapaColoresConducto();
     renderCantos();
+    refrescarVistaBloquesCantos();
     actualizarConductoEsferas(nuevosCantos, cantosPrevios.size===0, permitirAnimacionConducto);
     if(nuevosPenalizados.length){
       resaltarCeldasPenalizadasTemporalmente(nuevosPenalizados);
