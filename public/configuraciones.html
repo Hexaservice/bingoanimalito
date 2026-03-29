@@ -1085,6 +1085,175 @@
       outline: 2px solid #0a8800;
       outline-offset: 2px;
     }
+    .loterias-section {
+      width: 95%;
+      margin-top: 6px;
+      background: rgba(255,255,255,0.45);
+      border-radius: 12px;
+      padding: 8px 10px 12px;
+      box-sizing: border-box;
+      font-family: Calibri, Arial, sans-serif;
+      text-align: left;
+    }
+    .loterias-header h3 {
+      color: #6a1b9a;
+    }
+    #loterias-content {
+      display: none;
+      margin-top: 10px;
+    }
+    .loterias-toolbar {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      margin-bottom: 8px;
+    }
+    .loterias-toolbar button,
+    #guardar-loterias-btn {
+      border: 1px solid #6a1b9a;
+      border-radius: 8px;
+      font-weight: 700;
+      padding: 7px 10px;
+      cursor: pointer;
+    }
+    #agregar-loteria-btn { background: #f3e8ff; color: #4a148c; }
+    #guardar-loterias-btn { background: #6a1b9a; color: #fff; width: 100%; margin-top: 10px; }
+    .loterias-help {
+      font-size: 0.8rem;
+      color: #4b5563;
+      margin: 0;
+    }
+    .loteria-card {
+      border: 1px solid #d8b4fe;
+      border-radius: 10px;
+      background: rgba(255,255,255,0.85);
+      padding: 8px;
+      margin-top: 8px;
+    }
+    .loteria-head {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+    .loteria-img-btn {
+      width: 52px;
+      height: 52px;
+      border-radius: 10px;
+      border: 1px dashed #8b5cf6;
+      background-size: cover;
+      background-position: center;
+      background-color: #f5f3ff;
+      font-size: 0.65rem;
+      color: #4a148c;
+      cursor: pointer;
+      flex: 0 0 52px;
+    }
+    .loteria-fields {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+    .loteria-fields input[type="text"] {
+      width: 100%;
+      border-radius: 8px;
+      border: 1px solid #c4b5fd;
+      padding: 6px 8px;
+      box-sizing: border-box;
+      font-size: 0.9rem;
+    }
+    .loteria-state-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      flex-wrap: wrap;
+      font-size: 0.82rem;
+      color: #374151;
+    }
+    .jerarquia-chip {
+      padding: 2px 7px;
+      border-radius: 999px;
+      background: #ede9fe;
+      color: #5b21b6;
+      font-weight: 700;
+      border: 1px solid #c4b5fd;
+    }
+    .bloques-wrap {
+      margin-top: 8px;
+      border-top: 1px solid #e9d5ff;
+      padding-top: 7px;
+    }
+    .bloques-title {
+      font-size: 0.78rem;
+      color: #6b7280;
+      margin-bottom: 5px;
+    }
+    .bloques-grid {
+      display: grid;
+      grid-template-columns: repeat(3,minmax(0,1fr));
+      gap: 4px;
+      font-size: 0.75rem;
+    }
+    .bloques-grid label {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+    #loterias-status {
+      margin-top: 8px;
+      font-size: 0.8rem;
+      font-weight: 700;
+      color: #4a148c;
+      text-align: center;
+      min-height: 18px;
+    }
+    #loterias-image-modal {
+      position: fixed;
+      inset: 0;
+      background: rgba(17,24,39,0.45);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 999;
+      padding: 12px;
+    }
+    .loterias-image-modal-box {
+      width: min(520px,96vw);
+      max-height: 80vh;
+      overflow: auto;
+      border-radius: 12px;
+      background: #fff;
+      padding: 10px;
+    }
+    .loterias-image-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill,minmax(90px,1fr));
+      gap: 8px;
+      margin-top: 8px;
+    }
+    .loterias-image-item {
+      border: 1px solid #d1d5db;
+      border-radius: 8px;
+      overflow: hidden;
+      cursor: pointer;
+      background: #fff;
+      padding: 4px;
+      text-align: center;
+      font-size: 0.65rem;
+    }
+    .loterias-image-item img {
+      width: 100%;
+      height: 64px;
+      object-fit: contain;
+      display: block;
+      margin-bottom: 4px;
+    }
+    @media (min-width: 768px) {
+      .bloques-grid { grid-template-columns: repeat(4,minmax(0,1fr)); }
+    }
   </style>
   <link rel="stylesheet" href="css/desktopFrame.css">
 </head>
@@ -1153,6 +1322,24 @@
       </thead>
       <tbody></tbody>
     </table>
+    </div>
+  </section>
+  <section class="loterias-section" id="gestion-loterias-section">
+    <div class="asignacion-header loterias-header">
+      <h3>GESTIÓN DE LOTERÍAS</h3>
+      <label class="switch">
+        <input type="checkbox" id="toggle-loterias">
+        <span class="slider"></span>
+      </label>
+    </div>
+    <div id="loterias-content">
+      <div class="loterias-toolbar">
+        <button id="agregar-loteria-btn" type="button">+ Agregar lotería</button>
+        <p class="loterias-help">Máximo 4 activas (jerarquías 1, 2, 3 y 4 sin repetir).</p>
+      </div>
+      <div id="loterias-list"></div>
+      <button id="guardar-loterias-btn" type="button">GUARDAR LOTERÍAS</button>
+      <div id="loterias-status"></div>
     </div>
   </section>
   <section class="asignacion-section" id="asignacion-usuarios-section">
@@ -1290,6 +1477,15 @@
       <div class="whatsapp-modal-footer">
         <button type="button" id="cerrar-whatsapp-modal">Cerrar</button>
       </div>
+    </div>
+  </div>
+  <div id="loterias-image-modal" aria-hidden="true">
+    <div class="loterias-image-modal-box">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+        <h3 style="margin:0;color:#6a1b9a;">Seleccionar imagen de lotería</h3>
+        <button id="cerrar-loterias-image-modal" type="button" style="background:#ef4444;color:#fff;border:none;border-radius:8px;padding:6px 10px;cursor:pointer;">Cerrar</button>
+      </div>
+      <div id="loterias-image-grid" class="loterias-image-grid"></div>
     </div>
   </div>
   <section id="notificaciones-panel" class="notificaciones-panel" aria-labelledby="notificaciones-titulo">
@@ -1488,6 +1684,270 @@
     toggle.addEventListener('change',()=>{
       cont.style.display=toggle.checked?'block':'none';
       if(toggle.checked) cargarDatos();
+    });
+    const BLOQUES_HORARIOS=Array.from({length:12},(_,index)=>{
+      const hora24=index+8;
+      const periodo=hora24>=12?'pm':'am';
+      const hora12=((hora24+11)%12)+1;
+      return `${hora12.toString().padStart(2,'0')}:00 ${periodo}`;
+    });
+    const IMAGENES_LOTERIA=[
+      'img/loterias/la-granjita.png',
+      'img/loterias/lotto-activo.png',
+      'img/loterias/selva-plus.png'
+    ];
+    const toggleLoterias=document.getElementById('toggle-loterias');
+    const loteriasContent=document.getElementById('loterias-content');
+    const loteriasListEl=document.getElementById('loterias-list');
+    const loteriasStatusEl=document.getElementById('loterias-status');
+    const guardarLoteriasBtn=document.getElementById('guardar-loterias-btn');
+    const agregarLoteriaBtn=document.getElementById('agregar-loteria-btn');
+    const loteriasImageModal=document.getElementById('loterias-image-modal');
+    const loteriasImageGrid=document.getElementById('loterias-image-grid');
+    const cerrarLoteriasImageModal=document.getElementById('cerrar-loterias-image-modal');
+    let loteriasData=[];
+    let loteriasBaseHash='';
+    let loteriaImagenTargetId='';
+    function defaultLoteria(){
+      return {
+        id:'',
+        nombre:'',
+        estado:'Inactiva',
+        jerarquia:null,
+        imagen:'',
+        bloquesHorarios:[BLOQUES_HORARIOS[0]]
+      };
+    }
+    function limpiarLoteria(item){
+      const nombre=(item?.nombre||'').toString().trim();
+      const estado=item?.estado==='Activa'?'Activa':'Inactiva';
+      const jerarquia=Number.isInteger(item?.jerarquia) ? item.jerarquia : null;
+      const bloques=(Array.isArray(item?.bloquesHorarios)?item.bloquesHorarios:[]).filter(b=>BLOQUES_HORARIOS.includes(b));
+      return {
+        id:item?.id||'',
+        nombre,
+        estado,
+        jerarquia:jerarquia>=1&&jerarquia<=4?jerarquia:null,
+        imagen:item?.imagen||'',
+        bloquesHorarios:bloques.length?bloques:[BLOQUES_HORARIOS[0]]
+      };
+    }
+    function ordenarBloques(lista){
+      return [...new Set((lista||[]).filter(b=>BLOQUES_HORARIOS.includes(b)))].sort((a,b)=>BLOQUES_HORARIOS.indexOf(a)-BLOQUES_HORARIOS.indexOf(b));
+    }
+    function normalizarJerarquiasActivas(){
+      const activas=loteriasData.filter(item=>item.estado==='Activa');
+      activas.sort((a,b)=>(a.jerarquia||99)-(b.jerarquia||99) || a.nombre.localeCompare(b.nombre,'es',{sensitivity:'base'}));
+      activas.forEach((item,index)=>{ item.jerarquia=index+1; });
+      loteriasData.forEach(item=>{ if(item.estado!=='Activa') item.jerarquia=null; });
+    }
+    function obtenerLoteriasHash(){
+      const base=loteriasData.map(item=>({
+        id:item.id||'',
+        nombre:(item.nombre||'').trim(),
+        estado:item.estado,
+        jerarquia:item.jerarquia||null,
+        imagen:item.imagen||'',
+        bloquesHorarios:ordenarBloques(item.bloquesHorarios)
+      })).sort((a,b)=>(a.id||'').localeCompare(b.id||'')||a.nombre.localeCompare(b.nombre,'es',{sensitivity:'base'}));
+      return JSON.stringify(base);
+    }
+    function mostrarEstadoLoterias(mensaje,esError=false){
+      if(!loteriasStatusEl) return;
+      loteriasStatusEl.style.color=esError?'#b91c1c':'#4a148c';
+      loteriasStatusEl.textContent=mensaje||'';
+    }
+    function actualizarBotonGuardarLoterias(){
+      const dirty=obtenerLoteriasHash()!==loteriasBaseHash;
+      guardarLoteriasBtn.textContent=dirty?'ACTUALIZAR LOTERÍAS':'GUARDAR LOTERÍAS';
+    }
+    function renderLoterias(){
+      if(!loteriasListEl) return;
+      loteriasListEl.innerHTML='';
+      loteriasData.forEach((item,index)=>{
+        const card=document.createElement('article');
+        card.className='loteria-card';
+        const jerarquiaTexto=item.estado==='Activa' ? `Jerarquía ${item.jerarquia||'-'}` : 'Inactiva';
+        card.innerHTML=`
+          <div class="loteria-head">
+            <button type="button" class="loteria-img-btn" data-accion="imagen" data-index="${index}">${item.imagen?'':'Imagen'}</button>
+            <div class="loteria-fields">
+              <input type="text" data-accion="nombre" data-index="${index}" value="${item.nombre.replace(/"/g,'&quot;')}" placeholder="Nombre de lotería">
+              <div class="loteria-state-row">
+                <span class="jerarquia-chip">${jerarquiaTexto}</span>
+                <label class="switch">
+                  <input type="checkbox" data-accion="estado" data-index="${index}" ${item.estado==='Activa'?'checked':''}>
+                  <span class="slider"></span>
+                </label>
+              </div>
+            </div>
+          </div>
+          <div class="bloques-wrap">
+            <div class="bloques-title">Bloques horarios (mínimo 1):</div>
+            <div class="bloques-grid">
+              ${BLOQUES_HORARIOS.map(b=>`<label><input type="checkbox" data-accion="bloque" data-index="${index}" data-bloque="${b}" ${item.bloquesHorarios.includes(b)?'checked':''}>${b}</label>`).join('')}
+            </div>
+          </div>
+        `;
+        const btnImagen=card.querySelector('.loteria-img-btn');
+        if(item.imagen){
+          btnImagen.style.backgroundImage=`url('${item.imagen}')`;
+        }
+        loteriasListEl.appendChild(card);
+      });
+      actualizarBotonGuardarLoterias();
+    }
+    function abrirSelectorImagen(idLoteria){
+      loteriaImagenTargetId=idLoteria;
+      loteriasImageGrid.innerHTML='';
+      IMAGENES_LOTERIA.forEach((src)=>{
+        const item=document.createElement('button');
+        item.type='button';
+        item.className='loterias-image-item';
+        item.innerHTML=`<img src="${src}" alt="${src.split('/').pop()}"><span>${src.split('/').pop()}</span>`;
+        item.addEventListener('click',()=>{
+          const target=loteriasData.find(x=>x.id===loteriaImagenTargetId);
+          if(target){
+            target.imagen=src;
+            renderLoterias();
+          }
+          loteriasImageModal.style.display='none';
+        });
+        loteriasImageGrid.appendChild(item);
+      });
+      loteriasImageModal.style.display='flex';
+    }
+    function validarLoterias(){
+      const activas=loteriasData.filter(item=>item.estado==='Activa');
+      if(activas.length>4){
+        return 'Solo pueden existir 4 loterías activas al mismo tiempo.';
+      }
+      for(const item of loteriasData){
+        if(!item.nombre.trim()) return 'Todas las loterías deben tener nombre.';
+        const bloques=ordenarBloques(item.bloquesHorarios);
+        if(!bloques.length) return `La lotería "${item.nombre||'sin nombre'}" debe tener al menos un bloque horario.`;
+      }
+      const jerarquiasActivas=activas.map(item=>item.jerarquia).filter(v=>Number.isInteger(v));
+      const setJerarquia=new Set(jerarquiasActivas);
+      if(setJerarquia.size!==jerarquiasActivas.length) return 'No se permiten jerarquías repetidas en loterías activas.';
+      return '';
+    }
+    async function cargarLoterias(){
+      const snap=await db.collection('loterias').get();
+      loteriasData=snap.docs.map(doc=>limpiarLoteria({id:doc.id,...doc.data()}));
+      if(!loteriasData.length){
+        loteriasData=[defaultLoteria()];
+      }
+      normalizarJerarquiasActivas();
+      renderLoterias();
+      loteriasBaseHash=obtenerLoteriasHash();
+      actualizarBotonGuardarLoterias();
+      mostrarEstadoLoterias('');
+    }
+    toggleLoterias.addEventListener('change',async ()=>{
+      loteriasContent.style.display=toggleLoterias.checked?'block':'none';
+      if(toggleLoterias.checked){
+        try{ await cargarLoterias(); }
+        catch(error){
+          console.error('No se pudieron cargar loterías',error);
+          mostrarEstadoLoterias('No se pudieron cargar las loterías.',true);
+        }
+      }
+    });
+    agregarLoteriaBtn.addEventListener('click',()=>{
+      loteriasData.push({...defaultLoteria(),id:`tmp-${Date.now()}-${Math.random().toString(16).slice(2,8)}`});
+      normalizarJerarquiasActivas();
+      renderLoterias();
+    });
+    loteriasListEl.addEventListener('input',(event)=>{
+      const index=Number(event.target.dataset.index);
+      const accion=event.target.dataset.accion;
+      const loteria=loteriasData[index];
+      if(!loteria) return;
+      if(accion==='nombre'){
+        loteria.nombre=event.target.value;
+      }
+      if(accion==='bloque'){
+        const bloque=event.target.dataset.bloque;
+        const seleccionados=new Set(loteria.bloquesHorarios);
+        if(event.target.checked){ seleccionados.add(bloque); }
+        else{ seleccionados.delete(bloque); }
+        if(!seleccionados.size){
+          event.target.checked=true;
+          mostrarEstadoLoterias('Cada lotería debe tener al menos un bloque horario.',true);
+          return;
+        }
+        loteria.bloquesHorarios=ordenarBloques([...seleccionados]);
+      }
+      actualizarBotonGuardarLoterias();
+    });
+    loteriasListEl.addEventListener('change',(event)=>{
+      const index=Number(event.target.dataset.index);
+      const accion=event.target.dataset.accion;
+      const loteria=loteriasData[index];
+      if(!loteria) return;
+      if(accion==='estado'){
+        const activas=loteriasData.filter(item=>item.estado==='Activa').length;
+        const activar=!!event.target.checked;
+        if(activar && loteria.estado!=='Activa' && activas>=4){
+          event.target.checked=false;
+          mostrarEstadoLoterias('Ya existen 4 loterías activas. Desactiva una para continuar.',true);
+          return;
+        }
+        loteria.estado=activar?'Activa':'Inactiva';
+        normalizarJerarquiasActivas();
+        renderLoterias();
+      }
+      actualizarBotonGuardarLoterias();
+    });
+    loteriasListEl.addEventListener('click',(event)=>{
+      const btn=event.target.closest('button[data-accion="imagen"]');
+      if(!btn) return;
+      const index=Number(btn.dataset.index);
+      const loteria=loteriasData[index];
+      if(!loteria) return;
+      abrirSelectorImagen(loteria.id);
+    });
+    cerrarLoteriasImageModal.addEventListener('click',()=>{
+      loteriasImageModal.style.display='none';
+    });
+    guardarLoteriasBtn.addEventListener('click',async ()=>{
+      try{
+        normalizarJerarquiasActivas();
+        const errorValidacion=validarLoterias();
+        if(errorValidacion){
+          mostrarEstadoLoterias(errorValidacion,true);
+          renderLoterias();
+          return;
+        }
+        const batch=db.batch();
+        for(const item of loteriasData){
+          const payload={
+            nombre:item.nombre.trim(),
+            estado:item.estado,
+            jerarquia:item.estado==='Activa'?item.jerarquia:null,
+            imagen:item.imagen||'',
+            bloquesHorarios:ordenarBloques(item.bloquesHorarios),
+            actualizadoEn:firebase.firestore.FieldValue.serverTimestamp()
+          };
+          if(item.id && !item.id.startsWith('tmp-')){
+            const ref=db.collection('loterias').doc(item.id);
+            batch.set(ref,{...payload,id:item.id},{merge:true});
+          }else{
+            const ref=db.collection('loterias').doc();
+            item.id=ref.id;
+            batch.set(ref,{...payload,id:ref.id,creadoEn:firebase.firestore.FieldValue.serverTimestamp()},{merge:true});
+          }
+        }
+        await batch.commit();
+        renderLoterias();
+        loteriasBaseHash=obtenerLoteriasHash();
+        actualizarBotonGuardarLoterias();
+        mostrarEstadoLoterias('Loterías guardadas correctamente.');
+      }catch(error){
+        console.error('No se pudieron guardar las loterías',error);
+        mostrarEstadoLoterias('Ocurrió un error guardando loterías.',true);
+      }
     });
     const campoNumeroWhatsapp=document.getElementById('numero-whatsapp');
     const botonEditarNumerosWhatsapp=document.getElementById('editar-numeros-whatsapp');
