@@ -1414,7 +1414,7 @@
       justify-content: center;
       padding: 20px;
       box-sizing: border-box;
-      z-index: 1200;
+      z-index: 3300;
     }
     .confirm-modal.activo { display: flex; }
     .pdf-confirm-box {
@@ -3131,6 +3131,7 @@
         const td = document.createElement('td');
         td.dataset.key = clave;
         td.dataset.numero = String(numero);
+        td.dataset.fila = String(fila);
         if(letra === 'B'){
           td.className = 'resultado-hora-cell';
           const exacta = document.createElement('span');
@@ -3146,7 +3147,7 @@
             td.classList.add('inactiva');
             td.innerHTML = '<span class="resultado-vacio">—</span>';
           } else {
-            td.addEventListener('click', ()=>manejarCantoClick(clave));
+            td.addEventListener('click', ()=>manejarCantoClick(clave, fila));
             td.innerHTML = '<span class="resultado-vacio">Seleccionar</span>';
           }
           cantoCeldas.set(clave, td);
@@ -3166,7 +3167,7 @@
     return fecha.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }).toLowerCase();
   }
 
-  async function manejarCantoClick(clave){
+  async function manejarCantoClick(clave, filaReal=null){
     if(!currentSorteoId || !currentSorteoData) return;
     if(tablaCantosContainer.classList.contains('disabled')) return;
     if(tablaCantosContainer.classList.contains('bloqueado')) return;
@@ -3175,7 +3176,10 @@
     const letra = claveNormalizada.charAt(0);
     const col = loteriasPorColumna.find(item=>item.letra===letra);
     if(!col || !col.loteria) return;
-    abrirModalSeleccionResultado(claveNormalizada, col.loteria);
+    const celda = cantoCeldas.get(claveNormalizada);
+    const filaDesdeCelda = celda ? Number(celda.dataset?.fila) : NaN;
+    const filaNormalizada = Number.isFinite(Number(filaReal)) ? Number(filaReal) : filaDesdeCelda;
+    abrirModalSeleccionResultado(claveNormalizada, col.loteria, filaNormalizada);
   }
 
   function actualizarCantosSeleccionados(lista){
@@ -3246,9 +3250,10 @@
     return { exacta: Boolean(exacta), intermedia: Boolean(intermedia) };
   }
 
-  function abrirModalSeleccionResultado(clave, loteria){
+  function abrirModalSeleccionResultado(clave, loteria, filaReal){
     if(!resultadoSelectModalEl || !resultadoSelectGridEl) return;
-    modalResultadoContexto = { clave, loteria, bloque: null };
+    const filaNormalizada = Number.isFinite(Number(filaReal)) ? Math.max(0, Number(filaReal)) : 0;
+    modalResultadoContexto = { clave, loteria, bloque: null, fila: filaNormalizada };
     const habilitacion = obtenerBloquesHabilitadosLoteria(loteria);
     resultadoBloqueExactaBtn.disabled = !habilitacion.exacta;
     resultadoBloqueIntermediaBtn.disabled = !habilitacion.intermedia;
@@ -3299,8 +3304,8 @@
     if(!modalResultadoContexto?.bloque || !modalResultadoContexto?.clave) return;
     const bloque = modalResultadoContexto.bloque;
     const clave = modalResultadoContexto.clave;
-    const fila = Number((clave.split('-')[1] || '1')) - 1;
-    const horaTexto = formatearHoraDesdeNumeroFila(Math.max(0, fila), bloque === 'intermedia');
+    const fila = Number(modalResultadoContexto?.fila);
+    const horaTexto = formatearHoraDesdeNumeroFila(Math.max(0, Number.isFinite(fila) ? fila : 0), bloque === 'intermedia');
     const mensaje = `¿Seguro que desea elegir este Numero ${formatearNumeroResultado(numero)} para este bloque horario ${horaTexto}?`;
     const confirmar = await preguntarAccionEstado(mensaje);
     if(!confirmar) return;
