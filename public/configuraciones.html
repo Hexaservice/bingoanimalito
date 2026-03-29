@@ -1121,11 +1121,13 @@
       cursor: pointer;
     }
     #agregar-loteria-btn { background: #f6ede4; color: #7c4a25; }
+    #guardar-loterias-top-btn { background: #b07a4a; color: #fff; margin-left: auto; }
     #guardar-loterias-btn { background: #b07a4a; color: #fff; width: 100%; margin-top: 10px; }
     .loterias-help {
       font-size: 0.8rem;
       color: #7c4a25;
       margin: 0;
+      flex-basis: 100%;
     }
     .loteria-card {
       border: 1px solid #d8b089;
@@ -1243,6 +1245,45 @@
       text-align: center;
       min-height: 18px;
     }
+    #loterias-unsaved-modal{
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.45);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 1400;
+      font-family: Calibri, Arial, sans-serif;
+    }
+    .loterias-unsaved-box{
+      width: min(92vw, 420px);
+      background: #fff;
+      border-radius: 12px;
+      border: 1px solid #d8b089;
+      padding: 14px;
+      box-sizing: border-box;
+    }
+    .loterias-unsaved-box h3{
+      margin: 0 0 8px;
+      color: #6a1b9a;
+    }
+    .loterias-unsaved-actions{
+      display: flex;
+      gap: 8px;
+      justify-content: flex-end;
+      margin-top: 12px;
+      flex-wrap: wrap;
+    }
+    .loterias-unsaved-actions button{
+      border: none;
+      border-radius: 8px;
+      padding: 8px 12px;
+      cursor: pointer;
+      font-weight: 700;
+    }
+    #loterias-unsaved-save{ background:#16a34a; color:#fff; }
+    #loterias-unsaved-discard{ background:#ef4444; color:#fff; }
+    #loterias-unsaved-cancel{ background:#e5e7eb; color:#111827; }
     #loterias-image-modal {
       position: fixed;
       inset: 0;
@@ -1368,7 +1409,8 @@
     <div id="loterias-content">
       <div class="loterias-toolbar">
         <button id="agregar-loteria-btn" type="button">+ Agregar lotería</button>
-        <p class="loterias-help">Máximo 4 activas (jerarquías 1, 2, 3 y 4 sin repetir).</p>
+        <button id="guardar-loterias-top-btn" type="button">GUARDAR LOTERÍAS</button>
+        <p class="loterias-help">Se permiten sólo 4 Loterias activas y sin repetirse</p>
       </div>
       <div id="loterias-list"></div>
       <button id="guardar-loterias-btn" type="button">GUARDAR LOTERÍAS</button>
@@ -1519,6 +1561,17 @@
         <button id="cerrar-loterias-image-modal" type="button" style="background:#ef4444;color:#fff;border:none;border-radius:8px;padding:6px 10px;cursor:pointer;">Cerrar</button>
       </div>
       <div id="loterias-image-grid" class="loterias-image-grid"></div>
+    </div>
+  </div>
+  <div id="loterias-unsaved-modal" aria-hidden="true">
+    <div class="loterias-unsaved-box" role="dialog" aria-modal="true" aria-labelledby="loterias-unsaved-title">
+      <h3 id="loterias-unsaved-title">Cambios sin guardar</h3>
+      <p>¿Deseas Guardar/Actualizar los cambios que has realizado en las loterias?</p>
+      <div class="loterias-unsaved-actions">
+        <button id="loterias-unsaved-save" type="button">Guardar/Actualizar</button>
+        <button id="loterias-unsaved-discard" type="button">Descartar</button>
+        <button id="loterias-unsaved-cancel" type="button">Cancelar</button>
+      </div>
     </div>
   </div>
   <section id="notificaciones-panel" class="notificaciones-panel" aria-labelledby="notificaciones-titulo">
@@ -1736,13 +1789,24 @@
     const loteriasListEl=document.getElementById('loterias-list');
     const loteriasStatusEl=document.getElementById('loterias-status');
     const guardarLoteriasBtn=document.getElementById('guardar-loterias-btn');
+    const guardarLoteriasTopBtn=document.getElementById('guardar-loterias-top-btn');
     const agregarLoteriaBtn=document.getElementById('agregar-loteria-btn');
     const loteriasImageModal=document.getElementById('loterias-image-modal');
     const loteriasImageGrid=document.getElementById('loterias-image-grid');
     const cerrarLoteriasImageModal=document.getElementById('cerrar-loterias-image-modal');
+    const loteriasUnsavedModal=document.getElementById('loterias-unsaved-modal');
+    const loteriasUnsavedSaveBtn=document.getElementById('loterias-unsaved-save');
+    const loteriasUnsavedDiscardBtn=document.getElementById('loterias-unsaved-discard');
+    const loteriasUnsavedCancelBtn=document.getElementById('loterias-unsaved-cancel');
     let loteriasData=[];
     let loteriasBaseHash='';
     let loteriaImagenTargetId='';
+    let loteriaFocusPendienteId='';
+    loteriasUnsavedModal?.addEventListener('click',(event)=>{
+      if(event.target===loteriasUnsavedModal){
+        loteriasUnsavedCancelBtn?.click();
+      }
+    });
     function defaultLoteria(){
       return {
         id:'',
@@ -1793,6 +1857,31 @@
       })).sort((a,b)=>(a.id||'').localeCompare(b.id||'')||a.nombre.localeCompare(b.nombre,'es',{sensitivity:'base'}));
       return JSON.stringify(base);
     }
+    function hayCambiosLoteriasSinGuardar(){
+      return obtenerLoteriasHash()!==loteriasBaseHash;
+    }
+    async function preguntarSalidaConCambiosLoterias(){
+      if(!hayCambiosLoteriasSinGuardar()) return 'discard';
+      if(!loteriasUnsavedModal || !loteriasUnsavedSaveBtn || !loteriasUnsavedDiscardBtn || !loteriasUnsavedCancelBtn){
+        const confirmarDescartar=window.confirm('Hay cambios sin guardar en loterías. ¿Deseas descartarlos?');
+        return confirmarDescartar ? 'discard' : 'cancel';
+      }
+      loteriasUnsavedModal.style.display='flex';
+      return new Promise((resolve)=>{
+        const limpiar=()=>{
+          loteriasUnsavedModal.style.display='none';
+          loteriasUnsavedSaveBtn.removeEventListener('click',onSave);
+          loteriasUnsavedDiscardBtn.removeEventListener('click',onDiscard);
+          loteriasUnsavedCancelBtn.removeEventListener('click',onCancel);
+        };
+        const onSave=()=>{ limpiar(); resolve('save'); };
+        const onDiscard=()=>{ limpiar(); resolve('discard'); };
+        const onCancel=()=>{ limpiar(); resolve('cancel'); };
+        loteriasUnsavedSaveBtn.addEventListener('click',onSave);
+        loteriasUnsavedDiscardBtn.addEventListener('click',onDiscard);
+        loteriasUnsavedCancelBtn.addEventListener('click',onCancel);
+      });
+    }
 
     function obtenerLoteriaPorId(id){
       return loteriasData.find((item)=>item.id===id) || null;
@@ -1813,8 +1902,12 @@
       loteriasStatusEl.textContent=mensaje||'';
     }
     function actualizarBotonGuardarLoterias(){
-      const dirty=obtenerLoteriasHash()!==loteriasBaseHash;
-      guardarLoteriasBtn.textContent=dirty?'ACTUALIZAR LOTERÍAS':'GUARDAR LOTERÍAS';
+      const dirty=hayCambiosLoteriasSinGuardar();
+      const texto=dirty?'ACTUALIZAR LOTERÍAS':'GUARDAR LOTERÍAS';
+      guardarLoteriasBtn.textContent=texto;
+      if(guardarLoteriasTopBtn){
+        guardarLoteriasTopBtn.textContent=texto;
+      }
     }
     function renderLoterias(){
       if(!loteriasListEl) return;
@@ -1867,6 +1960,14 @@
         }
         loteriasListEl.appendChild(card);
       });
+      if(loteriaFocusPendienteId){
+        const inputNuevo=loteriasListEl.querySelector(`input[data-accion="nombre"][data-id="${loteriaFocusPendienteId}"]`);
+        if(inputNuevo){
+          inputNuevo.focus();
+          inputNuevo.setSelectionRange(inputNuevo.value.length,inputNuevo.value.length);
+        }
+        loteriaFocusPendienteId='';
+      }
       actualizarBotonGuardarLoterias();
     }
     function abrirSelectorImagen(idLoteria){
@@ -1917,6 +2018,20 @@
       mostrarEstadoLoterias('');
     }
     toggleLoterias.addEventListener('change',async ()=>{
+      if(!toggleLoterias.checked && hayCambiosLoteriasSinGuardar()){
+        const decision=await preguntarSalidaConCambiosLoterias();
+        if(decision==='cancel'){
+          toggleLoterias.checked=true;
+          return;
+        }
+        if(decision==='save'){
+          const guardado=await guardarLoteriasCambios();
+          if(!guardado){
+            toggleLoterias.checked=true;
+            return;
+          }
+        }
+      }
       loteriasContent.style.display=toggleLoterias.checked?'block':'none';
       if(toggleLoterias.checked){
         try{ await cargarLoterias(); }
@@ -1927,7 +2042,9 @@
       }
     });
     agregarLoteriaBtn.addEventListener('click',()=>{
-      loteriasData.push({...defaultLoteria(),id:`tmp-${Date.now()}-${Math.random().toString(16).slice(2,8)}`});
+      const nuevoId=`tmp-${Date.now()}-${Math.random().toString(16).slice(2,8)}`;
+      loteriasData.push({...defaultLoteria(),id:nuevoId});
+      loteriaFocusPendienteId=nuevoId;
       normalizarJerarquiasActivas();
       renderLoterias();
     });
@@ -1959,17 +2076,7 @@
       const loteria=obtenerLoteriaPorId(id);
       if(!loteria) return;
       if(accion==='mostrar-intermedios'){
-        const activar=!!event.target.checked;
-        loteria.mostrarBloquesIntermedios=activar;
-        if(!activar){
-          const bloquesCompletos=loteria.bloquesHorarios.filter((bloque)=>BLOQUES_HORARIOS_ENTEROS.includes(bloque));
-          if(!bloquesCompletos.length){
-            loteria.bloquesHorarios=[BLOQUES_HORARIOS_ENTEROS[0]];
-            mostrarEstadoLoterias('Se mantuvo al menos un bloque horario completo seleccionado.');
-          }else{
-            loteria.bloquesHorarios=ordenarBloques(bloquesCompletos);
-          }
-        }
+        loteria.mostrarBloquesIntermedios=!!event.target.checked;
         renderLoterias();
         return;
       }
@@ -1998,14 +2105,14 @@
     cerrarLoteriasImageModal.addEventListener('click',()=>{
       loteriasImageModal.style.display='none';
     });
-    guardarLoteriasBtn.addEventListener('click',async ()=>{
+    async function guardarLoteriasCambios(){
       try{
         normalizarJerarquiasActivas();
         const errorValidacion=validarLoterias();
         if(errorValidacion){
           mostrarEstadoLoterias(errorValidacion,true);
           renderLoterias();
-          return;
+          return false;
         }
         const batch=db.batch();
         for(const item of loteriasData){
@@ -2032,11 +2139,15 @@
         loteriasBaseHash=obtenerLoteriasHash();
         actualizarBotonGuardarLoterias();
         mostrarEstadoLoterias('Loterías guardadas correctamente.');
+        return true;
       }catch(error){
         console.error('No se pudieron guardar las loterías',error);
         mostrarEstadoLoterias('Ocurrió un error guardando loterías.',true);
+        return false;
       }
-    });
+    }
+    guardarLoteriasBtn.addEventListener('click',guardarLoteriasCambios);
+    guardarLoteriasTopBtn?.addEventListener('click',guardarLoteriasCambios);
     const campoNumeroWhatsapp=document.getElementById('numero-whatsapp');
     const botonEditarNumerosWhatsapp=document.getElementById('editar-numeros-whatsapp');
     const botonGuardarNumeroWhatsapp=document.getElementById('guardar-numero-whatsapp');
@@ -3243,10 +3354,24 @@
       asignacionInicializada=true;
       iniciarSuscripcionAsignacion();
     }
-    window.addEventListener('beforeunload',()=>{
+    window.addEventListener('beforeunload',(event)=>{
       if(typeof unsubscribeAsignacionUsuarios==='function') unsubscribeAsignacionUsuarios();
+      if(hayCambiosLoteriasSinGuardar()){
+        event.preventDefault();
+        event.returnValue='';
+      }
     });
-    document.getElementById('volver-btn').addEventListener('click',()=>{window.location.href='admin.html';});
+    document.getElementById('volver-btn').addEventListener('click',async ()=>{
+      if(hayCambiosLoteriasSinGuardar()){
+        const decision=await preguntarSalidaConCambiosLoterias();
+        if(decision==='cancel') return;
+        if(decision==='save'){
+          const guardado=await guardarLoteriasCambios();
+          if(!guardado) return;
+        }
+      }
+      window.location.href='admin.html';
+    });
     function vincularEventosAuthConfiguraciones(){
       if(!auth || typeof auth.onAuthStateChanged!=='function'){
         return false;
