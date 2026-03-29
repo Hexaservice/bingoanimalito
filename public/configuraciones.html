@@ -1750,7 +1750,8 @@
         estado:'Inactiva',
         jerarquia:null,
         imagen:'',
-        bloquesHorarios:[BLOQUES_HORARIOS_ENTEROS[0]]
+        bloquesHorarios:[BLOQUES_HORARIOS_ENTEROS[0]],
+        mostrarBloquesIntermedios:false
       };
     }
     function limpiarLoteria(item){
@@ -1758,13 +1759,17 @@
       const estado=item?.estado==='Activa'?'Activa':'Inactiva';
       const jerarquia=Number.isInteger(item?.jerarquia) ? item.jerarquia : null;
       const bloques=(Array.isArray(item?.bloquesHorarios)?item.bloquesHorarios:[]).filter(b=>BLOQUES_HORARIOS.includes(b));
+      const mostrarBloquesIntermedios=typeof item?.mostrarBloquesIntermedios==='boolean'
+        ? item.mostrarBloquesIntermedios
+        : bloques.some((bloque)=>BLOQUES_HORARIOS_INTERMEDIOS.includes(bloque));
       return {
         id:item?.id||'',
         nombre,
         estado,
         jerarquia:jerarquia>=1&&jerarquia<=4?jerarquia:null,
         imagen:item?.imagen||'',
-        bloquesHorarios:bloques.length?bloques:[BLOQUES_HORARIOS_ENTEROS[0]]
+        bloquesHorarios:bloques.length?bloques:[BLOQUES_HORARIOS_ENTEROS[0]],
+        mostrarBloquesIntermedios
       };
     }
     function ordenarBloques(lista){
@@ -1783,9 +1788,24 @@
         estado:item.estado,
         jerarquia:item.jerarquia||null,
         imagen:item.imagen||'',
-        bloquesHorarios:ordenarBloques(item.bloquesHorarios)
+        bloquesHorarios:ordenarBloques(item.bloquesHorarios),
+        mostrarBloquesIntermedios:!!item.mostrarBloquesIntermedios
       })).sort((a,b)=>(a.id||'').localeCompare(b.id||'')||a.nombre.localeCompare(b.nombre,'es',{sensitivity:'base'}));
       return JSON.stringify(base);
+    }
+
+    function obtenerLoteriaPorId(id){
+      return loteriasData.find((item)=>item.id===id) || null;
+    }
+    function compararLoteriasParaVista(a,b){
+      const aActiva=a.estado==='Activa';
+      const bActiva=b.estado==='Activa';
+      if(aActiva!==bActiva) return aActiva?-1:1;
+      if(aActiva && bActiva){
+        const diffJerarquia=(a.jerarquia||99)-(b.jerarquia||99);
+        if(diffJerarquia!==0) return diffJerarquia;
+      }
+      return (a.nombre||'').localeCompare((b.nombre||''),'es',{sensitivity:'base'});
     }
     function mostrarEstadoLoterias(mensaje,esError=false){
       if(!loteriasStatusEl) return;
@@ -1799,20 +1819,21 @@
     function renderLoterias(){
       if(!loteriasListEl) return;
       loteriasListEl.innerHTML='';
-      loteriasData.forEach((item,index)=>{
+      const loteriasOrdenadas=[...loteriasData].sort(compararLoteriasParaVista);
+      loteriasOrdenadas.forEach((item)=>{
         const card=document.createElement('article');
         card.className='loteria-card';
-        const mostrarIntermedios=item.bloquesHorarios.some((bloque)=>BLOQUES_HORARIOS_INTERMEDIOS.includes(bloque));
+        const mostrarIntermedios=!!item.mostrarBloquesIntermedios;
         const jerarquiaTexto=item.estado==='Activa' ? `Jerarquía ${item.jerarquia||'-'}` : 'Inactiva';
         card.innerHTML=`
           <div class="loteria-head">
-            <button type="button" class="loteria-img-btn" data-accion="imagen" data-index="${index}">${item.imagen?'':'Imagen'}</button>
+            <button type="button" class="loteria-img-btn" data-accion="imagen" data-id="${item.id}">${item.imagen?'':'Imagen'}</button>
             <div class="loteria-fields">
-              <input type="text" data-accion="nombre" data-index="${index}" value="${item.nombre.replace(/"/g,'&quot;')}" placeholder="Nombre de lotería">
+              <input type="text" data-accion="nombre" data-id="${item.id}" value="${item.nombre.replace(/"/g,'&quot;')}" placeholder="Nombre de lotería">
               <div class="loteria-state-row">
                 <span class="jerarquia-chip">${jerarquiaTexto}</span>
                 <label class="switch">
-                  <input type="checkbox" data-accion="estado" data-index="${index}" ${item.estado==='Activa'?'checked':''}>
+                  <input type="checkbox" data-accion="estado" data-id="${item.id}" ${item.estado==='Activa'?'checked':''}>
                   <span class="slider"></span>
                 </label>
               </div>
@@ -1824,7 +1845,7 @@
               <label class="bloques-intermedios-toggle">
                 <span>Bloques intermedios</span>
                 <span class="switch">
-                  <input type="checkbox" data-accion="mostrar-intermedios" data-index="${index}" ${mostrarIntermedios?'checked':''}>
+                  <input type="checkbox" data-accion="mostrar-intermedios" data-id="${item.id}" ${mostrarIntermedios?'checked':''}>
                   <span class="slider"></span>
                 </span>
               </label>
@@ -1832,9 +1853,9 @@
             <div class="bloques-grid">
               ${BLOQUES_HORARIOS_ENTEROS.map((b,horarioIndex)=>{
                 const bloqueIntermedio=BLOQUES_HORARIOS_INTERMEDIOS[horarioIndex];
-                const bloqueEntero=`<label class="bloque-entero"><input type="checkbox" data-accion="bloque" data-index="${index}" data-bloque="${b}" ${item.bloquesHorarios.includes(b)?'checked':''}>${b}</label>`;
+                const bloqueEntero=`<label class="bloque-entero"><input type="checkbox" data-accion="bloque" data-id="${item.id}" data-bloque="${b}" ${item.bloquesHorarios.includes(b)?'checked':''}>${b}</label>`;
                 if(!mostrarIntermedios) return bloqueEntero;
-                const intermedio=`<label class="bloque-intermedio"><input type="checkbox" data-accion="bloque" data-index="${index}" data-bloque="${bloqueIntermedio}" ${item.bloquesHorarios.includes(bloqueIntermedio)?'checked':''}>${bloqueIntermedio}</label>`;
+                const intermedio=`<label class="bloque-intermedio"><input type="checkbox" data-accion="bloque" data-id="${item.id}" data-bloque="${bloqueIntermedio}" ${item.bloquesHorarios.includes(bloqueIntermedio)?'checked':''}>${bloqueIntermedio}</label>`;
                 return `${bloqueEntero}${intermedio}`;
               }).join('')}
             </div>
@@ -1911,9 +1932,9 @@
       renderLoterias();
     });
     loteriasListEl.addEventListener('input',(event)=>{
-      const index=Number(event.target.dataset.index);
+      const id=event.target.dataset.id;
       const accion=event.target.dataset.accion;
-      const loteria=loteriasData[index];
+      const loteria=obtenerLoteriaPorId(id);
       if(!loteria) return;
       if(accion==='nombre'){
         loteria.nombre=event.target.value;
@@ -1933,12 +1954,13 @@
       actualizarBotonGuardarLoterias();
     });
     loteriasListEl.addEventListener('change',(event)=>{
-      const index=Number(event.target.dataset.index);
+      const id=event.target.dataset.id;
       const accion=event.target.dataset.accion;
-      const loteria=loteriasData[index];
+      const loteria=obtenerLoteriaPorId(id);
       if(!loteria) return;
       if(accion==='mostrar-intermedios'){
         const activar=!!event.target.checked;
+        loteria.mostrarBloquesIntermedios=activar;
         if(!activar){
           const bloquesCompletos=loteria.bloquesHorarios.filter((bloque)=>BLOQUES_HORARIOS_ENTEROS.includes(bloque));
           if(!bloquesCompletos.length){
@@ -1968,8 +1990,8 @@
     loteriasListEl.addEventListener('click',(event)=>{
       const btn=event.target.closest('button[data-accion="imagen"]');
       if(!btn) return;
-      const index=Number(btn.dataset.index);
-      const loteria=loteriasData[index];
+      const id=btn.dataset.id;
+      const loteria=obtenerLoteriaPorId(id);
       if(!loteria) return;
       abrirSelectorImagen(loteria.id);
     });
@@ -1993,6 +2015,7 @@
             jerarquia:item.estado==='Activa'?item.jerarquia:null,
             imagen:item.imagen||'',
             bloquesHorarios:ordenarBloques(item.bloquesHorarios),
+            mostrarBloquesIntermedios:!!item.mostrarBloquesIntermedios,
             actualizadoEn:firebase.firestore.FieldValue.serverTimestamp()
           };
           if(item.id && !item.id.startsWith('tmp-')){
