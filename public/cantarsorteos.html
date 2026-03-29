@@ -3219,6 +3219,22 @@
   }
 
 
+  const catalogoAnimalesResultados = ['0','00','1','2','3','4','5','6','7','8','9','10','11','12','13','14','15','16','17','18','19','20','21','22','23','24','25','26','27','28','29','30','31','32','33','34','35','36'];
+
+  function normalizarNumeroAnimal(numero){
+    const texto = (numero ?? '').toString().trim();
+    if(texto === '00') return '00';
+    if(texto === '0') return '0';
+    const sinCerosIzquierda = texto.replace(/^0+/, '');
+    return sinCerosIzquierda || '0';
+  }
+
+  function formatearNumeroResultado(numero){
+    const texto = (numero ?? '').toString().trim();
+    if(texto === '00') return '00';
+    return normalizarNumeroAnimal(texto);
+  }
+
   function obtenerNombreAnimal(numero){
     const mapa = {
       '00':'Ballena','0':'Defín','1':'Carnero','2':'Toro','3':'Ciempiés','4':'Alacrán','5':'León','6':'Rana','7':'Perico','8':'Ratón','9':'Águila',
@@ -3226,8 +3242,8 @@
       '21':'Gallo','22':'Camello','23':'Cebra','24':'Iguana','25':'Gallina','26':'Vaca','27':'Perro','28':'Zamuro','29':'Elefante','30':'Caimán',
       '31':'Lapa','32':'Ardilla','33':'Pescado','34':'Venado','35':'Jirafa','36':'Culebra'
     };
-    const key = String(Number(numero));
-    return mapa[key] || `Animal ${String(numero).padStart(2,'0')}`;
+    const key = normalizarNumeroAnimal(numero);
+    return mapa[key] || `Animal ${formatearNumeroResultado(numero)}`;
   }
 
   function refrescarResultadosEnTabla(){
@@ -3241,10 +3257,10 @@
       }
       const html = [];
       if(exacta){
-        html.push(`<div class="resultado-item exacta"><span class="resultado-numero">${String(exacta).padStart(2,'0')}</span><span class="resultado-nombre">${obtenerNombreAnimal(exacta)}</span></div>`);
+        html.push(`<div class="resultado-item exacta"><span class="resultado-numero">${formatearNumeroResultado(exacta)}</span><span class="resultado-nombre">${obtenerNombreAnimal(exacta)}</span></div>`);
       }
       if(intermedia){
-        html.push(`<div class="resultado-item intermedia"><span class="resultado-numero">${String(intermedia).padStart(2,'0')}</span><span class="resultado-nombre">${obtenerNombreAnimal(intermedia)}</span></div>`);
+        html.push(`<div class="resultado-item intermedia"><span class="resultado-numero">${formatearNumeroResultado(intermedia)}</span><span class="resultado-nombre">${obtenerNombreAnimal(intermedia)}</span></div>`);
       }
       celda.innerHTML = html.join('');
     });
@@ -3292,21 +3308,21 @@
     if(!resultadoSelectGridEl) return;
     resultadoSelectGridEl.innerHTML = '';
     const bloqueActivo = modalResultadoContexto?.bloque || null;
-    for(let n=1; n<=75; n++){
+    catalogoAnimalesResultados.forEach(valorCatalogo=>{
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.className = 'animal-option-resultado';
-      btn.dataset.numero = String(n);
-      btn.innerHTML = `<span>${String(n).padStart(2,'0')}</span><small>${obtenerNombreAnimal(n)}</small>`;
+      btn.dataset.numero = valorCatalogo;
+      btn.innerHTML = `<span>${valorCatalogo}</span><small>${obtenerNombreAnimal(valorCatalogo)}</small>`;
       if(!bloqueActivo){
         btn.disabled = true;
       }
-      if(!esNumeroJugadoEnCartones(n)){
+      if(!esNumeroJugadoEnCartones(valorCatalogo)){
         btn.classList.add('no-jugado');
       }
-      btn.addEventListener('click', ()=>confirmarSeleccionResultado(n));
+      btn.addEventListener('click', ()=>confirmarSeleccionResultado(valorCatalogo));
       resultadoSelectGridEl.appendChild(btn);
-    }
+    });
   }
 
   function esNumeroJugadoEnCartones(numero){
@@ -3326,7 +3342,7 @@
     const clave = modalResultadoContexto.clave;
     const fila = Number((clave.split('-')[1] || '1')) - 1;
     const horaTexto = formatearHoraDesdeNumeroFila(Math.max(0, fila), bloque === 'intermedia');
-    const mensaje = `¿Seguro que desea elegir este Numero ${String(numero).padStart(2,'0')} para este bloque horario ${horaTexto}?`;
+    const mensaje = `¿Seguro que desea elegir este Numero ${formatearNumeroResultado(numero)} para este bloque horario ${horaTexto}?`;
     const confirmar = await preguntarAccionEstado(mensaje);
     if(!confirmar) return;
     await guardarResultadoPorBloque(clave, bloque, numero);
