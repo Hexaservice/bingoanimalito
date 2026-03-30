@@ -3632,6 +3632,16 @@
     return canonico;
   }
 
+  function formatearNumeroAnimalito(valor){
+    const canonico = normalizarNumero(valor);
+    if(canonico === null) return '';
+    if(canonico === '00') return '00';
+    if(canonico === '0') return '0';
+    const entero = Number(canonico);
+    if(!Number.isFinite(entero)) return canonico;
+    return String(entero);
+  }
+
   function normalizarCartonesGratisValor(valor){
     if(typeof valor === 'number' && Number.isFinite(valor)){
       return Math.max(0, Math.round(valor));
@@ -4524,7 +4534,7 @@
           span.className = 'cell-content';
           if(valor !== undefined && valor !== null){
             const numero = normalizarNumero(valor);
-            const texto = numero !== null ? String(numero).padStart(2,'0') : String(valor);
+            const texto = numero !== null ? formatearNumeroAnimalito(numero) : String(valor);
             span.textContent = texto;
             if(numero !== null){
               td.dataset.valor = numero;
