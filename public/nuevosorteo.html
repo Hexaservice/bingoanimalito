@@ -337,6 +337,7 @@
   let formasModalDatos=[];
   let formaSeleccionadaId=null;
   let loteriasActivas=[];
+  let loteriasActivasCacheTs=0;
   const loteriasSeleccionadas=new Set();
 
   function mostrarConfirmacion(mensaje){
@@ -523,6 +524,7 @@
   }
 
   const FALLBACK_IMAGEN_LOTERIA='img/android-chrome-192x192.png';
+  const LOTERIAS_CACHE_TTL_MS=45*1000;
 
   function normalizarRutaImagen(valor){
     if(typeof valor!=='string') return '';
@@ -604,8 +606,12 @@
     grid.appendChild(frag);
   }
 
-  async function cargarLoteriasActivas(){
-    if(loteriasActivas.length) return;
+  async function cargarLoteriasActivas({forceRefresh=false}={}){
+    const cacheVigente=Date.now()-loteriasActivasCacheTs<LOTERIAS_CACHE_TTL_MS;
+    if(!forceRefresh && loteriasActivas.length && cacheVigente) return;
+    if(forceRefresh){
+      loteriasActivas.forEach(loteria=>{loteria.fallbackIntentado=false;});
+    }
     const snap=await db.collection('loterias').get();
     loteriasActivas=snap.docs.map(doc=>{
       const d=doc.data()||{};
@@ -623,11 +629,12 @@
         activa
       };
     }).filter(item=>item.activa);
+    loteriasActivasCacheTs=Date.now();
   }
 
   async function abrirLoteriasModal(){
     try{
-      await cargarLoteriasActivas();
+      await cargarLoteriasActivas({forceRefresh:true});
       renderLoteriasGrid();
       document.getElementById('loterias-modal')?.classList.add('visible');
       document.body.classList.add('modal-open');
