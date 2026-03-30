@@ -171,6 +171,7 @@
     #formas-modal .formas-contenido{background:rgba(255,255,255,0.95);border-radius:18px;padding:clamp(16px,2vw,26px);width:min(1100px,95vw);max-height:90vh;display:flex;flex-direction:column;gap:12px;box-shadow:0 12px 32px rgba(0,0,0,0.45);position:relative;overflow:hidden;}
     #formas-modal .formas-titulo{font-family:'Bangers',cursive;font-size:1.4rem;text-align:center;margin:0;color:#4b0082;text-shadow:0 0 6px #fff;}
     #formas-modal .cerrar-formas{position:absolute;top:10px;right:12px;font-size:1.6rem;cursor:pointer;background:none;border:none;color:#4b0082;text-shadow:1px 1px 2px #fff;}
+    #loterias-modal .cerrar-loterias-modal{position:absolute;top:8px;right:10px;font-size:1.6rem;cursor:pointer;background:none;border:none;outline:none;box-shadow:none;color:#4b0082;text-shadow:1px 1px 2px #fff;padding:0;line-height:1;}
     #formas-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;flex:1;overflow-y:auto;padding-right:4px;align-content:flex-start;}
     .forma-miniatura{display:flex;flex-direction:column;align-items:center;gap:4px;padding:10px;border-radius:14px;background:linear-gradient(150deg,var(--forma-color,#90ee90),#ffffff);box-shadow:0 6px 16px rgba(0,0,0,0.25);cursor:pointer;transition:transform 0.2s,box-shadow 0.2s;}
     .forma-miniatura:hover{transform:translateY(-3px);box-shadow:0 10px 24px rgba(0,0,0,0.3);}
@@ -295,8 +296,8 @@
   </div>
   <div id="loterias-modal">
     <div class="loterias-dialog">
-      <button type="button" class="cerrar-formas" id="cerrar-loterias-modal">✖</button>
-      <h3 class="formas-titulo">Selecciona loterías activas</h3>
+      <button type="button" class="cerrar-loterias-modal" id="cerrar-loterias-modal">✖</button>
+      <h3 class="formas-titulo">ASIGNA LOTERÍAS AL SORTEO</h3>
       <div id="loterias-grid" class="loterias-grid"></div>
       <div class="formas-modal-acciones">
         <button type="button" class="action-btn" id="guardar-loterias-btn">Guardar selección</button>
@@ -635,8 +636,11 @@
   }
 
   function cerrarLoteriasModal(){
-    document.getElementById('loterias-modal')?.classList.remove('visible');
-    if(!document.getElementById('formas-modal')?.classList.contains('visible')){
+    const loteriasModal=document.getElementById('loterias-modal');
+    loteriasModal?.classList.remove('visible');
+    const hayOtrosModalesVisibles=Array.from(document.querySelectorAll('body > div[id$="-modal"]'))
+      .some(modal=>modal!==loteriasModal && modal.classList.contains('visible'));
+    if(!hayOtrosModalesVisibles){
       document.body.classList.remove('modal-open');
     }
     refrescarBotonLoterias();
