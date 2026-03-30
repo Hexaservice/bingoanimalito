@@ -930,14 +930,30 @@ async function listStorageLoteriaImages(req) {
   return normalizedFiles.sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }));
 }
 
+async function getLoteriasImageCatalog(req) {
+  const useStorage = process.env.LOTERIAS_IMAGES_SOURCE === 'storage' || process.env.NODE_ENV === 'production';
+  if (!useStorage) {
+    const images = await listLocalLoteriaImages(req);
+    return { images, source: 'local' };
+  }
+
+  try {
+    const storageImages = await listStorageLoteriaImages(req);
+    if (storageImages.length > 0) {
+      return { images: storageImages, source: 'storage' };
+    }
+  } catch (error) {
+    console.warn('[loterias][images] storage_unavailable_fallback_local', error?.message || error);
+  }
+
+  const localImages = await listLocalLoteriaImages(req);
+  return { images: localImages, source: 'local-fallback' };
+}
+
 app.get('/admin/loterias/images', verificarToken, async (req, res) => {
   try {
-    const useStorage = process.env.LOTERIAS_IMAGES_SOURCE === 'storage' || process.env.NODE_ENV === 'production';
-    const images = useStorage
-      ? await listStorageLoteriaImages(req)
-      : await listLocalLoteriaImages(req);
-
-    return res.json({ images, source: useStorage ? 'storage' : 'local' });
+    const { images, source } = await getLoteriasImageCatalog(req);
+    return res.json({ images, source });
   } catch (error) {
     console.error('Error listando imágenes de loterías', error);
     return res.status(500).json({ error: 'No se pudieron listar las imágenes de loterías', message: error.message });
@@ -946,10 +962,7 @@ app.get('/admin/loterias/images', verificarToken, async (req, res) => {
 
 app.get('/admin/loterias/sync-report', verificarToken, async (req, res) => {
   try {
-    const useStorage = process.env.LOTERIAS_IMAGES_SOURCE === 'storage' || process.env.NODE_ENV === 'production';
-    const images = useStorage
-      ? await listStorageLoteriaImages(req)
-      : await listLocalLoteriaImages(req);
+    const { images, source } = await getLoteriasImageCatalog(req);
     const loteriasSnapshot = await admin.firestore().collection(LOTERIAS_SOURCE_OF_TRUTH.collection).get();
     const loterias = loteriasSnapshot.docs.map((doc) => {
       const data = doc.data() || {};
@@ -965,7 +978,7 @@ app.get('/admin/loterias/sync-report', verificarToken, async (req, res) => {
     const report = buildLoteriasImageSyncReport({ loterias, images });
     return res.json({
       ...report,
-      imageCatalogSource: useStorage ? 'storage' : 'local'
+      imageCatalogSource: source
     });
   } catch (error) {
     console.error('Error generando sync-report de loterías', error);
@@ -1068,6 +1081,7 @@ module.exports = {
   normalizeLoteriaImageItem,
   listLocalLoteriaImages,
   listStorageLoteriaImages,
+  getLoteriasImageCatalog,
   toPublicImageUrl,
   normalizeLoteriaImageKey,
   buildLoteriasImageSyncReport
