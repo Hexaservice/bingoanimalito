@@ -830,6 +830,17 @@
       .canto-cell.resultado-numero.modo-intermedio {
           color: #ff8f00;
       }
+      .canto-cell.resultado-numero.inactiva-horario {
+          background: linear-gradient(160deg, rgba(240,240,240,0.94), rgba(220,220,220,0.94));
+          border: 1px solid rgba(120,120,120,0.35);
+          color: #7a7a7a;
+          cursor: default;
+          pointer-events: none;
+      }
+      .canto-cell.resultado-numero.inactiva-horario.modo-exacto,
+      .canto-cell.resultado-numero.inactiva-horario.modo-intermedio {
+          color: #7a7a7a;
+      }
 
       #cantos-conducto-grid {
           --conducto-gap: 0px;
@@ -7572,12 +7583,14 @@
         const numeroCelda = document.querySelector(`.canto-cell.resultado-numero[data-fila="${fila}"][data-col="${col}"]`);
         if(!numeroCelda) continue;
         const habilitacion = obtenerEstadoBloquesPorColumna(fila, col);
+        const bloqueInactivo = !habilitacion.exacta && !habilitacion.intermedia;
         const usarIntermedio = habilitacion.intermedia && (!habilitacion.exacta || (habilitacion.exacta && modoIntermedio));
         const arr = usarIntermedio ? (bloque.intermedios||[]) : (bloque.exactos||[]);
         const valor = Number(arr[col-1]);
-        numeroCelda.textContent = Number.isFinite(valor) ? String(valor).padStart(2,'0') : '--';
+        numeroCelda.textContent = bloqueInactivo ? '—' : (Number.isFinite(valor) ? String(valor).padStart(2,'0') : '--');
         numeroCelda.classList.toggle('modo-intermedio', usarIntermedio);
         numeroCelda.classList.toggle('modo-exacto', !usarIntermedio);
+        numeroCelda.classList.toggle('inactiva-horario', bloqueInactivo);
       }
     }
   }
@@ -7634,10 +7647,12 @@
         }else{
           celda.className='canto-cell resultado-numero modo-exacto';
           celda.addEventListener('click',evento=>{
+            if(celda.classList.contains('inactiva-horario')) return;
             evento.stopPropagation();
             manejarInteraccionCantoGanador(numero);
           });
           celda.addEventListener('keydown',evento=>{
+            if(celda.classList.contains('inactiva-horario')) return;
             if(evento.key==='Enter' || evento.key===' '){
               evento.preventDefault();
               evento.stopPropagation();
