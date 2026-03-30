@@ -793,6 +793,9 @@
           object-fit: contain;
           pointer-events: none;
       }
+      .canto-cell.encabezado-loteria img.miniatura-vacia {
+          visibility: hidden;
+      }
       .canto-cell.hora-celda {
           flex-direction: column;
           gap: 0;
@@ -7404,7 +7407,9 @@
   function obtenerLoteriasAsignadas(sorteo){
     const origen=Array.isArray(sorteo?.loteriasAsignadas)
       ? sorteo.loteriasAsignadas
-      : (Array.isArray(sorteo?.loteriasActivas) ? sorteo.loteriasActivas : []);
+      : (Array.isArray(sorteo?.loteriasActivas)
+          ? sorteo.loteriasActivas
+          : (Array.isArray(sorteo?.loterias) ? sorteo.loterias : []));
     return origen.map(id=>String(id||'').trim()).filter(Boolean);
   }
 
@@ -7417,22 +7422,22 @@
     }
     try{
       const docs=await Promise.all(ids.slice(0,4).map(id=>db.collection('loterias').doc(id).get().catch(()=>null)));
-      const loterias=[];
-      docs.forEach(doc=>{
-        if(!doc || !doc.exists) return;
-        const data=doc.data()||{};
-        loterias.push({
-          id:doc.id,
-          nombre:data.nombre||doc.id,
-          imagen:normalizarMiniaturaLoteria(data.imagen||''),
-          jerarquia:Number(data.jerarquia ?? data.orden ?? 999),
-          horaExacta:data.horaExacta ?? data.bloqueExacta ?? data.exacta ?? true,
-          horaIntermedia:data.horaIntermedia ?? data.bloqueIntermedia ?? data.intermedia ?? true,
-          mostrarBloquesIntermedios:Boolean(data.mostrarBloquesIntermedios),
-          bloquesHorarios:Array.isArray(data.bloquesHorarios)?data.bloquesHorarios:[]
-        });
-      });
-      loterias.sort((a,b)=>a.jerarquia-b.jerarquia);
+      const loterias=docs
+        .filter(doc=>doc && doc.exists)
+        .map(doc=>{
+          const data=doc.data()||{};
+          return {
+            id:doc.id,
+            nombre:data.nombre||doc.id,
+            imagen:normalizarMiniaturaLoteria(data.imagen||''),
+            jerarquia:Number(data.jerarquia ?? data.orden ?? 999),
+            horaExacta:data.horaExacta ?? data.bloqueExacta ?? data.exacta ?? true,
+            horaIntermedia:data.horaIntermedia ?? data.bloqueIntermedia ?? data.intermedia ?? true,
+            mostrarBloquesIntermedios:Boolean(data.mostrarBloquesIntermedios),
+            bloquesHorarios:Array.isArray(data.bloquesHorarios)?data.bloquesHorarios:[]
+          };
+        })
+        .sort((a,b)=>a.jerarquia-b.jerarquia);
       cantosColumnasLoteria = loterias.slice(0,4);
       refrescarVistaBloquesCantos();
     }catch(err){
@@ -7504,9 +7509,16 @@
       const encabezadoLoteria = document.querySelector(`.canto-cell.encabezado-loteria[data-col="${col}"] img`);
       if(!encabezadoLoteria) continue;
       const loteriaColumna=cantosColumnasLoteria[col-1] || null;
-      const mini=(loteriaColumna?.imagen || cantosBloquesData[0]?.loterias?.[col-1] || 'img/loterias/lotto-activo.png');
-      encabezadoLoteria.src=mini;
-      encabezadoLoteria.alt=loteriaColumna?.nombre || `Lotería ${col}`;
+      const mini=loteriaColumna?.imagen || '';
+      if(mini){
+        encabezadoLoteria.src=mini;
+        encabezadoLoteria.alt=loteriaColumna?.nombre || `Lotería ${col}`;
+        encabezadoLoteria.classList.remove('miniatura-vacia');
+      }else{
+        encabezadoLoteria.removeAttribute('src');
+        encabezadoLoteria.alt='Sin lotería asignada';
+        encabezadoLoteria.classList.add('miniatura-vacia');
+      }
     }
     for(let fila=0; fila<15; fila++){
       const modoIntermedio = cantosModoFilaMap.get(fila) === 'intermedio';
@@ -7550,9 +7562,14 @@
         celda.dataset.col=String(idx);
         const img=document.createElement('img');
         const loteriaColumna=cantosColumnasLoteria[idx-1] || null;
-        const mini=(loteriaColumna?.imagen || cantosBloquesData[0]?.loterias?.[idx-1] || 'img/loterias/lotto-activo.png');
-        img.src=mini;
-        img.alt=loteriaColumna?.nombre || `Lotería ${idx}`;
+        const mini=loteriaColumna?.imagen || '';
+        if(mini){
+          img.src=mini;
+          img.alt=loteriaColumna?.nombre || `Lotería ${idx}`;
+        }else{
+          img.alt='Sin lotería asignada';
+          img.classList.add('miniatura-vacia');
+        }
         celda.textContent='';
         celda.appendChild(img);
       }
