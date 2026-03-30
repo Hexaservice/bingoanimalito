@@ -4854,12 +4854,7 @@
   let cantosResultadoMap = new Map();
   let cantosBloquesData = [];
   const cantosModoFilaMap = new Map();
-  const LOTERIAS_MINI_DEFAULT = Object.freeze([
-    'img/loterias/lotto-activo.png',
-    'img/loterias/la-granjita.png',
-    'img/loterias/selva-plus.png',
-    'img/loterias/lotto-activo.png'
-  ]);
+  let cantosColumnasLoteria = [];
   let formasActivas = [];
   let cartonesSorteo = new Map();
   let cartonesGanadoresPorForma = new Map();
@@ -7387,6 +7382,82 @@
     return `img/loterias/${texto.replace(/^\/+/, '')}`;
   }
 
+  function normalizarTextoHorario(valor){
+    const texto=(valor??'').toString().trim().toLowerCase();
+    if(!texto) return '';
+    const sinPuntos=texto.replace(/\./g,'');
+    const match=/^(\d{1,2}):(\d{2})(?:\s*([ap]m))?$/.exec(sinPuntos);
+    if(!match) return sinPuntos.replace(/\s+/g,' ');
+    let horas=parseInt(match[1],10);
+    const minutos=match[2];
+    const periodo=match[3];
+    if(periodo==='pm' && horas<12) horas+=12;
+    if(periodo==='am' && horas===12) horas=0;
+    return `${String(horas).padStart(2,'0')}:${minutos}`;
+  }
+
+  function obtenerHoraBloqueDesdeFila(fila, esIntermedia){
+    const filaNormalizada=Number.isFinite(Number(fila)) ? Math.max(0, Math.min(14, Number(fila))) : 0;
+    return normalizarTextoHorario(formatearHoraFallbackDesde24h(8+filaNormalizada, esIntermedia?30:0));
+  }
+
+  async function cargarLoteriasActivasSorteo(sorteo){
+    const ids=Array.isArray(sorteo?.loteriasActivas)
+      ? sorteo.loteriasActivas.map(id=>String(id||'').trim()).filter(Boolean)
+      : [];
+    if(!db || !ids.length){
+      cantosColumnasLoteria = [];
+      refrescarVistaBloquesCantos();
+      return;
+    }
+    try{
+      const docs=await Promise.all(ids.slice(0,4).map(id=>db.collection('loterias').doc(id).get().catch(()=>null)));
+      const loterias=[];
+      docs.forEach(doc=>{
+        if(!doc || !doc.exists) return;
+        const data=doc.data()||{};
+        loterias.push({
+          id:doc.id,
+          nombre:data.nombre||doc.id,
+          imagen:normalizarMiniaturaLoteria(data.imagen||''),
+          jerarquia:Number(data.jerarquia ?? data.orden ?? 999),
+          horaExacta:data.horaExacta ?? data.bloqueExacta ?? data.exacta ?? true,
+          horaIntermedia:data.horaIntermedia ?? data.bloqueIntermedia ?? data.intermedia ?? true,
+          mostrarBloquesIntermedios:Boolean(data.mostrarBloquesIntermedios),
+          bloquesHorarios:Array.isArray(data.bloquesHorarios)?data.bloquesHorarios:[]
+        });
+      });
+      loterias.sort((a,b)=>a.jerarquia-b.jerarquia);
+      cantosColumnasLoteria = loterias.slice(0,4);
+      refrescarVistaBloquesCantos();
+    }catch(err){
+      console.error('No se pudieron cargar loterías activas del sorteo', err);
+      cantosColumnasLoteria = [];
+      refrescarVistaBloquesCantos();
+    }
+  }
+
+  function obtenerEstadoBloquesPorColumna(fila, col){
+    const loteria=cantosColumnasLoteria[col-1] || null;
+    if(!loteria){
+      return { exacta:true, intermedia:true };
+    }
+    const horaExacta=obtenerHoraBloqueDesdeFila(fila, false);
+    const horaIntermedia=obtenerHoraBloqueDesdeFila(fila, true);
+    const bloques=Array.isArray(loteria.bloquesHorarios)?loteria.bloquesHorarios:[];
+    const normalizados=new Set(bloques.map(normalizarTextoHorario).filter(Boolean));
+    if(normalizados.size){
+      return {
+        exacta:normalizados.has(horaExacta),
+        intermedia:normalizados.has(horaIntermedia)
+      };
+    }
+    return {
+      exacta:Boolean(loteria.horaExacta),
+      intermedia:Boolean(loteria.mostrarBloquesIntermedios || loteria.horaIntermedia)
+    };
+  }
+
   function construirBloquesDesdePayload(payload){
     const fuente=Array.isArray(payload?.bloques)?payload.bloques:[];
     if(!fuente.length) return [];
@@ -7399,7 +7470,7 @@
       const intermediosOrigen=Array.isArray(bloque?.intermedios)
         ? bloque.intermedios
         : (Array.isArray(bloque?.numerosIntermedios) ? bloque.numerosIntermedios : []);
-      const loterias=Array.isArray(bloque?.loterias)?bloque.loterias:Array.isArray(payload?.loterias)?payload.loterias:LOTERIAS_MINI_DEFAULT;
+      const loterias=Array.isArray(bloque?.loterias)?bloque.loterias:Array.isArray(payload?.loterias)?payload.loterias:[];
       return {
         horaExacta:(bloque?.horaExacta??bloque?.hora??'').toString().trim(),
         horaIntermedia:(bloque?.horaIntermedia??bloque?.horaBloqueIntermedio??'').toString().trim(),
@@ -7424,6 +7495,14 @@
   }
 
   function refrescarVistaBloquesCantos(){
+    for(let col=1; col<5; col++){
+      const encabezadoLoteria = document.querySelector(`.canto-cell.encabezado-loteria[data-col="${col}"] img`);
+      if(!encabezadoLoteria) continue;
+      const loteriaColumna=cantosColumnasLoteria[col-1] || null;
+      const mini=(loteriaColumna?.imagen || cantosBloquesData[0]?.loterias?.[col-1] || 'img/loterias/lotto-activo.png');
+      encabezadoLoteria.src=mini;
+      encabezadoLoteria.alt=loteriaColumna?.nombre || `Lotería ${col}`;
+    }
     for(let fila=0; fila<15; fila++){
       const modoIntermedio = cantosModoFilaMap.get(fila) === 'intermedio';
       const bloque = cantosBloquesData[fila] || {};
@@ -7438,11 +7517,13 @@
       for(let col=1; col<5; col++){
         const numeroCelda = document.querySelector(`.canto-cell.resultado-numero[data-fila="${fila}"][data-col="${col}"]`);
         if(!numeroCelda) continue;
-        const arr = modoIntermedio ? (bloque.intermedios||[]) : (bloque.exactos||[]);
+        const habilitacion = obtenerEstadoBloquesPorColumna(fila, col);
+        const usarIntermedio = habilitacion.intermedia && (!habilitacion.exacta || (habilitacion.exacta && modoIntermedio));
+        const arr = usarIntermedio ? (bloque.intermedios||[]) : (bloque.exactos||[]);
         const valor = Number(arr[col-1]);
         numeroCelda.textContent = Number.isFinite(valor) ? String(valor).padStart(2,'0') : '--';
-        numeroCelda.classList.toggle('modo-intermedio', modoIntermedio);
-        numeroCelda.classList.toggle('modo-exacto', !modoIntermedio);
+        numeroCelda.classList.toggle('modo-intermedio', usarIntermedio);
+        numeroCelda.classList.toggle('modo-exacto', !usarIntermedio);
       }
     }
   }
@@ -7461,10 +7542,12 @@
         celda.addEventListener('click',()=>mostrarTooltipHora(celda));
       }else{
         celda.classList.add('encabezado-loteria');
+        celda.dataset.col=String(idx);
         const img=document.createElement('img');
-        const mini=(cantosBloquesData[0]?.loterias?.[idx-1] || LOTERIAS_MINI_DEFAULT[idx-1] || LOTERIAS_MINI_DEFAULT[0]);
+        const loteriaColumna=cantosColumnasLoteria[idx-1] || null;
+        const mini=(loteriaColumna?.imagen || cantosBloquesData[0]?.loterias?.[idx-1] || 'img/loterias/lotto-activo.png');
         img.src=mini;
-        img.alt=`Lotería ${idx}`;
+        img.alt=loteriaColumna?.nombre || `Lotería ${idx}`;
         celda.textContent='';
         celda.appendChild(img);
       }
@@ -11352,7 +11435,7 @@
           const numero=normalizados[indice];
           return numero!==null?numero:null;
         }),
-        loterias:LOTERIAS_MINI_DEFAULT
+        loterias:cantosColumnasLoteria.map(item=>item.imagen).filter(Boolean)
       }));
       const primeraFila=cantosBloquesData[0];
       const ultimaFila=cantosBloquesData[cantosBloquesData.length-1];
@@ -11614,6 +11697,7 @@
       sorteoManualSeleccionadoId=null;
       activeSorteo=null;
       activeSorteoId=null;
+      cantosColumnasLoteria = [];
       actualizarHeader();
       reiniciarNotificacionesPremios();
       reiniciarAlertaFormasSinGanadores();
@@ -11638,6 +11722,7 @@
     const cambio=activeSorteoId!==elegido.id;
     activeSorteo=elegido;
     activeSorteoId=elegido.id;
+    cargarLoteriasActivasSorteo(activeSorteo);
     actualizarHeader();
     suscribirSimulacionSorteo(activeSorteoId);
     suscribirManualBingo();
@@ -11812,6 +11897,7 @@
       reiniciarAlertaFormasSinGanadores();
       activeSorteo={id:info.id,...data};
       activeSorteoId=info.id;
+      cargarLoteriasActivasSorteo(activeSorteo);
       actualizarHeader();
       suscribirSimulacionSorteo(activeSorteoId);
       suscribirManualBingo();
