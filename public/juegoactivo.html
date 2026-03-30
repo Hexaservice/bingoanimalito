@@ -4561,6 +4561,7 @@
   <script src="js/serviceWorkerRegistration.js"></script>
   <script src="js/cantosCanonicos.js"></script>
   <script src="js/cantosResultadosClave.js"></script>
+  <script src="js/sorteoDataAdapters.js"></script>
   <script>
   ensureAuth();
   initFechaHora('fecha-hora');
@@ -4577,6 +4578,8 @@
   const sorteoHeaderEl = document.getElementById('sorteo-header');
   const sorteoResumenEl = document.getElementById('sorteo-resumen');
   const sorteoDetallesEl = document.getElementById('sorteo-detalles');
+
+  const { obtenerLoteriasAsignadas, normalizarMiniaturaLoteria, formatearNumeroAnimalVisual, normalizarClaveResultado } = window.SorteoDataAdapters;
 
   initBingoAudioControl({
     containerId: 'audio-control-game',
@@ -7390,13 +7393,6 @@
     complementariosAvisoEl.setAttribute('aria-hidden','true');
   }
 
-  function normalizarMiniaturaLoteria(valor){
-    const texto=(valor??'').toString().trim();
-    if(!texto) return '';
-    if(/^https?:\/\//i.test(texto) || texto.startsWith('img/')) return texto;
-    return `img/loterias/${texto.replace(/^\/+/, '')}`;
-  }
-
   function normalizarTextoHorario(valor){
     const texto=(valor??'').toString().trim().toLowerCase();
     if(!texto) return '';
@@ -7414,15 +7410,6 @@
   function obtenerHoraBloqueDesdeFila(fila, esIntermedia){
     const filaNormalizada=Number.isFinite(Number(fila)) ? Math.max(0, Math.min(14, Number(fila))) : 0;
     return normalizarTextoHorario(formatearHoraFallbackDesde24h(8+filaNormalizada, esIntermedia?30:0));
-  }
-
-  function obtenerLoteriasAsignadas(sorteo){
-    const origen=Array.isArray(sorteo?.loteriasAsignadas)
-      ? sorteo.loteriasAsignadas
-      : (Array.isArray(sorteo?.loteriasActivas)
-          ? sorteo.loteriasActivas
-          : (Array.isArray(sorteo?.loterias) ? sorteo.loterias : []));
-    return origen.map(id=>String(id||'').trim()).filter(Boolean);
   }
 
   async function cargarLoteriasActivasSorteo(sorteo){
@@ -7481,7 +7468,7 @@
   }
 
   function resolverClaveResultadoCompatible(claveOriginal){
-    return window.CantosResultadosClave?.resolverClaveResultadoCompatible(claveOriginal, {
+    return normalizarClaveResultado(claveOriginal, {
       obtenerLoteriaIdPorColumna: (idxColumna)=>{
         const loteria = cantosColumnasLoteria[idxColumna-1];
         return loteria?.id || '';
@@ -7587,7 +7574,7 @@
         const usarIntermedio = habilitacion.intermedia && (!habilitacion.exacta || (habilitacion.exacta && modoIntermedio));
         const arr = usarIntermedio ? (bloque.intermedios||[]) : (bloque.exactos||[]);
         const valor = Number(arr[col-1]);
-        numeroCelda.textContent = bloqueInactivo ? '—' : (Number.isFinite(valor) ? String(valor).padStart(2,'0') : '--');
+        numeroCelda.textContent = bloqueInactivo ? '—' : (Number.isFinite(valor) ? formatearNumeroAnimalVisual(valor).padStart(2,'0') : '--');
         numeroCelda.classList.toggle('modo-intermedio', usarIntermedio);
         numeroCelda.classList.toggle('modo-exacto', !usarIntermedio);
         numeroCelda.classList.toggle('inactiva-horario', bloqueInactivo);
