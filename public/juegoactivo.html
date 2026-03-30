@@ -4549,6 +4549,7 @@
   <script src="js/audioControls.js"></script>
   <script src="js/serviceWorkerRegistration.js"></script>
   <script src="js/cantosCanonicos.js"></script>
+  <script src="js/cantosResultadosClave.js"></script>
   <script>
   ensureAuth();
   initFechaHora('fecha-hora');
@@ -7468,7 +7469,43 @@
     };
   }
 
+  function resolverClaveResultadoCompatible(claveOriginal){
+    return window.CantosResultadosClave?.resolverClaveResultadoCompatible(claveOriginal, {
+      obtenerLoteriaIdPorColumna: (idxColumna)=>{
+        const loteria = cantosColumnasLoteria[idxColumna-1];
+        return loteria?.id || '';
+      }
+    }) || '';
+  }
+
   function construirBloquesDesdePayload(payload){
+    const mapaResultados = (payload?.resultadosPorCelda && typeof payload.resultadosPorCelda === 'object')
+      ? payload.resultadosPorCelda
+      : null;
+    if(mapaResultados){
+      const bloques = Array.from({length:15},(_,fila)=>({
+        horaExacta:formatearHoraFallbackDesde24h(8+fila,0),
+        horaIntermedia:formatearHoraFallbackDesde24h(8+fila,30),
+        exactos:[null,null,null,null],
+        intermedios:[null,null,null,null],
+        loterias:cantosColumnasLoteria.map(item=>item.imagen).filter(Boolean),
+        idx:fila
+      }));
+      Object.entries(mapaResultados).forEach(([clave, valor])=>{
+        if(!valor || typeof valor !== 'object') return;
+        const claveEstable = resolverClaveResultadoCompatible(clave);
+        const descompuesta = window.CantosResultadosClave?.descomponerClaveResultado(claveEstable);
+        if(!descompuesta) return;
+        const fila = descompuesta.fila;
+        const col = cantosColumnasLoteria.findIndex(item=>String(item?.id || '').trim() === descompuesta.loteriaId);
+        if(fila < 0 || fila > 14 || col < 0 || col > 3) return;
+        const exacta = normalizarNumero(valor?.exacta);
+        const intermedia = normalizarNumero(valor?.intermedia);
+        bloques[fila].exactos[col] = exacta !== null ? exacta : null;
+        bloques[fila].intermedios[col] = intermedia !== null ? intermedia : null;
+      });
+      return bloques;
+    }
     const fuente=Array.isArray(payload?.bloques)?payload.bloques:[];
     if(!fuente.length) return [];
     return fuente.slice(0,15).map((bloque,idx)=>{
@@ -11342,6 +11379,7 @@
   function procesarCantos(data){
     const payload=Array.isArray(data)?{numeros:data}:data&&typeof data==='object'?data:{};
     cantosBloquesData = construirBloquesDesdePayload(payload);
+    const tieneResultadosPorCelda = Boolean(payload?.resultadosPorCelda && typeof payload.resultadosPorCelda === 'object');
     const cantosPrevios=Array.isArray(cantosOrdenados)?new Set(cantosOrdenados):new Set();
     const listaNumeros=Array.isArray(payload?.numeros)?payload.numeros:[];
     const detallesLista=Array.isArray(payload?.detalles)?payload.detalles:[];
@@ -11438,7 +11476,7 @@
       cantosRecientesSinAnimacion=true;
     }
     const permitirAnimacionConducto=ventanaEnFoco && !cantosRecientesSinAnimacion;
-    if(!cantosBloquesData.length){
+    if(!cantosBloquesData.length && !tieneResultadosPorCelda){
       // Orden esperado de payload.numeros: por columna (B, I, N, G, O) y dentro de
       // cada columna ascendente por fila (1..15). Ejemplo: 1..15, 16..30, ... 61..75.
       // Fórmula de mapeo fila/columna->índice (0-based): indice = (columna * 15) + fila.
