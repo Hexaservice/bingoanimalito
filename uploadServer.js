@@ -7,6 +7,7 @@ const rateLimit = require('express-rate-limit');
 const { buildRoleClaims, buildUserProfileUpdate } = require('./lib/roleProvisioning');
 const path = require('path');
 const crypto = require('crypto');
+const fs = require('fs/promises');
 const admin = require('firebase-admin');
 const EstadosPagoPremio = require('./public/js/estadoPagoPremio.js');
 const { isSorteoEligibleForAutoPrize } = require('./public/js/sorteoAutoPrizeEligibility.js');
@@ -765,6 +766,86 @@ async function acreditarPremioEventoHandler(req, res) {
 
 app.post('/acreditarPremioEvento', verificarOperadorPrivilegiado, acreditarPremioEventoHandler);
 
+function toPublicImageUrl(req, relativePath) {
+  const normalizedPath = normalizeString(relativePath, 260).replace(/^\/+/, '');
+  if (!normalizedPath) return '';
+  if (/^https?:\/\//i.test(normalizedPath)) return normalizedPath;
+  const baseUrl = process.env.PUBLIC_BASE_URL || `${req.protocol}://${req.get('host')}`;
+  return `${baseUrl.replace(/\/+$/, '')}/${normalizedPath}`;
+}
+
+function normalizeLoteriaImageItem({ name, relativePath, updatedAt }, req) {
+  const normalizedName = normalizeString(name, 180);
+  const normalizedPath = normalizeString(relativePath, 260).replace(/^\/+/, '');
+  if (!normalizedName || !normalizedPath) return null;
+  return {
+    name: normalizedName,
+    path: normalizedPath,
+    url: toPublicImageUrl(req, normalizedPath),
+    updatedAt: updatedAt || null
+  };
+}
+
+async function listLocalLoteriaImages(req) {
+  const loteriasDir = path.join(__dirname, 'public', 'img', 'loterias');
+  const entries = await fs.readdir(loteriasDir, { withFileTypes: true });
+  const files = await Promise.all(entries
+    .filter((entry) => entry.isFile())
+    .map(async (entry) => {
+      const extension = path.extname(entry.name || '').toLowerCase();
+      if (!ALLOWED_FILE_TYPES[extension] || extension === '.pdf') return null;
+      const fullPath = path.join(loteriasDir, entry.name);
+      const stats = await fs.stat(fullPath);
+      return normalizeLoteriaImageItem(
+        {
+          name: entry.name,
+          relativePath: path.posix.join('img/loterias', entry.name),
+          updatedAt: stats.mtime?.toISOString ? stats.mtime.toISOString() : null
+        },
+        req
+      );
+    }));
+
+  return files.filter(Boolean).sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }));
+}
+
+async function listStorageLoteriaImages(req) {
+  const bucket = admin.storage().bucket();
+  const [files] = await bucket.getFiles({ prefix: 'img/loterias/' });
+  const normalizedFiles = files
+    .map((file) => {
+      const fileName = path.posix.basename(file.name || '');
+      if (!fileName || fileName === '.' || fileName === '..') return null;
+      const extension = path.extname(fileName || '').toLowerCase();
+      if (!ALLOWED_FILE_TYPES[extension] || extension === '.pdf') return null;
+      return normalizeLoteriaImageItem(
+        {
+          name: fileName,
+          relativePath: path.posix.join('img/loterias', fileName),
+          updatedAt: file.metadata?.updated || null
+        },
+        req
+      );
+    })
+    .filter(Boolean);
+
+  return normalizedFiles.sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }));
+}
+
+app.get('/admin/loterias/images', verificarToken, async (req, res) => {
+  try {
+    const useStorage = process.env.LOTERIAS_IMAGES_SOURCE === 'storage' || process.env.NODE_ENV === 'production';
+    const images = useStorage
+      ? await listStorageLoteriaImages(req)
+      : await listLocalLoteriaImages(req);
+
+    return res.json({ images, source: useStorage ? 'storage' : 'local' });
+  } catch (error) {
+    console.error('Error listando imágenes de loterías', error);
+    return res.status(500).json({ error: 'No se pudieron listar las imágenes de loterías', message: error.message });
+  }
+});
+
 app.post('/upload', verificarToken, upload.single('file'), async (req, res) => {
   if (!req.file) {
     registrarAuditoria({ email: req.user?.email, result: 'rechazado', reason: 'Archivo requerido' });
@@ -856,5 +937,9 @@ module.exports = {
   extractEventoGanadorIdComponents,
   resolveWinnerIdentity,
   getAcreditacionExecutionMode,
-  acreditarPremioEventoHandler
+  acreditarPremioEventoHandler,
+  normalizeLoteriaImageItem,
+  listLocalLoteriaImages,
+  listStorageLoteriaImages,
+  toPublicImageUrl
 };
