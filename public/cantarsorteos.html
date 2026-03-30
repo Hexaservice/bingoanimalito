@@ -567,6 +567,8 @@
       flex-direction: column;
       align-items: center;
       gap: 8px;
+      overflow-x: auto;
+      overflow-y: visible;
     }
     #panel-ganadores-formas {
       display: grid;
@@ -646,6 +648,9 @@
       background: linear-gradient(145deg, rgba(255,255,255,0.85), rgba(200,255,200,0.9));
       box-shadow: 0 0 10px rgba(0,0,0,0.3);
       transition: filter 0.3s ease, opacity 0.3s ease;
+      overflow-x: auto;
+      overflow-y: auto;
+      max-height: 72vh;
     }
     #tabla-cantos-container.disabled {
       filter: grayscale(0.9);
@@ -656,21 +661,32 @@
       opacity: 1;
     }
     #tabla-cantos {
-      width: 100%;
+      width: max-content;
+      min-width: 100%;
       border-collapse: separate;
       border-spacing: 6px;
       text-align: center;
       font-family: 'Bangers', cursive;
-      table-layout: fixed;
+      table-layout: auto;
     }
     #tabla-cantos th,
     #tabla-cantos td {
-      width: 20%;
+      min-width: 64px;
     }
     #tabla-cantos thead th {
       font-size: 1.4rem;
       color: #0a5c0a;
       text-shadow: 0 0 6px #fff;
+      position: sticky;
+      top: 0;
+      z-index: 8;
+      background: rgba(245, 255, 245, 0.96);
+    }
+    #tabla-cantos thead th:first-child {
+      color: #0b4dda;
+      cursor: pointer;
+      left: 0;
+      z-index: 10;
     }
     .canto-cell {
       border-radius: 10px;
@@ -742,6 +758,9 @@
       padding-left: 10px;
       background: linear-gradient(160deg, rgba(240,248,255,0.95), rgba(227,240,255,0.92));
       border: 2px solid rgba(11,77,218,0.25);
+      position: sticky;
+      left: 0;
+      z-index: 7;
     }
     .resultado-hora-cell .hora-exacta {
       display: block;
@@ -768,10 +787,13 @@
     .resultado-cell.inactiva-horario {
       color: #7a7a7a;
       pointer-events: none;
+      opacity: 0.3;
     }
     .resultado-cell .resultado-vacio {
-      color: #a0a0a0;
+      color: transparent;
       font-size: 0.9rem;
+      display: inline-block;
+      min-height: 1em;
     }
     .resultado-cell .resultado-item {
       display: flex;
@@ -2054,13 +2076,9 @@
   const loteriasSorteo = [];
   let loteriasSorteoActualCache = Object.freeze([]);
   let loteriasSorteoActualCacheSorteoId = '';
-  const columnasSemanticas = [
-    { colIndex: 0, tipo: 'horario', loteria: null },
-    { colIndex: 1, tipo: 'loteria', loteria: null },
-    { colIndex: 2, tipo: 'loteria', loteria: null },
-    { colIndex: 3, tipo: 'loteria', loteria: null },
-    { colIndex: 4, tipo: 'loteria', loteria: null }
-  ];
+  const columnasSemanticas = [{ colIndex: 0, tipo: 'horario', loteria: null }];
+  const modoFilaResultados = new Map();
+  let modoGlobalResultados = 'exacta';
   const BLOQUES_RESULTADO = [
     { id: 'exacta', label: 'Hora Exacta', className: 'exacta', color: '#0b4dda' },
     { id: 'intermedia', label: 'Hora intermedia', className: 'intermedia', color: '#ff7a00' }
@@ -3160,6 +3178,13 @@
       const th = document.createElement('th');
       if(tipo === 'horario'){
         th.textContent = 'HORA';
+        th.addEventListener('click', ()=>{
+          modoGlobalResultados = modoGlobalResultados === 'exacta' ? 'intermedia' : 'exacta';
+          for(let fila = 0; fila < 15; fila++){
+            modoFilaResultados.set(fila, modoGlobalResultados);
+          }
+          refrescarResultadosEnTabla();
+        });
       } else if(loteria){
         const wrap = document.createElement('div');
         wrap.style.display = 'flex';
@@ -3206,18 +3231,16 @@
         td.dataset.loteriaId = loteria?.id || '';
         if(tipo === 'horario'){
           td.className = 'resultado-hora-cell';
-          const exacta = document.createElement('span');
-          exacta.className = 'hora-exacta';
-          exacta.textContent = formatearHoraDesdeNumeroFila(fila, false);
-          const intermedia = document.createElement('span');
-          intermedia.className = 'hora-intermedia';
-          intermedia.textContent = formatearHoraDesdeNumeroFila(fila, true);
-          td.append(exacta, intermedia);
+          td.addEventListener('click', ()=>{
+            const actual = modoFilaResultados.get(fila) || modoGlobalResultados;
+            modoFilaResultados.set(fila, actual === 'exacta' ? 'intermedia' : 'exacta');
+            refrescarResultadosEnTabla();
+          });
         } else {
           td.className = 'canto-cell resultado-cell';
           if(!loteria){
             td.classList.add('inactiva');
-            td.innerHTML = '<span class="resultado-vacio">—</span>';
+            td.innerHTML = '<span class="resultado-vacio" aria-hidden="true"></span>';
           } else {
             const exactaHabilitada = estaBloqueHabilitado(loteria, fila, 'exacta');
             const intermediaHabilitada = estaBloqueHabilitado(loteria, fila, 'intermedia');
@@ -3225,7 +3248,7 @@
             td.dataset.habilitaIntermedia = intermediaHabilitada ? '1' : '0';
             if(!exactaHabilitada && !intermediaHabilitada){
               td.classList.add('inactiva', 'inactiva-horario');
-              td.innerHTML = '<span class="resultado-vacio">—</span>';
+              td.innerHTML = '<span class="resultado-vacio" aria-hidden="true"></span>';
             } else {
               td.addEventListener('click', ()=>manejarCantoClick({ clave, loteria, fila }));
               td.innerHTML = '<span class="resultado-vacio" aria-hidden="true"></span>';
@@ -3356,22 +3379,35 @@
   }
 
   function refrescarResultadosEnTabla(){
+    for(let fila = 0; fila < 15; fila++){
+      const modoFila = modoFilaResultados.get(fila) || modoGlobalResultados;
+      const horaCell = tablaCantosContainer?.querySelector(`.resultado-hora-cell[data-fila="${fila}"]`);
+      if(!horaCell) continue;
+      const exactaTxt = formatearHoraDesdeNumeroFila(fila, false);
+      const interTxt = formatearHoraDesdeNumeroFila(fila, true);
+      horaCell.innerHTML = modoFila === 'intermedia'
+        ? `<span class="hora-intermedia">${interTxt}</span>`
+        : `<span class="hora-exacta">${exactaTxt}</span>`;
+    }
     cantoCeldas.forEach((celda, clave)=>{
       const resultados = resultadosPorCelda.get(clave) || {};
+      const fila = Number(celda.dataset?.fila);
+      const modoFila = modoFilaResultados.get(fila) || modoGlobalResultados;
       const exacta = celda.dataset?.habilitaExacta === '0' ? null : resultados.exacta;
       const intermedia = celda.dataset?.habilitaIntermedia === '0' ? null : resultados.intermedia;
       if(!exacta && !intermedia){
         if(!celda.classList.contains('inactiva')) celda.innerHTML = '<span class="resultado-vacio" aria-hidden="true"></span>';
         return;
       }
-      const html = [];
-      if(exacta){
-        html.push(`<div class="resultado-item exacta"><span class="resultado-numero">${formatearNumeroResultado(exacta)}</span><span class="resultado-nombre">${obtenerNombreAnimal(exacta)}</span></div>`);
+      const preferido = modoFila === 'intermedia' ? intermedia : exacta;
+      const respaldo = modoFila === 'intermedia' ? exacta : intermedia;
+      const valor = preferido || respaldo;
+      if(!valor){
+        celda.innerHTML = '<span class="resultado-vacio" aria-hidden="true"></span>';
+        return;
       }
-      if(intermedia){
-        html.push(`<div class="resultado-item intermedia"><span class="resultado-numero">${formatearNumeroResultado(intermedia)}</span><span class="resultado-nombre">${obtenerNombreAnimal(intermedia)}</span></div>`);
-      }
-      celda.innerHTML = html.join('');
+      const clase = (modoFila === 'intermedia' && intermedia) || (!exacta && intermedia) ? 'intermedia' : 'exacta';
+      celda.innerHTML = `<div class="resultado-item ${clase}"><span class="resultado-numero">${formatearNumeroResultado(valor)}</span><span class="resultado-nombre">${obtenerNombreAnimal(valor)}</span></div>`;
     });
   }
 
@@ -5857,10 +5893,12 @@
   function aplicarLoteriasEnColumnas(loterias = []){
     loteriasSorteo.length = 0;
     loterias.forEach(item=>loteriasSorteo.push(item));
-    columnasSemanticas.forEach(item=>{ item.loteria = null; });
-    for(let idx = 1; idx <= 4; idx++){
-      const col = columnasSemanticas[idx];
-      if(col) col.loteria = loterias[idx - 1] || null;
+    columnasSemanticas.length = 1;
+    loterias.forEach((loteria, idx)=>{
+      columnasSemanticas.push({ colIndex: idx + 1, tipo: 'loteria', loteria });
+    });
+    for(let idx = loterias.length + 1; idx <= 4; idx++){
+      columnasSemanticas.push({ colIndex: idx, tipo: 'loteria', loteria: null });
     }
   }
 
@@ -5917,7 +5955,7 @@
       return;
     }
 
-    const docs = await Promise.all(idsUnicos.slice(0,4).map(id=>db.collection('loterias').doc(id).get().catch(()=>null)));
+    const docs = await Promise.all(idsUnicos.map(id=>db.collection('loterias').doc(id).get().catch(()=>null)));
     const loteriasCargadas = [];
     docs.forEach(doc=>{
       if(!doc || !doc.exists) return;
