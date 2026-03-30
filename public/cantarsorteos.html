@@ -765,6 +765,11 @@
       border-color: rgba(120,120,120,0.35);
       cursor: default;
     }
+    .resultado-cell.inactiva-horario {
+      opacity: 0.55;
+      filter: saturate(0.6);
+      pointer-events: none;
+    }
     .resultado-cell .resultado-vacio {
       color: #a0a0a0;
       font-size: 0.9rem;
@@ -3172,8 +3177,17 @@
             td.classList.add('inactiva');
             td.innerHTML = '<span class="resultado-vacio">—</span>';
           } else {
-            td.addEventListener('click', ()=>manejarCantoClick({ clave, loteria, fila }));
-            td.innerHTML = '<span class="resultado-vacio" aria-hidden="true"></span>';
+            const exactaHabilitada = estaBloqueHabilitado(loteria, fila, 'exacta');
+            const intermediaHabilitada = estaBloqueHabilitado(loteria, fila, 'intermedia');
+            td.dataset.habilitaExacta = exactaHabilitada ? '1' : '0';
+            td.dataset.habilitaIntermedia = intermediaHabilitada ? '1' : '0';
+            if(!exactaHabilitada && !intermediaHabilitada){
+              td.classList.add('inactiva', 'inactiva-horario');
+              td.innerHTML = '<span class="resultado-vacio">—</span>';
+            } else {
+              td.addEventListener('click', ()=>manejarCantoClick({ clave, loteria, fila }));
+              td.innerHTML = '<span class="resultado-vacio" aria-hidden="true"></span>';
+            }
             cantoCeldas.set(clave, td);
           }
         }
@@ -3222,6 +3236,40 @@
     const baseHora = 8 + fila;
     const fecha = new Date(2000,0,1,baseHora, intermedia ? 30 : 0, 0, 0);
     return fecha.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }).toLowerCase();
+  }
+
+  function normalizarTextoHorario(hora){
+    const valor = (hora ?? '').toString().trim().toLowerCase();
+    if(!valor) return '';
+    const sinPuntos = valor.replace(/\./g, '');
+    const match = /^(\d{1,2}):(\d{2})(?:\s*([ap]m))?$/.exec(sinPuntos);
+    if(!match) return sinPuntos.replace(/\s+/g, ' ');
+    let horas = parseInt(match[1], 10);
+    const minutos = match[2];
+    const periodo = match[3];
+    if(periodo === 'pm' && horas < 12) horas += 12;
+    if(periodo === 'am' && horas === 12) horas = 0;
+    if(!periodo && horas >= 0 && horas <= 23){
+      return `${String(horas).padStart(2, '0')}:${minutos}`;
+    }
+    return `${String(horas).padStart(2, '0')}:${minutos}`;
+  }
+
+  function estaBloqueHabilitado(loteria, fila, tipoBloque){
+    const filaNormalizada = Number.isFinite(Number(fila)) ? Math.max(0, Number(fila)) : 0;
+    const esIntermedia = (tipoBloque || '').toString().toLowerCase() === 'intermedia';
+    const horaObjetivo = normalizarTextoHorario(formatearHoraDesdeNumeroFila(filaNormalizada, esIntermedia));
+    const bloques = Array.isArray(loteria?.bloquesHorarios) ? loteria.bloquesHorarios : [];
+    const bloquesNormalizados = new Set(bloques.map(normalizarTextoHorario).filter(Boolean));
+    if(bloquesNormalizados.size){
+      return bloquesNormalizados.has(horaObjetivo);
+    }
+    if(esIntermedia){
+      const permiteIntermedia = loteria?.mostrarBloquesIntermedios ?? loteria?.horaIntermedia ?? loteria?.bloqueIntermedia ?? loteria?.intermedia ?? true;
+      return Boolean(permiteIntermedia);
+    }
+    const permiteExacta = loteria?.horaExacta ?? loteria?.bloqueExacta ?? loteria?.exacta ?? true;
+    return Boolean(permiteExacta);
   }
 
   async function manejarCantoClick(contexto){
@@ -3281,8 +3329,8 @@
   function refrescarResultadosEnTabla(){
     cantoCeldas.forEach((celda, clave)=>{
       const resultados = resultadosPorCelda.get(clave) || {};
-      const exacta = resultados.exacta;
-      const intermedia = resultados.intermedia;
+      const exacta = celda.dataset?.habilitaExacta === '0' ? null : resultados.exacta;
+      const intermedia = celda.dataset?.habilitaIntermedia === '0' ? null : resultados.intermedia;
       if(!exacta && !intermedia){
         if(!celda.classList.contains('inactiva')) celda.innerHTML = '<span class="resultado-vacio" aria-hidden="true"></span>';
         return;
@@ -3298,18 +3346,18 @@
     });
   }
 
-  function obtenerBloquesHabilitadosLoteria(loteria){
-    const fuente = loteria || {};
-    const exacta = fuente.horaExacta ?? fuente.bloqueExacta ?? fuente.exacta ?? true;
-    const intermedia = fuente.horaIntermedia ?? fuente.bloqueIntermedia ?? fuente.intermedia ?? true;
-    return { exacta: Boolean(exacta), intermedia: Boolean(intermedia) };
+  function obtenerBloquesHabilitadosLoteria(loteria, fila){
+    return {
+      exacta: estaBloqueHabilitado(loteria, fila, 'exacta'),
+      intermedia: estaBloqueHabilitado(loteria, fila, 'intermedia')
+    };
   }
 
   function abrirModalSeleccionResultado(clave, loteria, filaReal){
     if(!resultadoSelectModalEl || !resultadoSelectGridEl) return;
     const filaNormalizada = Number.isFinite(Number(filaReal)) ? Math.max(0, Number(filaReal)) : 0;
     modalResultadoContexto = { clave, loteria, bloque: null, fila: filaNormalizada };
-    const habilitacion = obtenerBloquesHabilitadosLoteria(loteria);
+    const habilitacion = obtenerBloquesHabilitadosLoteria(loteria, filaNormalizada);
     resultadoBloqueExactaBtn.disabled = !habilitacion.exacta;
     resultadoBloqueIntermediaBtn.disabled = !habilitacion.intermedia;
     resultadoBloqueExactaBtn.classList.remove('activo');
@@ -5729,7 +5777,9 @@
         imagen: data.imagen || '',
         jerarquia: Number(data.jerarquia ?? data.orden ?? 999),
         horaExacta: data.horaExacta ?? data.bloqueExacta ?? true,
-        horaIntermedia: data.horaIntermedia ?? data.bloqueIntermedia ?? true
+        horaIntermedia: data.horaIntermedia ?? data.bloqueIntermedia ?? true,
+        bloquesHorarios: Array.isArray(data.bloquesHorarios) ? data.bloquesHorarios : [],
+        mostrarBloquesIntermedios: Boolean(data.mostrarBloquesIntermedios)
       });
     });
     loteriasSorteo.sort((a,b)=>a.jerarquia-b.jerarquia);
