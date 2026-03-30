@@ -824,7 +824,23 @@
       gap: 8px;
     }
     .modal-resultado__titulo { margin: 0; text-align: center; color: #1f1f1f; }
-    .modal-resultado__loteria { text-align: center; font-size: 0.9rem; color: #5f5f5f; }
+    .modal-resultado__loteria {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      text-align: center;
+      font-size: 0.95rem;
+      color: #5f5f5f;
+      font-weight: 600;
+    }
+    .modal-resultado__loteria img {
+      width: 28px;
+      height: 28px;
+      border-radius: 7px;
+      object-fit: cover;
+      flex: 0 0 auto;
+    }
     .modal-resultado__bloques { display:flex; justify-content:center; gap:10px; }
     .modal-resultado__bloque-btn { border:2px solid #ccc; background:#f8f8f8; border-radius:10px; padding:7px 12px; font-weight:700; cursor:pointer; }
     .modal-resultado__bloque-btn.exacta { color:#0b4dda; border-color:#0b4dda; }
@@ -833,9 +849,10 @@
     .modal-resultado__bloque-btn:disabled { opacity:0.45; cursor:not-allowed; }
     .modal-resultado__grid {
       display: grid;
-      grid-template-columns: repeat(10, minmax(56px, 1fr));
+      grid-template-columns: repeat(6, minmax(46px, 1fr));
       gap: 6px;
       overflow-y: auto;
+      overflow-x: hidden;
       padding: 4px;
       max-height: 62vh;
     }
@@ -851,8 +868,28 @@
       cursor:pointer;
       font-weight:700;
     }
-    .animal-option-resultado small { font-size:0.56rem; color:#555; font-weight:600; }
+    .animal-option-resultado span { font-size: 1.03rem; line-height: 1.1; }
+    .animal-option-resultado small { font-size:0.72rem; color:#555; font-weight:600; line-height: 1.1; }
     .animal-option-resultado:disabled { opacity:0.4; cursor:not-allowed; }
+    @media (max-width: 480px) {
+      .modal-resultado__box {
+        width: min(760px, 98vw);
+        padding: 10px;
+      }
+      .modal-resultado__grid {
+        grid-template-columns: repeat(6, minmax(42px, 1fr));
+        gap: 4px;
+        padding: 2px;
+      }
+      .animal-option-resultado {
+        min-height: 54px;
+        border-radius: 8px;
+      }
+      .animal-option-resultado span { font-size: 0.96rem; }
+      .animal-option-resultado small { font-size: 0.67rem; }
+      .modal-resultado__bloques { gap: 6px; }
+      .modal-resultado__bloque-btn { padding: 6px 8px; font-size: 0.84rem; }
+    }
     .modal {
       display: none;
       position: fixed;
@@ -3378,7 +3415,20 @@
       resultadoBloqueIntermediaBtn.classList.toggle('activo', bloqueUnico === 'intermedia');
     }
     if(resultadoSelectLoteriaEl){
-      resultadoSelectLoteriaEl.textContent = (loteria?.nombre || 'Lotería') + ' · ' + clave;
+      const nombreLoteria = (loteria?.nombre || 'Lotería').toString();
+      const miniatura = (loteria?.imagen || '').toString().trim();
+      resultadoSelectLoteriaEl.innerHTML = '';
+      if(miniatura){
+        const img = document.createElement('img');
+        img.src = miniatura;
+        img.alt = nombreLoteria;
+        const nombreEl = document.createElement('span');
+        nombreEl.textContent = nombreLoteria;
+        resultadoSelectLoteriaEl.appendChild(img);
+        resultadoSelectLoteriaEl.appendChild(nombreEl);
+      } else {
+        resultadoSelectLoteriaEl.textContent = nombreLoteria;
+      }
     }
     renderizarGridModalResultados();
     resultadoSelectModalEl.classList.add('activo');
@@ -3432,7 +3482,9 @@
     const clave = modalResultadoContexto.clave;
     const fila = Number(modalResultadoContexto?.fila);
     const horaTexto = formatearHoraDesdeNumeroFila(Math.max(0, Number.isFinite(fila) ? fila : 0), bloque === 'intermedia');
-    const mensaje = `¿Seguro que desea elegir este Numero ${formatearNumeroResultado(numero)} para este bloque horario ${horaTexto}?`;
+    const numeroFormateado = formatearNumeroResultado(numero);
+    const nombreAnimal = obtenerNombreAnimal(numero);
+    const mensaje = `¿Seguro que desea elegir este Número ${numeroFormateado} (${nombreAnimal}) para este bloque horario ${horaTexto}?`;
     const confirmar = await preguntarAccionEstado(mensaje);
     if(!confirmar) return;
     await guardarResultadoPorBloque(clave, bloque, numero);
