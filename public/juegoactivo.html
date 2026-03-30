@@ -642,6 +642,8 @@
           width: 100%;
           min-width: 0;
           position: relative;
+          overflow-x: auto;
+          overflow-y: visible;
       }
       #cantos-panel #cantos-grid,
       #cantos-panel #cantos-conducto-grid {
@@ -674,12 +676,13 @@
       }
       #cantos-grid {
           display: grid;
-          grid-template-columns: repeat(5, var(--canto-cell-size));
+          grid-template-columns: repeat(var(--cantos-columnas, 5), var(--canto-cell-size));
           justify-content: flex-start;
           gap: 2px;
           font-family: 'Poppins', sans-serif;
           margin: 0;
-          width: min(100%, calc(var(--canto-cell-size) * 5));
+          width: max-content;
+          min-width: 100%;
           padding: 0;
           box-sizing: border-box;
       }
@@ -761,6 +764,7 @@
       .canto-cell.encabezado-hora {
           cursor: pointer;
           position: relative;
+          color: #0b4cc2;
       }
       .canto-cell.encabezado-hora::after {
           content: attr(data-tooltip);
@@ -836,10 +840,20 @@
           color: #7a7a7a;
           cursor: default;
           pointer-events: none;
+          opacity: 0.3;
       }
       .canto-cell.resultado-numero.inactiva-horario.modo-exacto,
       .canto-cell.resultado-numero.inactiva-horario.modo-intermedio {
           color: #7a7a7a;
+      }
+      .canto-cell.columna-hora-sticky {
+          position: sticky;
+          left: 0;
+          z-index: 5;
+          box-shadow: 3px 0 6px rgba(0,0,0,0.12);
+      }
+      .canto-cell.encabezado.columna-hora-sticky {
+          z-index: 6;
       }
 
       #cantos-conducto-grid {
@@ -4872,6 +4886,7 @@
   let cantosResultadoMap = new Map();
   let cantosBloquesData = [];
   const cantosModoFilaMap = new Map();
+  let cantosModoGlobal = 'exacto';
   let cantosColumnasLoteria = [];
   let formasActivas = [];
   let cartonesSorteo = new Map();
@@ -4889,6 +4904,10 @@
   let whatsappLinkCargado = false;
   let whatsappLinkPromesa = null;
   let liveStreamLinkValor = '';
+
+  function obtenerTotalColumnasResultado(){
+    return Math.max(cantosColumnasLoteria.length, 4);
+  }
   let liveStreamLinkCargado = false;
   let liveStreamLinkPromesa = null;
   let liveStreamVisible = false;
@@ -7420,7 +7439,7 @@
       return;
     }
     try{
-      const docs=await Promise.all(ids.slice(0,4).map(id=>db.collection('loterias').doc(id).get().catch(()=>null)));
+      const docs=await Promise.all(ids.map(id=>db.collection('loterias').doc(id).get().catch(()=>null)));
       const loterias=docs
         .filter(doc=>doc && doc.exists)
         .map(doc=>{
@@ -7437,7 +7456,7 @@
           };
         })
         .sort((a,b)=>a.jerarquia-b.jerarquia);
-      cantosColumnasLoteria = loterias.slice(0,4);
+      cantosColumnasLoteria = loterias;
       refrescarVistaBloquesCantos();
     }catch(err){
       console.error('No se pudieron cargar loterías activas del sorteo', err);
@@ -7477,6 +7496,7 @@
   }
 
   function construirBloquesDesdePayload(payload){
+    const totalColumnas = obtenerTotalColumnasResultado();
     const mapaResultados = (payload?.resultadosPorCelda && typeof payload.resultadosPorCelda === 'object')
       ? payload.resultadosPorCelda
       : null;
@@ -7484,8 +7504,8 @@
       const bloques = Array.from({length:15},(_,fila)=>({
         horaExacta:formatearHoraFallbackDesde24h(8+fila,0),
         horaIntermedia:formatearHoraFallbackDesde24h(8+fila,30),
-        exactos:[null,null,null,null],
-        intermedios:[null,null,null,null],
+        exactos:Array(totalColumnas).fill(null),
+        intermedios:Array(totalColumnas).fill(null),
         loterias:cantosColumnasLoteria.map(item=>item.imagen).filter(Boolean),
         idx:fila
       }));
@@ -7496,7 +7516,7 @@
         if(!descompuesta) return;
         const fila = descompuesta.fila;
         const col = cantosColumnasLoteria.findIndex(item=>String(item?.id || '').trim() === descompuesta.loteriaId);
-        if(fila < 0 || fila > 14 || col < 0 || col > 3) return;
+        if(fila < 0 || fila > 14 || col < 0 || col >= totalColumnas) return;
         const exacta = normalizarNumero(valor?.exacta);
         const intermedia = normalizarNumero(valor?.intermedia);
         bloques[fila].exactos[col] = exacta !== null ? exacta : null;
@@ -7519,9 +7539,9 @@
       return {
         horaExacta:(bloque?.horaExacta??bloque?.hora??'').toString().trim(),
         horaIntermedia:(bloque?.horaIntermedia??bloque?.horaBloqueIntermedio??'').toString().trim(),
-        exactos:exactosOrigen.slice(0,4).map(v=>Number(v)).filter(Number.isFinite),
-        intermedios:intermediosOrigen.slice(0,4).map(v=>Number(v)).filter(Number.isFinite),
-        loterias:loterias.slice(0,4).map(normalizarMiniaturaLoteria).filter(Boolean),
+        exactos:exactosOrigen.slice(0,totalColumnas).map(v=>Number(v)).filter(Number.isFinite),
+        intermedios:intermediosOrigen.slice(0,totalColumnas).map(v=>Number(v)).filter(Number.isFinite),
+        loterias:loterias.slice(0,totalColumnas).map(normalizarMiniaturaLoteria).filter(Boolean),
         idx
       };
     });
@@ -7540,7 +7560,9 @@
   }
 
   function refrescarVistaBloquesCantos(){
-    for(let col=1; col<5; col++){
+    const totalColumnas = obtenerTotalColumnasResultado();
+    cantosGridEl.style.setProperty('--cantos-columnas', String(totalColumnas + 1));
+    for(let col=1; col<=totalColumnas; col++){
       const encabezadoLoteria = document.querySelector(`.canto-cell.encabezado-loteria[data-col="${col}"] img`);
       if(!encabezadoLoteria) continue;
       const loteriaColumna=cantosColumnasLoteria[col-1] || null;
@@ -7556,7 +7578,7 @@
       }
     }
     for(let fila=0; fila<15; fila++){
-      const modoIntermedio = cantosModoFilaMap.get(fila) === 'intermedio';
+      const modoIntermedio = (cantosModoFilaMap.get(fila) || cantosModoGlobal) === 'intermedio';
       const bloque = cantosBloquesData[fila] || {};
       const horaCelda = document.querySelector(`.canto-cell.hora-celda[data-fila="${fila}"]`);
       const horaValor = modoIntermedio ? (bloque.horaIntermedia || bloque.horaExacta) : (bloque.horaExacta || bloque.horaIntermedia);
@@ -7566,7 +7588,7 @@
         horaCelda.classList.toggle('modo-intermedio', modoIntermedio);
         horaCelda.classList.toggle('modo-exacto', !modoIntermedio);
       }
-      for(let col=1; col<5; col++){
+      for(let col=1; col<=totalColumnas; col++){
         const numeroCelda = document.querySelector(`.canto-cell.resultado-numero[data-fila="${fila}"][data-col="${col}"]`);
         if(!numeroCelda) continue;
         const habilitacion = obtenerEstadoBloquesPorColumna(fila, col);
@@ -7574,7 +7596,7 @@
         const usarIntermedio = habilitacion.intermedia && (!habilitacion.exacta || (habilitacion.exacta && modoIntermedio));
         const arr = usarIntermedio ? (bloque.intermedios||[]) : (bloque.exactos||[]);
         const valor = Number(arr[col-1]);
-        numeroCelda.textContent = bloqueInactivo ? '—' : (Number.isFinite(valor) ? formatearNumeroAnimalVisual(valor).padStart(2,'0') : '--');
+        numeroCelda.textContent = bloqueInactivo ? '' : (Number.isFinite(valor) ? formatearNumeroAnimalVisual(valor).padStart(2,'0') : '');
         numeroCelda.classList.toggle('modo-intermedio', usarIntermedio);
         numeroCelda.classList.toggle('modo-exacto', !usarIntermedio);
         numeroCelda.classList.toggle('inactiva-horario', bloqueInactivo);
@@ -7585,15 +7607,22 @@
   function crearGridCantos(){
     cantosGridEl.innerHTML='';
     cantoCellsMap.clear();
-    const encabezados=['H','I','N','G','O'];
+    const totalColumnas = obtenerTotalColumnasResultado();
+    cantosGridEl.style.setProperty('--cantos-columnas', String(totalColumnas + 1));
+    const encabezados=['HORA', ...Array.from({ length: totalColumnas }, (_, idx)=>`L${idx+1}`)];
     encabezados.forEach((letra,idx)=>{
       const celda=document.createElement('div');
       celda.textContent=letra;
       celda.className='canto-cell encabezado';
       if(idx===0){
-        celda.classList.add('encabezado-hora');
-        celda.dataset.tooltip='HORA';
-        celda.addEventListener('click',()=>mostrarTooltipHora(celda));
+        celda.classList.add('encabezado-hora','columna-hora-sticky');
+        celda.addEventListener('click',()=>{
+          cantosModoGlobal = cantosModoGlobal === 'exacto' ? 'intermedio' : 'exacto';
+          for(let fila=0; fila<15; fila++){
+            cantosModoFilaMap.set(fila, cantosModoGlobal);
+          }
+          refrescarVistaBloquesCantos();
+        });
       }else{
         celda.classList.add('encabezado-loteria');
         celda.dataset.col=String(idx);
@@ -7613,7 +7642,7 @@
       cantosGridEl.appendChild(celda);
     });
     for(let fila=0;fila<15;fila++){
-      for(let col=0;col<5;col++){
+      for(let col=0;col<=totalColumnas;col++){
         const numero=fila+1+col*15;
         const etiquetaBase=generarEtiquetaDesdeNumero(numero);
         const celda=document.createElement('div');
@@ -7625,7 +7654,7 @@
         celda.setAttribute('aria-label', etiquetaBase);
         celda.tabIndex=-1;
         if(col===0){
-          celda.className='canto-cell hora-celda modo-exacto';
+          celda.className='canto-cell hora-celda modo-exacto columna-hora-sticky';
           celda.addEventListener('click',()=>{
             const actual=cantosModoFilaMap.get(fila)==='intermedio'?'exacto':'intermedio';
             cantosModoFilaMap.set(fila, actual);
