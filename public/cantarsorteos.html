@@ -370,12 +370,14 @@
     #resumen-sorteo div { display: flex; justify-content: center; gap: 12px; align-items: center; flex-wrap: wrap; font-size: 0.95rem; }
     #tipo-sorteo span { white-space: nowrap; text-transform: uppercase; }
     #acciones-sorteo {
-      margin-top: 14px;
+      margin: 14px 12px 0;
+      width: calc(100% - 24px);
       display: flex;
       justify-content: center;
       align-items: flex-end;
       gap: 12px;
       flex-wrap: wrap;
+      box-sizing: border-box;
     }
     #modo-toggle-container {
       display: inline-flex;
@@ -645,7 +647,7 @@
       width: 100%;
       border-radius: 12px;
       padding: 10px;
-      background: linear-gradient(145deg, rgba(255,255,255,0.85), rgba(200,255,200,0.9));
+      background: transparent;
       box-shadow: 0 0 10px rgba(0,0,0,0.3);
       transition: filter 0.3s ease, opacity 0.3s ease;
       overflow-x: auto;
@@ -753,26 +755,39 @@
       font-weight: 700;
       color: #0b4dda;
       line-height: 1.1;
-      text-align: left;
-      padding-left: 10px;
+      text-align: center;
+      padding-left: 0;
       background: linear-gradient(160deg, rgba(240,248,255,0.95), rgba(227,240,255,0.92));
       border: 2px solid rgba(11,77,218,0.25);
       position: sticky;
       left: 0;
       z-index: 7;
     }
-    .resultado-hora-cell .hora-exacta {
-      display: block;
-      color: #0b4dda;
+    .resultado-hora-cell .hora-exacta,
+    .resultado-hora-cell .hora-intermedia {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 1px;
       font-weight: 800;
-      font-size: 0.92rem;
+    }
+    .resultado-hora-cell .hora-exacta {
+      color: #0b4dda;
+      font-size: 0.9rem;
     }
     .resultado-hora-cell .hora-intermedia {
-      display: block;
       color: #ff7a00;
-      font-weight: 800;
-      font-size: 0.88rem;
+      font-size: 0.86rem;
       margin-top: 4px;
+    }
+    .resultado-hora-cell .hora-base {
+      line-height: 1;
+    }
+    .resultado-hora-cell .hora-sufijo {
+      line-height: 1;
+      font-size: 0.75em;
+      letter-spacing: 0.6px;
     }
     .resultado-cell {
       min-height: 56px;
@@ -3363,13 +3378,26 @@
     return mapa[key] || `Animal ${formatearNumeroResultado(numero)}`;
   }
 
+  function descomponerHoraParaBloque(textoHora){
+    const limpio = (textoHora || '').toString().trim();
+    if(!limpio) return { base: '--:--', sufijo: '' };
+    const [base, sufijo=''] = limpio.split(/\s+/);
+    return { base: base || '--:--', sufijo: (sufijo || '').toUpperCase() };
+  }
+
+  function construirHtmlHoraBloque(textoHora, clase){
+    const { base, sufijo } = descomponerHoraParaBloque(textoHora);
+    const sufijoHtml = sufijo ? `<span class="hora-sufijo">${sufijo}</span>` : '';
+    return `<span class="${clase}"><span class="hora-base">${base}</span>${sufijoHtml}</span>`;
+  }
+
   function refrescarResultadosEnTabla(){
     for(let fila = 0; fila < 15; fila++){
       const horaCell = tablaCantosContainer?.querySelector(`.resultado-hora-cell[data-fila="${fila}"]`);
       if(!horaCell) continue;
       const exactaTxt = formatearHoraDesdeNumeroFila(fila, false);
       const interTxt = formatearHoraDesdeNumeroFila(fila, true);
-      horaCell.innerHTML = `<span class="hora-exacta">${exactaTxt}</span><span class="hora-intermedia">${interTxt}</span>`;
+      horaCell.innerHTML = `${construirHtmlHoraBloque(exactaTxt, 'hora-exacta')}${construirHtmlHoraBloque(interTxt, 'hora-intermedia')}`;
     }
     cantoCeldas.forEach((celda, clave)=>{
       const resultados = resultadosPorCelda.get(clave) || {};
