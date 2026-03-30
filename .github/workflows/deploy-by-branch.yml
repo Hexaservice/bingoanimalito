@@ -31,6 +31,17 @@ jobs:
       - uses: actions/checkout@v4
         if: env.HAS_FIREBASE_SECRETS == 'true'
 
+      - name: Detectar cambios en imágenes de loterías
+        id: loterias-images
+        if: env.HAS_FIREBASE_SECRETS == 'true'
+        uses: tj-actions/changed-files@v46
+        with:
+          files: public/img/loterias/**
+
+      - name: Regenerar manifest de loterías
+        if: env.HAS_FIREBASE_SECRETS == 'true' && steps.loterias-images.outputs.any_changed == 'true'
+        run: npm run generate:loterias-manifest
+
       - name: Generar firebase-config.js
         if: env.HAS_FIREBASE_SECRETS == 'true'
         run: |

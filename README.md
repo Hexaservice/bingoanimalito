@@ -130,3 +130,33 @@ node scripts/assignRoleClaims.js \
 ```
 
 Ese flujo deja en Authentication los claims `{ role: 'Superadmin', roles: ['Superadmin'], admin: true }` y en Firestore actualiza `users/{email}` con al menos `email`, `role`, `roles`, `admin` y `uid`.
+
+## Catálogo oficial de imágenes de loterías
+
+La fuente oficial de imágenes permitidas para loterías está en:
+
+- `public/img/loterias/manifest.json`
+
+Cada elemento del manifiesto contiene:
+
+- `name`: nombre del archivo.
+- `path`: ruta pública relativa (por ejemplo `img/loterias/lotto-activo.png`).
+- `updatedAt` (opcional): fecha ISO de última actualización.
+
+### Flujo operativo (alta/baja de archivos)
+
+1. **Subir o eliminar el archivo** en `public/img/loterias/` mediante **Pull Request en GitHub**.
+2. Ejecutar `npm run generate:loterias-manifest` para regenerar `public/img/loterias/manifest.json`.
+3. Incluir en el mismo PR el cambio del manifiesto y la imagen agregada/eliminada.
+4. Al hacer merge y deploy, `/admin/loterias/images` servirá el catálogo oficial desde `manifest.json`.
+5. En `public/configuraciones.html`, la app **solo permite seleccionar/validar** imágenes presentes en ese catálogo oficial.
+
+> Importante: la app ya no “da de alta” archivos binarios de loterías. Solo asigna o quita referencias a archivos aprobados y versionados por PR.
+
+### Flujo resumido solicitado
+
+**Subir imagen al repo → deploy → seleccionar en Configuraciones**
+
+- Subes imagen + manifiesto en PR.
+- Se aprueba/mergea y se despliega.
+- La imagen queda disponible para selección en Configuraciones.
