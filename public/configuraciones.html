@@ -1817,6 +1817,7 @@
     const loteriasUnsavedCancelBtn=document.getElementById('loterias-unsaved-cancel');
     let loteriasData=[];
     let loteriasImagenesCache=null;
+    const LOTERIAS_SOURCE_OF_TRUTH_COLLECTION='loterias';
     let loteriasBaseHash='';
     let loteriaImagenTargetId='';
     let loteriaFocusPendienteId='';
@@ -1971,6 +1972,9 @@
       if(pathEstable) return pathEstable;
       return (item?.url||'').toString().trim();
     }
+    function normalizarClaveImagenLoteria(valor){
+      return (valor||'').toString().trim().replace(/^\/+/,'').replace(/\\/g,'/').toLowerCase();
+    }
     function actualizarBotonGuardarLoterias(){
       const dirty=hayCambiosLoteriasSinGuardar();
       const texto=dirty?'ACTUALIZAR LOTERÍAS':'GUARDAR LOTERÍAS';
@@ -2093,8 +2097,26 @@
       if(setJerarquia.size!==jerarquiasActivas.length) return 'No se permiten jerarquías repetidas en loterías activas.';
       return '';
     }
+    async function validarImagenesLoteriasContraCatalogo(){
+      const loteriasConImagen=loteriasData.filter(item=>!!(item.imagen||'').toString().trim());
+      if(!loteriasConImagen.length) return '';
+      if(!Array.isArray(loteriasImagenesCache) || !loteriasImagenesCache.length){
+        loteriasImagenesCache=await cargarImagenesLoteriaDesdeApi();
+      }
+      const catalogo=new Set((loteriasImagenesCache||[])
+        .flatMap((img)=>[img?.path,img?.url])
+        .map(normalizarClaveImagenLoteria)
+        .filter(Boolean));
+      for(const item of loteriasConImagen){
+        const clave=normalizarClaveImagenLoteria(item.imagen);
+        if(clave && !catalogo.has(clave)){
+          return `La imagen de "${item.nombre||item.id||'lotería'}" no existe en el catálogo dinámico. Selecciona una imagen válida.`;
+        }
+      }
+      return '';
+    }
     async function cargarLoterias(){
-      const snap=await db.collection('loterias').get();
+      const snap=await db.collection(LOTERIAS_SOURCE_OF_TRUTH_COLLECTION).get();
       loteriasData=snap.docs.map(doc=>limpiarLoteria({id:doc.id,...doc.data()}));
       if(!loteriasData.length){
         loteriasData=[defaultLoteria()];
@@ -2202,6 +2224,12 @@
           renderLoterias();
           return false;
         }
+        const errorImagen=await validarImagenesLoteriasContraCatalogo();
+        if(errorImagen){
+          mostrarEstadoLoterias(errorImagen,true);
+          renderLoterias();
+          return false;
+        }
         const batch=db.batch();
         for(const item of loteriasData){
           const payload={
@@ -2214,10 +2242,10 @@
             actualizadoEn:firebase.firestore.FieldValue.serverTimestamp()
           };
           if(item.id && !item.id.startsWith('tmp-')){
-            const ref=db.collection('loterias').doc(item.id);
+            const ref=db.collection(LOTERIAS_SOURCE_OF_TRUTH_COLLECTION).doc(item.id);
             batch.set(ref,{...payload,id:item.id},{merge:true});
           }else{
-            const ref=db.collection('loterias').doc();
+            const ref=db.collection(LOTERIAS_SOURCE_OF_TRUTH_COLLECTION).doc();
             item.id=ref.id;
             batch.set(ref,{...payload,id:ref.id,creadoEn:firebase.firestore.FieldValue.serverTimestamp()},{merge:true});
           }

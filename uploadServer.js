@@ -71,6 +71,10 @@ const ALLOWED_FILE_TYPES = {
   '.jpeg': ['image/jpeg'],
   '.pdf': ['application/pdf']
 };
+const LOTERIAS_SOURCE_OF_TRUTH = Object.freeze({
+  collection: 'loterias',
+  fields: ['id', 'nombre', 'estado', 'jerarquia', 'imagen']
+});
 const dangerousNamePattern = /(^\.+$|\.\.|[\\/]|[\x00-\x1F\x7F])/;
 
 const upload = multer({
@@ -786,6 +790,100 @@ function normalizeLoteriaImageItem({ name, relativePath, updatedAt }, req) {
   };
 }
 
+function normalizeLoteriaImageKey(value) {
+  if (typeof value !== 'string') return '';
+  return value.trim().replace(/^\/+/, '').replace(/\\/g, '/').toLowerCase();
+}
+
+function normalizarSlugLoteria(value) {
+  const base = normalizeString(value, 180).toLowerCase();
+  if (!base) return 'loteria';
+  return base
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '') || 'loteria';
+}
+
+function buildLoteriasImageSyncReport({ loterias = [], images = [] }) {
+  const catalogByKey = new Map();
+  images.forEach((item) => {
+    const key = normalizeLoteriaImageKey(item?.path || item?.url || '');
+    if (key) catalogByKey.set(key, item);
+  });
+
+  const referencedKeys = new Set();
+  const missingReferencedImages = [];
+  const caseAndSlugWarnings = [];
+
+  loterias.forEach((item) => {
+    const imagen = normalizeString(item?.imagen, 320).replace(/^\/+/, '');
+    if (!imagen) return;
+
+    const imageKey = normalizeLoteriaImageKey(imagen);
+    if (imageKey) referencedKeys.add(imageKey);
+
+    const catalogMatch = imageKey ? catalogByKey.get(imageKey) : null;
+    if (!catalogMatch) {
+      missingReferencedImages.push({
+        id: item.id || '',
+        nombre: item.nombre || '',
+        estado: item.estado || '',
+        jerarquia: Number.isFinite(Number(item.jerarquia)) ? Number(item.jerarquia) : null,
+        imagen
+      });
+      return;
+    }
+
+    const resolvedPath = normalizeString(catalogMatch.path || catalogMatch.url || '', 320).replace(/^\/+/, '');
+    if (resolvedPath && resolvedPath !== imagen) {
+      caseAndSlugWarnings.push({
+        type: 'case_mismatch',
+        id: item.id || '',
+        nombre: item.nombre || '',
+        imagenDeclarada: imagen,
+        imagenCatalogo: resolvedPath
+      });
+    }
+
+    const expectedSlugPath = `img/loterias/${normalizarSlugLoteria(item.nombre || item.id || '')}.png`;
+    if (imageKey && normalizeLoteriaImageKey(expectedSlugPath) !== imageKey) {
+      caseAndSlugWarnings.push({
+        type: 'slug_mismatch',
+        id: item.id || '',
+        nombre: item.nombre || '',
+        imagenDeclarada: imagen,
+        slugEsperado: expectedSlugPath
+      });
+    }
+  });
+
+  const orphanImages = images
+    .filter((item) => {
+      const key = normalizeLoteriaImageKey(item?.path || item?.url || '');
+      return key && !referencedKeys.has(key);
+    })
+    .map((item) => ({
+      name: item.name || '',
+      path: item.path || '',
+      url: item.url || ''
+    }));
+
+  return {
+    sourceOfTruth: LOTERIAS_SOURCE_OF_TRUTH,
+    summary: {
+      loterias: loterias.length,
+      imagenesCatalogo: images.length,
+      referenciasSinArchivo: missingReferencedImages.length,
+      imagenesHuerfanas: orphanImages.length,
+      alertasCaseSlug: caseAndSlugWarnings.length
+    },
+    missingReferencedImages,
+    orphanImages,
+    caseAndSlugWarnings
+  };
+}
+
 async function listLocalLoteriaImages(req) {
   const loteriasDir = path.join(__dirname, 'public', 'img', 'loterias');
   const entries = await fs.readdir(loteriasDir, { withFileTypes: true });
@@ -843,6 +941,35 @@ app.get('/admin/loterias/images', verificarToken, async (req, res) => {
   } catch (error) {
     console.error('Error listando imágenes de loterías', error);
     return res.status(500).json({ error: 'No se pudieron listar las imágenes de loterías', message: error.message });
+  }
+});
+
+app.get('/admin/loterias/sync-report', verificarToken, async (req, res) => {
+  try {
+    const useStorage = process.env.LOTERIAS_IMAGES_SOURCE === 'storage' || process.env.NODE_ENV === 'production';
+    const images = useStorage
+      ? await listStorageLoteriaImages(req)
+      : await listLocalLoteriaImages(req);
+    const loteriasSnapshot = await admin.firestore().collection(LOTERIAS_SOURCE_OF_TRUTH.collection).get();
+    const loterias = loteriasSnapshot.docs.map((doc) => {
+      const data = doc.data() || {};
+      return {
+        id: doc.id,
+        nombre: normalizeString(data.nombre, 180),
+        estado: normalizeString(data.estado, 40),
+        jerarquia: Number.isFinite(Number(data.jerarquia)) ? Number(data.jerarquia) : null,
+        imagen: normalizeString(data.imagen, 320).replace(/^\/+/, '')
+      };
+    });
+
+    const report = buildLoteriasImageSyncReport({ loterias, images });
+    return res.json({
+      ...report,
+      imageCatalogSource: useStorage ? 'storage' : 'local'
+    });
+  } catch (error) {
+    console.error('Error generando sync-report de loterías', error);
+    return res.status(500).json({ error: 'No se pudo generar el reporte de loterías', message: error.message });
   }
 });
 
@@ -941,5 +1068,7 @@ module.exports = {
   normalizeLoteriaImageItem,
   listLocalLoteriaImages,
   listStorageLoteriaImages,
-  toPublicImageUrl
+  toPublicImageUrl,
+  normalizeLoteriaImageKey,
+  buildLoteriasImageSyncReport
 };

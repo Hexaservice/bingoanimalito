@@ -339,6 +339,7 @@
   let loteriasActivas=[];
   let loteriasActivasCacheTs=0;
   const loteriasSeleccionadas=new Set();
+  const LOTERIAS_SOURCE_OF_TRUTH_COLLECTION='loterias';
   let premioInicialBase=0;
   let totalPremiosBase=0;
 
@@ -531,6 +532,18 @@
 
   const FALLBACK_IMAGEN_LOTERIA='img/android-chrome-192x192.png';
   const LOTERIAS_CACHE_TTL_MS=45*1000;
+  function registrarWarningImagenLoteriaFaltante({loteria,motivo,srcActual,siguienteSrc}){
+    console.warn('[loterias][image_fallback_warning]',{
+      event:'loteria_image_missing',
+      sourceOfTruthCollection:LOTERIAS_SOURCE_OF_TRUTH_COLLECTION,
+      loteriaId:loteria?.id||'',
+      loteriaNombre:loteria?.nombre||'',
+      motivo,
+      srcActual,
+      siguienteSrc,
+      fallbackIntentado:Boolean(loteria?.fallbackIntentado)
+    });
+  }
 
   function normalizarRutaImagen(valor){
     if(typeof valor!=='string') return '';
@@ -585,10 +598,14 @@
       const imgEl=item.querySelector('img');
       if(imgEl){
         imgEl.onerror=()=>{
-          if(loteria.source==='imagenMiniatura'){
-            console.warn(`[loterias] imagenMiniatura inválida para id=${loteria.id}`);
-          }
+          const motivo=loteria.source==='imagenMiniatura'?'imagenMiniatura_invalida':'imagen_loteria_no_disponible';
           const nextSrc=!loteria.fallbackIntentado?loteria.fallbackLoteria:loteria.fallbackFinal;
+          registrarWarningImagenLoteriaFaltante({
+            loteria,
+            motivo,
+            srcActual:imgEl.currentSrc||imgEl.src||loteria.imagen||'',
+            siguienteSrc:nextSrc
+          });
           if(imgEl.src.endsWith(nextSrc)) return;
           if(!loteria.fallbackIntentado){
             loteria.fallbackIntentado=true;
@@ -618,7 +635,7 @@
     if(forceRefresh){
       loteriasActivas.forEach(loteria=>{loteria.fallbackIntentado=false;});
     }
-    const snap=await db.collection('loterias').get();
+    const snap=await db.collection(LOTERIAS_SOURCE_OF_TRUTH_COLLECTION).get();
     loteriasActivas=snap.docs.map(doc=>{
       const d=doc.data()||{};
       const estado=(d.estado||'').toString().toLowerCase();
