@@ -766,8 +766,7 @@
       cursor: default;
     }
     .resultado-cell.inactiva-horario {
-      opacity: 0.55;
-      filter: saturate(0.6);
+      color: #7a7a7a;
       pointer-events: none;
     }
     .resultado-cell .resultado-vacio {
@@ -3385,9 +3384,13 @@
   function abrirModalSeleccionResultado(clave, loteria, filaReal){
     if(!resultadoSelectModalEl || !resultadoSelectGridEl) return;
     const filaNormalizada = Number.isFinite(Number(filaReal)) ? Math.max(0, Number(filaReal)) : 0;
-    modalResultadoContexto = { clave, loteria, bloque: null, fila: filaNormalizada };
     const habilitacion = obtenerBloquesHabilitadosEnFila(loteria, filaNormalizada);
     const bloquesDisponibles = ['exacta', 'intermedia'].filter(bloque => habilitacion[bloque]);
+    if(!bloquesDisponibles.length){
+      mostrarAvisoSimple('Este horario no está habilitado para carga manual de resultados.');
+      return;
+    }
+    modalResultadoContexto = { clave, loteria, bloque: null, fila: filaNormalizada };
     resultadoBloqueExactaBtn.disabled = !habilitacion.exacta;
     resultadoBloqueIntermediaBtn.disabled = !habilitacion.intermedia;
     resultadoBloqueExactaBtn.classList.remove('activo');
@@ -3428,6 +3431,11 @@
 
   async function seleccionarBloqueResultado(bloque){
     if(!modalResultadoContexto) return;
+    const habilitacion = obtenerBloquesHabilitadosEnFila(modalResultadoContexto.loteria, modalResultadoContexto.fila);
+    if(!habilitacion[bloque]){
+      mostrarAvisoSimple('Este bloque no está habilitado para carga manual de resultados.');
+      return;
+    }
     const clave = resolverClaveResultadoCompatible(modalResultadoContexto.clave || '');
     const resultadosActuales = resultadosPorCelda.get(clave) || {};
     const resultadoCargado = resultadosActuales?.[bloque];
@@ -3463,6 +3471,11 @@
   async function confirmarSeleccionResultado(numero){
     if(!modalResultadoContexto?.bloque || !modalResultadoContexto?.clave) return;
     const bloque = modalResultadoContexto.bloque;
+    const habilitacion = obtenerBloquesHabilitadosEnFila(modalResultadoContexto.loteria, modalResultadoContexto.fila);
+    if(!habilitacion[bloque]){
+      mostrarAvisoSimple('Este bloque no está habilitado para carga manual de resultados.');
+      return;
+    }
     const clave = modalResultadoContexto.clave;
     const fila = Number(modalResultadoContexto?.fila);
     const horaTexto = formatearHoraDesdeNumeroFila(Math.max(0, Number.isFinite(fila) ? fila : 0), bloque === 'intermedia');
