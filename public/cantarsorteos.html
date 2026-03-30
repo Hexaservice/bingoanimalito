@@ -2049,6 +2049,8 @@
   let cantosSeleccionados = new Set();
   const resultadosPorCelda = new Map();
   const loteriasSorteo = [];
+  let loteriasSorteoActualCache = Object.freeze([]);
+  let loteriasSorteoActualCacheSorteoId = '';
   const columnasSemanticas = [
     { colIndex: 0, tipo: 'horario', loteria: null },
     { colIndex: 1, tipo: 'loteria', loteria: null },
@@ -5831,34 +5833,101 @@
     return origen.map(id=>String(id)).filter(Boolean);
   }
 
-  async function cargarLoteriasSorteoActual(){
+  function crearLoteriaNormalizada(id, data = {}){
+    return {
+      id: String(id || '').trim(),
+      nombre: data.nombre || id,
+      imagen: data.imagen || '',
+      jerarquia: Number(data.jerarquia ?? data.orden ?? 999),
+      horaExacta: data.horaExacta ?? data.bloqueExacta ?? true,
+      horaIntermedia: data.horaIntermedia ?? data.bloqueIntermedia ?? true,
+      bloquesHorarios: Array.isArray(data.bloquesHorarios) ? [...data.bloquesHorarios] : [],
+      mostrarBloquesIntermedios: Boolean(data.mostrarBloquesIntermedios)
+    };
+  }
+
+  function actualizarLoteriasSorteoActualCache(loterias = [], sorteoId = currentSorteoId){
+    const copiaInmutable = loterias.map(item=>Object.freeze({
+      ...item,
+      bloquesHorarios: Array.isArray(item?.bloquesHorarios) ? [...item.bloquesHorarios] : []
+    }));
+    loteriasSorteoActualCache = Object.freeze(copiaInmutable);
+    loteriasSorteoActualCacheSorteoId = sorteoId || '';
+  }
+
+  function aplicarLoteriasEnColumnas(loterias = []){
     loteriasSorteo.length = 0;
+    loterias.forEach(item=>loteriasSorteo.push(item));
     columnasSemanticas.forEach(item=>{ item.loteria = null; });
-    const ids = obtenerLoteriasAsignadas(currentSorteoData);
-    if(!ids.length || !db){
+    for(let idx = 1; idx <= 4; idx++){
+      const col = columnasSemanticas[idx];
+      if(col) col.loteria = loterias[idx - 1] || null;
+    }
+  }
+
+  function restaurarLoteriasDesdeCache(){
+    if(!loteriasSorteoActualCache.length || loteriasSorteoActualCacheSorteoId !== currentSorteoId){
+      return false;
+    }
+    const copia = loteriasSorteoActualCache.map(item=>({ ...item, bloquesHorarios: Array.isArray(item.bloquesHorarios) ? [...item.bloquesHorarios] : [] }));
+    aplicarLoteriasEnColumnas(copia);
+    return true;
+  }
+
+  function conservarLoteriasCacheEnSorteoActual(){
+    if(!currentSorteoData || !loteriasSorteoActualCache.length || loteriasSorteoActualCacheSorteoId !== currentSorteoId){
+      return;
+    }
+    const idsCache = loteriasSorteoActualCache.map(item=>item.id).filter(Boolean);
+    currentSorteoData = { ...currentSorteoData, loteriasAsignadas: [...idsCache] };
+    const idxSorteo = sorteos.findIndex(s=>s && s.id === currentSorteoId);
+    if(idxSorteo >= 0){
+      sorteos[idxSorteo] = { ...sorteos[idxSorteo], loteriasAsignadas: [...idsCache] };
+    }
+  }
+
+  async function cargarLoteriasSorteoActual(){
+    aplicarLoteriasEnColumnas([]);
+    const idsUnicos = [];
+    const idsVistos = new Set();
+    obtenerLoteriasAsignadas(currentSorteoData).forEach(id=>{
+      if(!id || idsVistos.has(id)) return;
+      idsVistos.add(id);
+      idsUnicos.push(id);
+    });
+    const sorteoTieneCampoLoterias = Array.isArray(currentSorteoData?.loteriasAsignadas) || Array.isArray(currentSorteoData?.loteriasActivas);
+
+    if(!idsUnicos.length){
+      if(restaurarLoteriasDesdeCache()){
+        construirTablaCantos();
+        return;
+      }
+      if(!sorteoTieneCampoLoterias){
+        return;
+      }
       construirTablaCantos();
       return;
     }
-    const docs = await Promise.all(ids.slice(0,4).map(id=>db.collection('loterias').doc(id).get().catch(()=>null)));
+
+    if(!db){
+      if(restaurarLoteriasDesdeCache()){
+        construirTablaCantos();
+        return;
+      }
+      construirTablaCantos();
+      return;
+    }
+
+    const docs = await Promise.all(idsUnicos.slice(0,4).map(id=>db.collection('loterias').doc(id).get().catch(()=>null)));
+    const loteriasCargadas = [];
     docs.forEach(doc=>{
       if(!doc || !doc.exists) return;
       const data = doc.data() || {};
-      loteriasSorteo.push({
-        id: doc.id,
-        nombre: data.nombre || doc.id,
-        imagen: data.imagen || '',
-        jerarquia: Number(data.jerarquia ?? data.orden ?? 999),
-        horaExacta: data.horaExacta ?? data.bloqueExacta ?? true,
-        horaIntermedia: data.horaIntermedia ?? data.bloqueIntermedia ?? true,
-        bloquesHorarios: Array.isArray(data.bloquesHorarios) ? data.bloquesHorarios : [],
-        mostrarBloquesIntermedios: Boolean(data.mostrarBloquesIntermedios)
-      });
+      loteriasCargadas.push(crearLoteriaNormalizada(doc.id, data));
     });
-    loteriasSorteo.sort((a,b)=>a.jerarquia-b.jerarquia);
-    for(let idx = 1; idx <= 4; idx++){
-      const col = columnasSemanticas[idx];
-      if(col) col.loteria = loteriasSorteo[idx - 1] || null;
-    }
+    loteriasCargadas.sort((a,b)=>a.jerarquia-b.jerarquia);
+    aplicarLoteriasEnColumnas(loteriasCargadas);
+    actualizarLoteriasSorteoActualCache(loteriasCargadas);
     construirTablaCantos();
   }
 
@@ -6078,7 +6147,7 @@
   function escucharSorteo(id){
     if(sorteoUnsub){ sorteoUnsub(); sorteoUnsub = null; }
     const ref = db.collection('sorteos').doc(id);
-    sorteoUnsub = ref.onSnapshot(doc=>{
+    sorteoUnsub = ref.onSnapshot(async doc=>{
       if(!doc.exists){
         limpiarSorteoSeleccionado();
         currentSorteoData = null;
@@ -6101,12 +6170,16 @@
         sorteos[idx].condicion = (sorteos[idx].condicion || sorteos[idx]['condición'] || '').toString().trim().toUpperCase() || 'VISIBLE';
       }
       guardarSorteoSeleccionado(currentSorteoData);
-      cargarLoteriasSorteoActual().catch(err=>console.error('Error actualizando loterías del sorteo', err));
+      try {
+        await cargarLoteriasSorteoActual();
+      } catch (err) {
+        console.error('Error actualizando loterías del sorteo', err);
+      }
       mostrarDatos();
     }, err=>console.error('Error escuchando sorteo', err));
   }
 
-  function seleccionarSorteo(id){
+  async function seleccionarSorteo(id){
     if(!id) return;
     currentSorteoId = id;
     restauracionPendiente = false;
@@ -6121,7 +6194,11 @@
     } else {
       aplicarDatosCantos([]);
     }
-    cargarLoteriasSorteoActual().catch(err=>console.error('Error cargando loterías del sorteo', err));
+    try {
+      await cargarLoteriasSorteoActual();
+    } catch (err) {
+      console.error('Error cargando loterías del sorteo', err);
+    }
     escucharSorteo(id);
     escucharCantos(id);
     escucharFormas(id);
@@ -6157,6 +6234,7 @@
       const actualizacionesLocales = { ...payload };
       if(currentSorteoData){
         Object.assign(currentSorteoData, actualizacionesLocales);
+        conservarLoteriasCacheEnSorteoActual();
       }
       const indiceSorteo = sorteos.findIndex(s=>s.id===currentSorteoId);
       if(indiceSorteo >= 0){
@@ -6310,6 +6388,7 @@
     }
     try {
       await db.collection('sorteos').doc(currentSorteoId).update({ estado: 'Sellado', pdf: 'no' });
+      conservarLoteriasCacheEnSorteoActual();
       mensajeEl.textContent = 'El sorteo fue sellado correctamente.';
       sellarBtn.classList.remove('attention');
       return true;
@@ -6531,6 +6610,7 @@
     }
     try {
       await db.collection('sorteos').doc(currentSorteoId).update({ estado: 'Jugando' });
+      conservarLoteriasCacheEnSorteoActual();
       mensajeEl.textContent = 'El sorteo cambió a estado Jugando.';
       jugarBtn.classList.remove('attention');
       return true;
@@ -6586,6 +6666,7 @@
     if(!confirmar) return;
     try {
       await db.collection('sorteos').doc(currentSorteoId).update({ estado: 'Finalizado' });
+      conservarLoteriasCacheEnSorteoActual();
       mensajeEl.textContent = 'El sorteo fue finalizado correctamente.';
       finalizarBtn.classList.remove('attention');
       forzarVisibilidadResultado(true);
