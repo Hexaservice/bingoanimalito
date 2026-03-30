@@ -525,6 +525,44 @@
     btn.textContent=total>0?`Loterías (${total})`:'Loterías';
   }
 
+  const FALLBACK_IMAGEN_LOTERIA='img/android-chrome-192x192.png';
+
+  function normalizarRutaImagen(valor){
+    if(typeof valor!=='string') return '';
+    const limpio=valor.trim();
+    if(!limpio) return '';
+    if(/^https?:\/\//i.test(limpio) || /^data:/i.test(limpio)) return limpio;
+    if(limpio.startsWith('//')) return `https:${limpio}`;
+    if(limpio.startsWith('/')) return limpio.slice(1);
+    if(/^\.?\//.test(limpio)) return limpio.replace(/^\.?\//,'');
+    return limpio;
+  }
+
+  function normalizarSlugLoteria(valor){
+    const base=(typeof valor==='string'?valor:'').trim().toLowerCase();
+    if(!base) return 'loteria';
+    return base
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g,'')
+      .replace(/[^a-z0-9]+/g,'-')
+      .replace(/^-+|-+$/g,'')||'loteria';
+  }
+
+  function resolverImagenLoteria(d){
+    const slug=normalizarSlugLoteria(d?.nombre||d?.id||'loteria');
+    const fallbackLoteria=`img/loterias/${slug}.png`;
+    const miniatura=normalizarRutaImagen(d?.imagenMiniatura);
+    const imagen=normalizarRutaImagen(d?.imagen);
+    const logo=normalizarRutaImagen(d?.logo);
+    const src=miniatura||imagen||logo||fallbackLoteria||FALLBACK_IMAGEN_LOTERIA;
+    return {
+      src,
+      source:miniatura?'imagenMiniatura':(imagen?'imagen':(logo?'logo':'fallbackLoteria')),
+      fallbackLoteria,
+      fallbackFinal:FALLBACK_IMAGEN_LOTERIA
+    };
+  }
+
   function renderLoteriasGrid(){
     const grid=document.getElementById('loterias-grid');
     if(!grid) return;
@@ -539,6 +577,20 @@
       item.dataset.id=loteria.id;
       if(loteriasSeleccionadas.has(loteria.id)) item.classList.add('selected');
       item.innerHTML=`<img src="${loteria.imagen}" alt="${loteria.nombre}"><div class="check-wrap"><input type="checkbox" ${loteriasSeleccionadas.has(loteria.id)?'checked':''}> <span>${loteria.nombre}</span></div>`;
+      const imgEl=item.querySelector('img');
+      if(imgEl){
+        imgEl.onerror=()=>{
+          if(loteria.source==='imagenMiniatura'){
+            console.warn(`[loterias] imagenMiniatura inválida para id=${loteria.id}`);
+          }
+          const nextSrc=!loteria.fallbackIntentado?loteria.fallbackLoteria:loteria.fallbackFinal;
+          if(imgEl.src.endsWith(nextSrc)) return;
+          if(!loteria.fallbackIntentado){
+            loteria.fallbackIntentado=true;
+          }
+          imgEl.src=nextSrc;
+        };
+      }
       const toggle=()=>{
         if(loteriasSeleccionadas.has(loteria.id)){
           loteriasSeleccionadas.delete(loteria.id);
@@ -562,10 +614,15 @@
       const d=doc.data()||{};
       const estado=(d.estado||'').toString().toLowerCase();
       const activa=estado==='activa'||estado==='activo'||d.activa===true||d.activo===true;
+      const imagenResuelta=resolverImagenLoteria({...d,id:doc.id});
       return {
         id:doc.id,
         nombre:d.nombre||'Lotería',
-        imagen:d.imagenMiniatura||d.imagen||d.logo||'img/android-chrome-192x192.png',
+        imagen:imagenResuelta.src,
+        source:imagenResuelta.source,
+        fallbackLoteria:imagenResuelta.fallbackLoteria,
+        fallbackFinal:imagenResuelta.fallbackFinal,
+        fallbackIntentado:false,
         activa
       };
     }).filter(item=>item.activa);
