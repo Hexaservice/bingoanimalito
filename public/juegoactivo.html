@@ -8158,13 +8158,14 @@
 
   function crearConductoSphere(numero){
     if(!cantosConductoTrackEl) return null;
-    const valor=Number(numero);
+    const valor=normalizarNumero(numero);
+    if(valor===null) return null;
     const esfera=document.createElement('div');
     esfera.className='conducto-sphere conducto-sphere--pre';
-    esfera.dataset.numero=String(valor);
+    esfera.dataset.numero=valor;
     const etiqueta=document.createElement('span');
     etiqueta.className='conducto-sphere-label';
-    const etiquetaNumero=String(valor).padStart(2,'0');
+    const etiquetaNumero=formatearNumeroAnimalito(valor);
     etiqueta.textContent=etiquetaNumero;
     esfera.appendChild(etiqueta);
     const etiquetaBase=`Canto ${etiquetaNumero}`;
@@ -8217,7 +8218,7 @@
     const formasGanadoras=obtenerFormasGanadorasPorNumero(numero);
     const hayGanadores=Array.isArray(formasGanadoras) && formasGanadoras.length>0;
     sphere.element.classList.toggle('conducto-sphere--ganador', hayGanadores);
-    const baseEtiqueta=sphere.element.dataset?.etiquetaBase || `Canto ${String(numero).padStart(2,'0')}`;
+    const baseEtiqueta=sphere.element.dataset?.etiquetaBase || `Canto ${formatearNumeroAnimalito(numero)}`;
     if(hayGanadores){
       const etiquetasFormas=formasGanadoras.map(item=>{
         const idx=Number(item?.forma?.idx ?? item?.idx);
@@ -8716,7 +8717,7 @@
           span.className='cell-content';
           if(valor!==undefined && valor!==null){
             const numero=normalizarNumero(valor);
-            const texto=numero!==null?String(numero).padStart(2,'0'):String(valor);
+            const texto=numero!==null?formatearNumeroAnimalito(numero):String(valor);
             span.textContent=texto;
             if(numero!==null){
               td.dataset.valor=numero;
@@ -9387,6 +9388,16 @@
     return canonico;
   }
 
+  function formatearNumeroAnimalito(valor){
+    const canonico=normalizarNumero(valor);
+    if(canonico===null) return '';
+    if(canonico==='00') return '00';
+    if(canonico==='0') return '0';
+    const entero=Number(canonico);
+    if(!Number.isFinite(entero)) return canonico;
+    return String(entero);
+  }
+
   function esCantoComplementario(numero){
     if(!normalizarNumero(numero)) return false;
     if(!todasFormasConGanadores || !Number.isInteger(indiceUltimoGanador)) return false;
@@ -9413,14 +9424,7 @@
   }
 
   function generarEtiquetaDesdeNumero(numero){
-    const canonico=normalizarNumero(numero);
-    if(!canonico) return '';
-    if(canonico==='00' || canonico==='0') return canonico;
-    const entero=Number(canonico);
-    if(!Number.isFinite(entero) || entero<=0) return canonico;
-    const indice=Math.min(BINGO_LETRAS.length-1, Math.max(0, Math.floor((entero-1)/15)));
-    const letra=BINGO_LETRAS[indice];
-    return `${letra}-${String(entero).padStart(2,'0')}`;
+    return formatearNumeroAnimalito(numero);
   }
 
   function obtenerEtiquetaCanto(valor){
@@ -9429,10 +9433,9 @@
       if(texto){
         const match=texto.toUpperCase().match(/^([BINGO])[-\s]?0*(\d{1,2})$/);
         if(match){
-          const letra=match[1];
-          const numero=parseInt(match[2],10);
-          if(Number.isFinite(numero)){
-            return `${letra}-${String(numero).padStart(2,'0')}`;
+          const numeroLegacy=normalizarNumero(texto);
+          if(numeroLegacy!==null){
+            return generarEtiquetaDesdeNumero(numeroLegacy);
           }
         }
       }
@@ -10749,8 +10752,8 @@
           cantoLabel.textContent=`Canto N° : ${numeroCanto??'--'}`;
           const bolitaLabel=document.createElement('div');
           bolitaLabel.className='ganador-info__bolita';
-          const bolitaTexto=Number.isFinite(numeroBolita)?(obtenerEtiquetaCanto(numeroBolita)||numeroBolita):'--';
-          bolitaLabel.textContent=`Bolita N° : ${bolitaTexto}`;
+          const bolitaTexto=numeroBolita!==null?(obtenerEtiquetaCanto(numeroBolita)||numeroBolita):'--';
+          bolitaLabel.textContent=`Animalito N° : ${bolitaTexto}`;
           infoBox.appendChild(cartonLabel);
           infoBox.appendChild(cantoLabel);
           infoBox.appendChild(bolitaLabel);
