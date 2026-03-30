@@ -1975,6 +1975,60 @@
     function normalizarClaveImagenLoteria(valor){
       return (valor||'').toString().trim().replace(/^\/+/,'').replace(/\\/g,'/').toLowerCase();
     }
+    const LOTERIAS_IMAGE_FALLBACK_CANDIDATES=Object.freeze([
+      'img/loterias/la-granjita.png',
+      'img/loterias/lotto-activo.png',
+      'img/loterias/selva-plus.png'
+    ]);
+    function slugLoteriaDesdeTexto(valor){
+      const texto=(valor||'').toString().trim().toLowerCase();
+      if(!texto) return '';
+      return texto
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g,'')
+        .replace(/[^a-z0-9]+/g,'-')
+        .replace(/^-+|-+$/g,'');
+    }
+    function verificarImagenDisponible(src){
+      return new Promise((resolve)=>{
+        if(!src){
+          resolve(false);
+          return;
+        }
+        const img=new Image();
+        img.onload=()=>resolve(true);
+        img.onerror=()=>resolve(false);
+        img.src=src;
+      });
+    }
+    async function construirCatalogoFallbackImagenesLoteria(){
+      const rutasBase=new Set(LOTERIAS_IMAGE_FALLBACK_CANDIDATES);
+      loteriasData.forEach((item)=>{
+        const imagenActual=(item?.imagen||'').toString().trim().replace(/^\/+/,'');
+        if(imagenActual){
+          rutasBase.add(imagenActual);
+        }
+        const slug=slugLoteriaDesdeTexto(item?.nombre||'');
+        if(slug){
+          rutasBase.add(`img/loterias/${slug}.png`);
+        }
+      });
+
+      const rutasVerificadas=[];
+      for(const ruta of rutasBase){
+        const url=rutaImagenLoteriaEstable({path:ruta,url:ruta});
+        // eslint-disable-next-line no-await-in-loop
+        const disponible=await verificarImagenDisponible(url);
+        if(disponible){
+          rutasVerificadas.push({
+            name:ruta.split('/').pop()||ruta,
+            path:ruta,
+            url
+          });
+        }
+      }
+      return rutasVerificadas.sort((a,b)=>a.name.localeCompare(b.name,'es',{sensitivity:'base'}));
+    }
     function actualizarBotonGuardarLoterias(){
       const dirty=hayCambiosLoteriasSinGuardar();
       const texto=dirty?'ACTUALIZAR LOTERÍAS':'GUARDAR LOTERÍAS';
@@ -2060,6 +2114,9 @@
           onRetry:()=>abrirSelectorImagen(idLoteria)
         });
         return;
+      }
+      if(!loteriasImagenesCache.length){
+        loteriasImagenesCache=await construirCatalogoFallbackImagenesLoteria();
       }
       if(!loteriasImagenesCache.length){
         actualizarFeedbackImagenes({mensaje:'No hay imágenes disponibles para loterías.'});
