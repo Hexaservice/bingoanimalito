@@ -1430,7 +1430,7 @@
       <div class="loterias-toolbar">
         <button id="agregar-loteria-btn" type="button">+ Agregar lotería</button>
         <button id="guardar-loterias-top-btn" type="button">GUARDAR LOTERÍAS</button>
-        <p class="loterias-help">Se permiten sólo 4 Loterias activas y sin repetirse</p>
+        <p class="loterias-help">Puedes crear cualquier cantidad de loterías y activar todas simultáneamente.</p>
       </div>
       <div id="loterias-list"></div>
       <button id="guardar-loterias-btn" type="button">GUARDAR LOTERÍAS</button>
@@ -1849,7 +1849,7 @@
         id:item?.id||'',
         nombre,
         estado,
-        jerarquia:jerarquia>=1&&jerarquia<=4?jerarquia:null,
+        jerarquia:jerarquia>=1?jerarquia:null,
         imagen:normalizarPathRelativoImagenLoteria(item?.imagen||''),
         bloquesHorarios:bloques.length?bloques:[BLOQUES_HORARIOS_ENTEROS[0]],
         mostrarBloquesIntermedios
@@ -1944,13 +1944,40 @@
       }
       const images=Array.isArray(payload?.images)?payload.images:[];
       return images
-        .map((item)=>({
-          name:(item?.name||'').toString().trim(),
-          path:(item?.path||'').toString().trim().replace(/^\/+/,''),
-          url:(item?.url||'').toString().trim(),
+        .map((item)=>{
+          const path=(item?.path||'').toString().trim().replace(/^\/+/,'');
+          const name=(item?.name||path.split('/').pop()||'').toString().trim();
+          const providedUrl=(item?.url||'').toString().trim();
+          const url=providedUrl || (path ? `${window.location.origin}/${path}` : '');
+          return {
+            name,
+            path,
+            url,
           updatedAt:item?.updatedAt||null
-        }))
-        .filter((item)=>item.name && item.path && item.url);
+          };
+        })
+        .filter((item)=>item.path && item.url);
+    }
+    async function cargarImagenesLoteriaDesdeManifest(){
+      const response=await fetch('img/loterias/manifest.json',{cache:'no-store'});
+      if(!response.ok){
+        throw new Error(`No se pudo leer manifest local (HTTP ${response.status})`);
+      }
+      const payload=await response.json().catch(()=>[]);
+      const images=Array.isArray(payload)?payload:[];
+      return images
+        .map((item)=>{
+          const path=normalizarPathRelativoImagenLoteria(item?.path||'');
+          const name=(item?.name||path.split('/').pop()||'').toString().trim();
+          const url=path ? `${window.location.origin}/${path}` : '';
+          return {
+            name,
+            path,
+            url,
+            updatedAt:item?.updatedAt||null
+          };
+        })
+        .filter((item)=>item.path && item.url);
     }
     function actualizarFeedbackImagenes({mensaje='',esError=false,mostrarReintento=false,onRetry=null}={}){
       if(!loteriasImageFeedback) return;
@@ -2070,14 +2097,19 @@
       try{
         loteriasImagenesCache=await cargarImagenesLoteriaDesdeApi();
       }catch(error){
-        console.error('No se pudieron cargar imágenes de loterías',error);
-        actualizarFeedbackImagenes({
-          mensaje:'No se pudieron cargar las imágenes.',
-          esError:true,
-          mostrarReintento:true,
-          onRetry:()=>abrirSelectorImagen(idLoteria)
-        });
-        return;
+        console.warn('No se pudieron cargar imágenes desde API, se intentará manifest local',error);
+        try{
+          loteriasImagenesCache=await cargarImagenesLoteriaDesdeManifest();
+        }catch(manifestError){
+          console.error('No se pudieron cargar imágenes de loterías',manifestError);
+          actualizarFeedbackImagenes({
+            mensaje:'No se pudieron cargar las imágenes.',
+            esError:true,
+            mostrarReintento:true,
+            onRetry:()=>abrirSelectorImagen(idLoteria)
+          });
+          return;
+        }
       }
       if(!loteriasImagenesCache.length){
         actualizarFeedbackImagenes({mensaje:'No hay imágenes disponibles en el catálogo oficial.'});
@@ -2102,9 +2134,6 @@
     }
     function validarLoterias(){
       const activas=loteriasData.filter(item=>item.estado==='Activa');
-      if(activas.length>4){
-        return 'Solo pueden existir 4 loterías activas al mismo tiempo.';
-      }
       for(const item of loteriasData){
         if(!item.nombre.trim()) return 'Todas las loterías deben tener nombre.';
         const bloques=ordenarBloques(item.bloquesHorarios);
@@ -2209,13 +2238,7 @@
         return;
       }
       if(accion==='estado'){
-        const activas=loteriasData.filter(item=>item.estado==='Activa').length;
         const activar=!!event.target.checked;
-        if(activar && loteria.estado!=='Activa' && activas>=4){
-          event.target.checked=false;
-          mostrarEstadoLoterias('Ya existen 4 loterías activas. Desactiva una para continuar.',true);
-          return;
-        }
         loteria.estado=activar?'Activa':'Inactiva';
         normalizarJerarquiasActivas();
         renderLoterias();
