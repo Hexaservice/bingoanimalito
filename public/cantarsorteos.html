@@ -5824,12 +5824,17 @@
     });
   }
 
+  function obtenerLoteriasAsignadas(sorteo){
+    const origen = Array.isArray(sorteo?.loteriasAsignadas)
+      ? sorteo.loteriasAsignadas
+      : (Array.isArray(sorteo?.loteriasActivas) ? sorteo.loteriasActivas : []);
+    return origen.map(id=>String(id)).filter(Boolean);
+  }
+
   async function cargarLoteriasSorteoActual(){
     loteriasSorteo.length = 0;
     columnasSemanticas.forEach(item=>{ item.loteria = null; });
-    const ids = Array.isArray(currentSorteoData?.loteriasActivas)
-      ? currentSorteoData.loteriasActivas.map(id=>String(id)).filter(Boolean)
-      : [];
+    const ids = obtenerLoteriasAsignadas(currentSorteoData);
     if(!ids.length || !db){
       construirTablaCantos();
       return;
