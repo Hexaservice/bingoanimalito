@@ -1302,7 +1302,9 @@
         condicion,
         totalPremios:premioInicialFinal
       };
-      sorteoData.loteriasActivas=Array.from(loteriasSeleccionadas);
+      const loteriasAsignadas=Array.from(loteriasSeleccionadas);
+      sorteoData.loteriasAsignadas=loteriasAsignadas;
+      sorteoData.loteriasActivas=loteriasAsignadas;
       if(premioInicialVal!==null){
         sorteoData.premioInicial=premioInicialVal;
       }

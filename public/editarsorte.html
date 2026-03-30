@@ -656,6 +656,13 @@
     if(btn) btn.click();
   }
 
+  function obtenerLoteriasAsignadas(sorteo){
+    const origen=Array.isArray(sorteo?.loteriasAsignadas)
+      ? sorteo.loteriasAsignadas
+      : (Array.isArray(sorteo?.loteriasActivas) ? sorteo.loteriasActivas : []);
+    return origen.map(id=>String(id||'').trim()).filter(Boolean);
+  }
+
     async function cargarDatos(){
     const doc=await db.collection('sorteos').doc(sorteoId).get();
     if(!doc.exists){alert('Sorteo no encontrado');window.location.href='gestionsorteos.html';return;}
@@ -664,7 +671,7 @@
     if(d.condicion==='ARCHIVADO') est='Archivado';
     premioInicialBase=Number(d.premioInicial||0) || 0;
     totalPremiosBase=Number(d.totalPremios||0) || 0;
-    const data={nombre:d.nombre||'',tipo:d.tipo||'',fecha:d.fecha||'',hora:d.hora||'',cierre:d.horacierre||d.cierre||'',maxcg:(d.maxcartongratis??''),valor:d.valorCarton||'',premioInicial:d.premioInicial??'',estado:est,loterias:Array.isArray(d.loteriasActivas)?d.loteriasActivas:[],formas:[]};
+    const data={nombre:d.nombre||'',tipo:d.tipo||'',fecha:d.fecha||'',hora:d.hora||'',cierre:d.horacierre||d.cierre||'',maxcg:(d.maxcartongratis??''),valor:d.valorCarton||'',premioInicial:d.premioInicial??'',estado:est,loterias:obtenerLoteriasAsignadas(d),formas:[]};
     const snap=await db.collection('formas').where('sorteoId','==',sorteoId).get();
     const arr=[];snap.forEach(s=>arr.push(s.data()));
     arr.sort((a,b)=>(a.idx||0)-(b.idx||0));
@@ -1315,7 +1322,8 @@ firebase.auth().onAuthStateChanged(u=>{
     try{
       const premioInicialFinal=premioInicialVal??0;
       const totalPremiosNuevo=Math.max(0,totalPremiosBase-premioInicialBase+premioInicialFinal);
-      const updateData={nombre,tipo,fecha,hora,horacierre:cierre,valorCarton:valor,estado,condicion,totalPremios:totalPremiosNuevo,loteriasActivas:Array.from(loteriasSeleccionadas)};
+      const loteriasAsignadas=Array.from(loteriasSeleccionadas);
+      const updateData={nombre,tipo,fecha,hora,horacierre:cierre,valorCarton:valor,estado,condicion,totalPremios:totalPremiosNuevo,loteriasAsignadas,loteriasActivas:loteriasAsignadas};
       if(premioInicialVal!==null){
         updateData.premioInicial=premioInicialVal;
       }else{

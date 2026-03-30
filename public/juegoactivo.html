@@ -7401,10 +7401,15 @@
     return normalizarTextoHorario(formatearHoraFallbackDesde24h(8+filaNormalizada, esIntermedia?30:0));
   }
 
+  function obtenerLoteriasAsignadas(sorteo){
+    const origen=Array.isArray(sorteo?.loteriasAsignadas)
+      ? sorteo.loteriasAsignadas
+      : (Array.isArray(sorteo?.loteriasActivas) ? sorteo.loteriasActivas : []);
+    return origen.map(id=>String(id||'').trim()).filter(Boolean);
+  }
+
   async function cargarLoteriasActivasSorteo(sorteo){
-    const ids=Array.isArray(sorteo?.loteriasActivas)
-      ? sorteo.loteriasActivas.map(id=>String(id||'').trim()).filter(Boolean)
-      : [];
+    const ids=obtenerLoteriasAsignadas(sorteo);
     if(!db || !ids.length){
       cantosColumnasLoteria = [];
       refrescarVistaBloquesCantos();
