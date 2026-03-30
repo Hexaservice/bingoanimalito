@@ -12,7 +12,8 @@
     "reconciliar-premios": "node scripts/reconciliarPremiosPendientes.js",
     "generate:firebase-config": "node scripts/generateFirebaseConfig.js",
     "init-banks": "node initBanks.js",
-    "migrar:loterias-asignadas": "node scripts/migrarLoteriasAsignadas.js"
+    "migrar:loterias-asignadas": "node scripts/migrarLoteriasAsignadas.js",
+    "generate:loterias-manifest": "node scripts/generateLoteriasManifest.js"
   },
   "keywords": [],
   "author": "",

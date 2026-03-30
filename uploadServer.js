@@ -907,6 +907,27 @@ async function listLocalLoteriaImages(req) {
   return files.filter(Boolean).sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }));
 }
 
+async function listManifestLoteriaImages(req) {
+  const manifestPath = path.join(__dirname, 'public', 'img', 'loterias', 'manifest.json');
+  const raw = await fs.readFile(manifestPath, 'utf8');
+  const parsed = JSON.parse(raw);
+  if (!Array.isArray(parsed)) {
+    throw new Error('El manifest de loterías debe ser un arreglo JSON.');
+  }
+
+  return parsed
+    .map((item) => normalizeLoteriaImageItem(
+      {
+        name: normalizeString(item?.name, 220),
+        relativePath: normalizeString(item?.path, 320),
+        updatedAt: item?.updatedAt || null
+      },
+      req
+    ))
+    .filter(Boolean)
+    .sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }));
+}
+
 async function listStorageLoteriaImages(req) {
   const bucket = admin.storage().bucket();
   const [files] = await bucket.getFiles({ prefix: 'img/loterias/' });
@@ -931,6 +952,13 @@ async function listStorageLoteriaImages(req) {
 }
 
 async function getLoteriasImageCatalog(req) {
+  try {
+    const manifestImages = await listManifestLoteriaImages(req);
+    return { images: manifestImages, source: 'manifest' };
+  } catch (error) {
+    console.warn('[loterias][images] manifest_unavailable_fallback', error?.message || error);
+  }
+
   const useStorage = process.env.LOTERIAS_IMAGES_SOURCE === 'storage' || process.env.NODE_ENV === 'production';
   if (!useStorage) {
     const images = await listLocalLoteriaImages(req);

@@ -1968,7 +1968,7 @@
       }
     }
     function rutaImagenLoteriaEstable(item){
-      const pathEstable=normalizarPathRelativoImagenLoteria(item?.path||item?.url||'');
+      const pathEstable=normalizarPathRelativoImagenLoteria(item?.path||'');
       return pathEstable;
     }
     function normalizarPathRelativoImagenLoteria(valor){
@@ -2080,7 +2080,7 @@
         return;
       }
       if(!loteriasImagenesCache.length){
-        actualizarFeedbackImagenes({mensaje:'No hay imágenes disponibles para loterías.'});
+        actualizarFeedbackImagenes({mensaje:'No hay imágenes disponibles en el catálogo oficial.'});
         return;
       }
       actualizarFeedbackImagenes({mensaje:''});
@@ -2128,7 +2128,7 @@
       for(const item of loteriasConImagen){
         const clave=normalizarClaveImagenLoteria(item.imagen);
         if(clave && !catalogo.has(clave)){
-          return `La imagen de "${item.nombre||item.id||'lotería'}" no existe en el catálogo dinámico. Selecciona una imagen válida.`;
+          return `La imagen de "${item.nombre||item.id||'lotería'}" no existe en el catálogo oficial. Selecciona una imagen válida.`;
         }
       }
       return '';
