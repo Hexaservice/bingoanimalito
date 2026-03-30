@@ -1850,7 +1850,7 @@
         nombre,
         estado,
         jerarquia:jerarquia>=1&&jerarquia<=4?jerarquia:null,
-        imagen:item?.imagen||'',
+        imagen:normalizarPathRelativoImagenLoteria(item?.imagen||''),
         bloquesHorarios:bloques.length?bloques:[BLOQUES_HORARIOS_ENTEROS[0]],
         mostrarBloquesIntermedios
       };
@@ -1968,66 +1968,30 @@
       }
     }
     function rutaImagenLoteriaEstable(item){
-      const pathEstable=(item?.path||'').toString().trim().replace(/^\/+/,'');
-      if(pathEstable) return pathEstable;
-      return (item?.url||'').toString().trim();
+      const pathEstable=normalizarPathRelativoImagenLoteria(item?.path||item?.url||'');
+      return pathEstable;
+    }
+    function normalizarPathRelativoImagenLoteria(valor){
+      const texto=(valor||'').toString().trim();
+      if(!texto) return '';
+      const normalizado=texto.replace(/\\/g,'/');
+      if(/^https?:\/\//i.test(normalizado)){
+        try{
+          const url=new URL(normalizado,window.location.origin);
+          const path=(url.pathname||'').replace(/\\/g,'/');
+          const indice=path.toLowerCase().indexOf('/img/loterias/');
+          if(indice>=0){
+            return path.slice(indice+1).replace(/^\/+/,'');
+          }
+          return '';
+        }catch(_error){
+          return '';
+        }
+      }
+      return normalizado.replace(/^\/+/,'');
     }
     function normalizarClaveImagenLoteria(valor){
       return (valor||'').toString().trim().replace(/^\/+/,'').replace(/\\/g,'/').toLowerCase();
-    }
-    const LOTERIAS_IMAGE_FALLBACK_CANDIDATES=Object.freeze([
-      'img/loterias/la-granjita.png',
-      'img/loterias/lotto-activo.png',
-      'img/loterias/selva-plus.png'
-    ]);
-    function slugLoteriaDesdeTexto(valor){
-      const texto=(valor||'').toString().trim().toLowerCase();
-      if(!texto) return '';
-      return texto
-        .normalize('NFD')
-        .replace(/[\u0300-\u036f]/g,'')
-        .replace(/[^a-z0-9]+/g,'-')
-        .replace(/^-+|-+$/g,'');
-    }
-    function verificarImagenDisponible(src){
-      return new Promise((resolve)=>{
-        if(!src){
-          resolve(false);
-          return;
-        }
-        const img=new Image();
-        img.onload=()=>resolve(true);
-        img.onerror=()=>resolve(false);
-        img.src=src;
-      });
-    }
-    async function construirCatalogoFallbackImagenesLoteria(){
-      const rutasBase=new Set(LOTERIAS_IMAGE_FALLBACK_CANDIDATES);
-      loteriasData.forEach((item)=>{
-        const imagenActual=(item?.imagen||'').toString().trim().replace(/^\/+/,'');
-        if(imagenActual){
-          rutasBase.add(imagenActual);
-        }
-        const slug=slugLoteriaDesdeTexto(item?.nombre||'');
-        if(slug){
-          rutasBase.add(`img/loterias/${slug}.png`);
-        }
-      });
-
-      const rutasVerificadas=[];
-      for(const ruta of rutasBase){
-        const url=rutaImagenLoteriaEstable({path:ruta,url:ruta});
-        // eslint-disable-next-line no-await-in-loop
-        const disponible=await verificarImagenDisponible(url);
-        if(disponible){
-          rutasVerificadas.push({
-            name:ruta.split('/').pop()||ruta,
-            path:ruta,
-            url
-          });
-        }
-      }
-      return rutasVerificadas.sort((a,b)=>a.name.localeCompare(b.name,'es',{sensitivity:'base'}));
     }
     function actualizarBotonGuardarLoterias(){
       const dirty=hayCambiosLoteriasSinGuardar();
@@ -2116,9 +2080,6 @@
         return;
       }
       if(!loteriasImagenesCache.length){
-        loteriasImagenesCache=await construirCatalogoFallbackImagenesLoteria();
-      }
-      if(!loteriasImagenesCache.length){
         actualizarFeedbackImagenes({mensaje:'No hay imágenes disponibles para loterías.'});
         return;
       }
@@ -2161,7 +2122,7 @@
         loteriasImagenesCache=await cargarImagenesLoteriaDesdeApi();
       }
       const catalogo=new Set((loteriasImagenesCache||[])
-        .flatMap((img)=>[img?.path,img?.url])
+        .map((img)=>img?.path)
         .map(normalizarClaveImagenLoteria)
         .filter(Boolean));
       for(const item of loteriasConImagen){
@@ -2293,7 +2254,7 @@
             nombre:item.nombre.trim(),
             estado:item.estado,
             jerarquia:item.estado==='Activa'?item.jerarquia:null,
-            imagen:item.imagen||'',
+            imagen:normalizarPathRelativoImagenLoteria(item.imagen||''),
             bloquesHorarios:ordenarBloques(item.bloquesHorarios),
             mostrarBloquesIntermedios:!!item.mostrarBloquesIntermedios,
             actualizadoEn:firebase.firestore.FieldValue.serverTimestamp()

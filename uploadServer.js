@@ -808,7 +808,7 @@ function normalizarSlugLoteria(value) {
 function buildLoteriasImageSyncReport({ loterias = [], images = [] }) {
   const catalogByKey = new Map();
   images.forEach((item) => {
-    const key = normalizeLoteriaImageKey(item?.path || item?.url || '');
+    const key = normalizeLoteriaImageKey(item?.path || '');
     if (key) catalogByKey.set(key, item);
   });
 
@@ -835,7 +835,7 @@ function buildLoteriasImageSyncReport({ loterias = [], images = [] }) {
       return;
     }
 
-    const resolvedPath = normalizeString(catalogMatch.path || catalogMatch.url || '', 320).replace(/^\/+/, '');
+    const resolvedPath = normalizeString(catalogMatch.path || '', 320).replace(/^\/+/, '');
     if (resolvedPath && resolvedPath !== imagen) {
       caseAndSlugWarnings.push({
         type: 'case_mismatch',
@@ -860,7 +860,7 @@ function buildLoteriasImageSyncReport({ loterias = [], images = [] }) {
 
   const orphanImages = images
     .filter((item) => {
-      const key = normalizeLoteriaImageKey(item?.path || item?.url || '');
+      const key = normalizeLoteriaImageKey(item?.path || '');
       return key && !referencedKeys.has(key);
     })
     .map((item) => ({
@@ -952,8 +952,8 @@ async function getLoteriasImageCatalog(req) {
 
 app.get('/admin/loterias/images', verificarToken, async (req, res) => {
   try {
-    const { images, source } = await getLoteriasImageCatalog(req);
-    return res.json({ images, source });
+    const { images } = await getLoteriasImageCatalog(req);
+    return res.json({ images });
   } catch (error) {
     console.error('Error listando imágenes de loterías', error);
     return res.status(500).json({ error: 'No se pudieron listar las imágenes de loterías', message: error.message });
