@@ -2007,7 +2007,13 @@
   let cantosSeleccionados = new Set();
   const resultadosPorCelda = new Map();
   const loteriasSorteo = [];
-  const loteriasPorColumna = ['B','I','N','G','O'].map(letra=>({ letra, loteria: null }));
+  const columnasSemanticas = [
+    { colIndex: 0, tipo: 'horario', loteria: null },
+    { colIndex: 1, tipo: 'loteria', loteria: null },
+    { colIndex: 2, tipo: 'loteria', loteria: null },
+    { colIndex: 3, tipo: 'loteria', loteria: null },
+    { colIndex: 4, tipo: 'loteria', loteria: null }
+  ];
   const BLOQUES_RESULTADO = [
     { id: 'exacta', label: 'Hora Exacta', className: 'exacta', color: '#0b4dda' },
     { id: 'intermedia', label: 'Hora intermedia', className: 'intermedia', color: '#ff7a00' }
@@ -3102,22 +3108,36 @@
     tabla.id = 'tabla-cantos';
     const thead = document.createElement('thead');
     const headRow = document.createElement('tr');
-    const columnas = loteriasPorColumna;
-    columnas.forEach(({ letra, loteria })=>{
+    const columnas = columnasSemanticas;
+    columnas.forEach(({ colIndex, tipo, loteria })=>{
       const th = document.createElement('th');
-      if(letra === 'B'){
+      if(tipo === 'horario'){
         th.textContent = 'HORA';
-      } else if(loteria && loteria.imagen){
-        const img = document.createElement('img');
-        img.src = loteria.imagen;
-        img.alt = loteria.nombre || `Lotería ${letra}`;
-        img.style.width = '44px';
-        img.style.height = '44px';
-        img.style.objectFit = 'cover';
-        img.style.borderRadius = '8px';
-        th.appendChild(img);
+      } else if(loteria){
+        const wrap = document.createElement('div');
+        wrap.style.display = 'flex';
+        wrap.style.flexDirection = 'column';
+        wrap.style.alignItems = 'center';
+        wrap.style.gap = '4px';
+        if(loteria.imagen){
+          const img = document.createElement('img');
+          img.src = loteria.imagen;
+          img.alt = loteria.nombre || `Lotería ${colIndex}`;
+          img.style.width = '36px';
+          img.style.height = '36px';
+          img.style.objectFit = 'cover';
+          img.style.borderRadius = '8px';
+          wrap.appendChild(img);
+        }
+        const nombre = document.createElement('span');
+        nombre.textContent = loteria.nombre || `Lotería ${colIndex}`;
+        nombre.style.fontSize = '0.7rem';
+        nombre.style.lineHeight = '1.1';
+        wrap.appendChild(nombre);
+        th.appendChild(wrap);
       } else {
-        th.textContent = letra;
+        th.innerHTML = '<span aria-hidden="true">&nbsp;</span>';
+        th.classList.add('inactiva');
         th.style.opacity = '0.35';
       }
       headRow.appendChild(th);
@@ -3127,16 +3147,17 @@
     const tbody = document.createElement('tbody');
     for(let fila=0; fila<15; fila++){
       const tr = document.createElement('tr');
-      columnas.forEach(({ letra, loteria }, idx)=>{
-        const base = idx * 15 + 1;
+      columnas.forEach(({ colIndex, tipo, loteria })=>{
+        const base = colIndex * 15 + 1;
         const numero = base + fila;
-        const numeroTexto = numero.toString().padStart(2,'0');
-        const clave = `${letra}-${numeroTexto}`;
+        const clave = loteria ? construirClaveResultado(loteria.id, fila) : '';
         const td = document.createElement('td');
         td.dataset.key = clave;
         td.dataset.numero = String(numero);
         td.dataset.fila = String(fila);
-        if(letra === 'B'){
+        td.dataset.colIndex = String(colIndex);
+        td.dataset.loteriaId = loteria?.id || '';
+        if(tipo === 'horario'){
           td.className = 'resultado-hora-cell';
           const exacta = document.createElement('span');
           exacta.className = 'hora-exacta';
@@ -3151,10 +3172,10 @@
             td.classList.add('inactiva');
             td.innerHTML = '<span class="resultado-vacio">—</span>';
           } else {
-            td.addEventListener('click', ()=>manejarCantoClick(clave, fila));
+            td.addEventListener('click', ()=>manejarCantoClick({ clave, loteria, fila }));
             td.innerHTML = '<span class="resultado-vacio" aria-hidden="true"></span>';
+            cantoCeldas.set(clave, td);
           }
-          cantoCeldas.set(clave, td);
         }
         tr.appendChild(td);
       });
@@ -3165,25 +3186,56 @@
     refrescarResultadosEnTabla();
   }
 
+  function construirClaveResultado(loteriaId, fila){
+    return `${String(loteriaId || '').trim()}|${Math.max(0, Number(fila) || 0)}`;
+  }
+
+  function obtenerFilaDesdeClaveLegacy(claveLegacy){
+    const match = /^([BINGO])-(\d{1,2})$/i.exec((claveLegacy || '').trim());
+    if(!match) return null;
+    const letra = match[1].toUpperCase();
+    const numero = parseInt(match[2], 10);
+    if(!Number.isInteger(numero)) return null;
+    const idxColumna = BINGO_LETRAS.indexOf(letra);
+    if(idxColumna < 1 || idxColumna > 4) return null;
+    const base = idxColumna * 15 + 1;
+    const fila = numero - base;
+    if(fila < 0 || fila > 14) return null;
+    return { idxColumna, fila };
+  }
+
+  function resolverClaveResultadoCompatible(claveOriginal){
+    const clave = (claveOriginal ?? '').toString().trim();
+    if(!clave) return '';
+    if(clave.includes('|')){
+      return clave;
+    }
+    const legacy = obtenerFilaDesdeClaveLegacy(clave);
+    if(!legacy) return '';
+    const columna = columnasSemanticas[legacy.idxColumna];
+    const loteriaId = columna?.loteria?.id || '';
+    if(!loteriaId) return '';
+    return construirClaveResultado(loteriaId, legacy.fila);
+  }
+
   function formatearHoraDesdeNumeroFila(fila, intermedia=false){
     const baseHora = 8 + fila;
     const fecha = new Date(2000,0,1,baseHora, intermedia ? 30 : 0, 0, 0);
     return fecha.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }).toLowerCase();
   }
 
-  async function manejarCantoClick(clave, filaReal=null){
+  async function manejarCantoClick(contexto){
     if(!currentSorteoId || !currentSorteoData) return;
     if(tablaCantosContainer.classList.contains('disabled')) return;
     if(tablaCantosContainer.classList.contains('bloqueado')) return;
-    const claveNormalizada = (clave ?? '').toString().toUpperCase();
+    const claveNormalizada = (contexto?.clave ?? '').toString().trim();
     if(!claveNormalizada || !cantoCeldas.has(claveNormalizada)) return;
-    const letra = claveNormalizada.charAt(0);
-    const col = loteriasPorColumna.find(item=>item.letra===letra);
-    if(!col || !col.loteria) return;
+    const loteria = contexto?.loteria || null;
+    if(!loteria) return;
     const celda = cantoCeldas.get(claveNormalizada);
     const filaDesdeCelda = celda ? Number(celda.dataset?.fila) : NaN;
-    const filaNormalizada = Number.isFinite(Number(filaReal)) ? Number(filaReal) : filaDesdeCelda;
-    abrirModalSeleccionResultado(claveNormalizada, col.loteria, filaNormalizada);
+    const filaNormalizada = Number.isFinite(Number(contexto?.fila)) ? Number(contexto.fila) : filaDesdeCelda;
+    abrirModalSeleccionResultado(claveNormalizada, loteria, filaNormalizada);
   }
 
   function actualizarCantosSeleccionados(lista){
@@ -3279,7 +3331,7 @@
 
   async function seleccionarBloqueResultado(bloque){
     if(!modalResultadoContexto) return;
-    const clave = (modalResultadoContexto.clave || '').toUpperCase();
+    const clave = resolverClaveResultadoCompatible(modalResultadoContexto.clave || '');
     const resultadosActuales = resultadosPorCelda.get(clave) || {};
     const resultadoCargado = resultadosActuales?.[bloque];
     if(resultadoCargado){
@@ -3328,19 +3380,20 @@
     if(!currentSorteoId || !db) return;
     const usuario = auth?.currentUser;
     if(!usuario) return;
-    const claveMayus = (clave || '').toUpperCase();
+    const claveEstable = resolverClaveResultadoCompatible(clave);
+    if(!claveEstable) return;
     await db.runTransaction(async tx=>{
       const ref = db.collection('cantos').doc(currentSorteoId);
       const snap = await tx.get(ref);
       const data = snap.exists ? (snap.data() || {}) : {};
       const resultados = (data.resultadosPorCelda && typeof data.resultadosPorCelda === 'object') ? { ...data.resultadosPorCelda } : {};
-      const celda = (resultados[claveMayus] && typeof resultados[claveMayus] === 'object') ? { ...resultados[claveMayus] } : {};
+      const celda = (resultados[claveEstable] && typeof resultados[claveEstable] === 'object') ? { ...resultados[claveEstable] } : {};
       const numeroCanonico = window.CantosCanonicos?.normalizarNumeroCanonico(numero);
       if(!numeroCanonico) return;
       celda[bloque] = numeroCanonico;
       celda.actualizadoPor = usuario.uid || '';
       celda.actualizadoEn = getPreciseTimestamp() || getServerTimestamp();
-      resultados[claveMayus] = celda;
+      resultados[claveEstable] = celda;
       const numerosSet = new Set();
       Object.values(resultados).forEach(val=>{
         const exacta = window.CantosCanonicos?.normalizarNumeroCanonico(val?.exacta);
@@ -3365,7 +3418,9 @@
     const mapaResultados = (payload.resultadosPorCelda && typeof payload.resultadosPorCelda === 'object') ? payload.resultadosPorCelda : {};
     Object.entries(mapaResultados).forEach(([clave, valor])=>{
       if(!valor || typeof valor !== 'object') return;
-      resultadosPorCelda.set(clave.toUpperCase(), {
+      const claveEstable = resolverClaveResultadoCompatible(clave);
+      if(!claveEstable) return;
+      resultadosPorCelda.set(claveEstable, {
         exacta: window.CantosCanonicos?.normalizarNumeroCanonico(valor.exacta),
         intermedia: window.CantosCanonicos?.normalizarNumeroCanonico(valor.intermedia)
       });
@@ -5656,7 +5711,7 @@
 
   async function cargarLoteriasSorteoActual(){
     loteriasSorteo.length = 0;
-    loteriasPorColumna.forEach(item=>{ item.loteria = null; });
+    columnasSemanticas.forEach(item=>{ item.loteria = null; });
     const ids = Array.isArray(currentSorteoData?.loteriasActivas)
       ? currentSorteoData.loteriasActivas.map(id=>String(id)).filter(Boolean)
       : [];
@@ -5678,11 +5733,10 @@
       });
     });
     loteriasSorteo.sort((a,b)=>a.jerarquia-b.jerarquia);
-    const columnasDestino = ['I','N','G','O'];
-    columnasDestino.forEach((letra, idx)=>{
-      const col = loteriasPorColumna.find(c=>c.letra===letra);
-      if(col) col.loteria = loteriasSorteo[idx] || null;
-    });
+    for(let idx = 1; idx <= 4; idx++){
+      const col = columnasSemanticas[idx];
+      if(col) col.loteria = loteriasSorteo[idx - 1] || null;
+    }
     construirTablaCantos();
   }
 
