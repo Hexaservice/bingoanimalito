@@ -765,6 +765,19 @@
           cursor: pointer;
           position: relative;
           color: #0b4cc2;
+          font-size: 0.84rem;
+          text-shadow: none;
+          border: 2px solid #0b4cc2;
+          line-height: 1;
+          letter-spacing: 0;
+      }
+      .canto-cell.encabezado-hora.modo-exacto {
+          color: #0b4cc2;
+          border-color: #0b4cc2;
+      }
+      .canto-cell.encabezado-hora.modo-intermedio {
+          color: #ff8f00;
+          border-color: #ff8f00;
       }
       .canto-cell.encabezado-hora::after {
           content: attr(data-tooltip);
@@ -7559,9 +7572,18 @@
     return {base, sufijo:(suf||'AM').toUpperCase()};
   }
 
+  function actualizarEstiloEncabezadoHora(){
+    const encabezadoHora = cantosGridEl?.querySelector('.canto-cell.encabezado-hora');
+    if(!encabezadoHora) return;
+    const modoIntermedio = cantosModoGlobal === 'intermedio';
+    encabezadoHora.classList.toggle('modo-intermedio', modoIntermedio);
+    encabezadoHora.classList.toggle('modo-exacto', !modoIntermedio);
+  }
+
   function refrescarVistaBloquesCantos(){
     const totalColumnas = obtenerTotalColumnasResultado();
     cantosGridEl.style.setProperty('--cantos-columnas', String(totalColumnas + 1));
+    actualizarEstiloEncabezadoHora();
     for(let col=1; col<=totalColumnas; col++){
       const encabezadoLoteria = document.querySelector(`.canto-cell.encabezado-loteria[data-col="${col}"] img`);
       if(!encabezadoLoteria) continue;
@@ -7615,7 +7637,7 @@
       celda.textContent=letra;
       celda.className='canto-cell encabezado';
       if(idx===0){
-        celda.classList.add('encabezado-hora','columna-hora-sticky');
+        celda.classList.add('encabezado-hora','columna-hora-sticky','modo-exacto');
         celda.addEventListener('click',()=>{
           cantosModoGlobal = cantosModoGlobal === 'exacto' ? 'intermedio' : 'exacto';
           for(let fila=0; fila<15; fila++){
