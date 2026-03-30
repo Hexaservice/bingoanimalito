@@ -76,7 +76,7 @@
     @media (orientation: portrait) {
       #salir-btn { width: 40px; }
       #salir-btn .label { display: none; }
-      #detalle-container { margin-left: 5px; margin-right: 5px; }
+      #detalle-container { margin-left: 2px; margin-right: 2px; }
     }
     #sorteo-btn {
       width: 240px;
@@ -297,9 +297,9 @@
       border: 2px solid #013220;
       border-radius: 12px;
       background: linear-gradient(135deg, rgba(0,60,0,0.85), rgba(255,255,255,0.95));
-      padding: 15px 14px 20px;
-      margin: 16px 8px 0;
-      width: min(360px, calc(100% - 16px));
+      padding: 15px 12px 20px;
+      margin: 16px 2px 0;
+      width: min(430px, calc(100% - 4px));
       box-shadow: 0 0 10px rgba(0,0,0,0.4);
       transition: background 0.3s ease;
     }
@@ -561,8 +561,8 @@
       color: #ffffff;
     }
     #tabla-cantos-wrapper {
-      margin: 16px 8px 0;
-      width: min(360px, calc(100% - 16px));
+      margin: 16px 2px 0;
+      width: min(430px, calc(100% - 4px));
       display: flex;
       flex-direction: column;
       align-items: center;
@@ -684,7 +684,6 @@
     }
     #tabla-cantos thead th:first-child {
       color: #0b4dda;
-      cursor: pointer;
       left: 0;
       z-index: 10;
     }
@@ -2077,8 +2076,6 @@
   let loteriasSorteoActualCache = Object.freeze([]);
   let loteriasSorteoActualCacheSorteoId = '';
   const columnasSemanticas = [{ colIndex: 0, tipo: 'horario', loteria: null }];
-  const modoFilaResultados = new Map();
-  let modoGlobalResultados = 'exacta';
   const BLOQUES_RESULTADO = [
     { id: 'exacta', label: 'Hora Exacta', className: 'exacta', color: '#0b4dda' },
     { id: 'intermedia', label: 'Hora intermedia', className: 'intermedia', color: '#ff7a00' }
@@ -3178,13 +3175,6 @@
       const th = document.createElement('th');
       if(tipo === 'horario'){
         th.textContent = 'HORA';
-        th.addEventListener('click', ()=>{
-          modoGlobalResultados = modoGlobalResultados === 'exacta' ? 'intermedia' : 'exacta';
-          for(let fila = 0; fila < 15; fila++){
-            modoFilaResultados.set(fila, modoGlobalResultados);
-          }
-          refrescarResultadosEnTabla();
-        });
       } else if(loteria){
         const wrap = document.createElement('div');
         wrap.style.display = 'flex';
@@ -3231,11 +3221,6 @@
         td.dataset.loteriaId = loteria?.id || '';
         if(tipo === 'horario'){
           td.className = 'resultado-hora-cell';
-          td.addEventListener('click', ()=>{
-            const actual = modoFilaResultados.get(fila) || modoGlobalResultados;
-            modoFilaResultados.set(fila, actual === 'exacta' ? 'intermedia' : 'exacta');
-            refrescarResultadosEnTabla();
-          });
         } else {
           td.className = 'canto-cell resultado-cell';
           if(!loteria){
@@ -3380,34 +3365,28 @@
 
   function refrescarResultadosEnTabla(){
     for(let fila = 0; fila < 15; fila++){
-      const modoFila = modoFilaResultados.get(fila) || modoGlobalResultados;
       const horaCell = tablaCantosContainer?.querySelector(`.resultado-hora-cell[data-fila="${fila}"]`);
       if(!horaCell) continue;
       const exactaTxt = formatearHoraDesdeNumeroFila(fila, false);
       const interTxt = formatearHoraDesdeNumeroFila(fila, true);
-      horaCell.innerHTML = modoFila === 'intermedia'
-        ? `<span class="hora-intermedia">${interTxt}</span>`
-        : `<span class="hora-exacta">${exactaTxt}</span>`;
+      horaCell.innerHTML = `<span class="hora-exacta">${exactaTxt}</span><span class="hora-intermedia">${interTxt}</span>`;
     }
     cantoCeldas.forEach((celda, clave)=>{
       const resultados = resultadosPorCelda.get(clave) || {};
-      const fila = Number(celda.dataset?.fila);
-      const modoFila = modoFilaResultados.get(fila) || modoGlobalResultados;
       const exacta = celda.dataset?.habilitaExacta === '0' ? null : resultados.exacta;
       const intermedia = celda.dataset?.habilitaIntermedia === '0' ? null : resultados.intermedia;
       if(!exacta && !intermedia){
         if(!celda.classList.contains('inactiva')) celda.innerHTML = '<span class="resultado-vacio" aria-hidden="true"></span>';
         return;
       }
-      const preferido = modoFila === 'intermedia' ? intermedia : exacta;
-      const respaldo = modoFila === 'intermedia' ? exacta : intermedia;
-      const valor = preferido || respaldo;
-      if(!valor){
-        celda.innerHTML = '<span class="resultado-vacio" aria-hidden="true"></span>';
-        return;
+      const bloques = [];
+      if(exacta){
+        bloques.push(`<div class="resultado-item exacta"><span class="resultado-numero">${formatearNumeroResultado(exacta)}</span><span class="resultado-nombre">${obtenerNombreAnimal(exacta)}</span></div>`);
       }
-      const clase = (modoFila === 'intermedia' && intermedia) || (!exacta && intermedia) ? 'intermedia' : 'exacta';
-      celda.innerHTML = `<div class="resultado-item ${clase}"><span class="resultado-numero">${formatearNumeroResultado(valor)}</span><span class="resultado-nombre">${obtenerNombreAnimal(valor)}</span></div>`;
+      if(intermedia){
+        bloques.push(`<div class="resultado-item intermedia"><span class="resultado-numero">${formatearNumeroResultado(intermedia)}</span><span class="resultado-nombre">${obtenerNombreAnimal(intermedia)}</span></div>`);
+      }
+      celda.innerHTML = bloques.length ? bloques.join('') : '<span class="resultado-vacio" aria-hidden="true"></span>';
     });
   }
 
