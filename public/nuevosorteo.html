@@ -312,6 +312,7 @@
   <script src="/firebase-config.js"></script>
   <script src="js/auth.js"></script>
   <script src="js/notificationCenter.js"></script>
+  <script src="js/sorteoDataAdapters.js"></script>
   <script type="module">
   import { UPLOAD_ENDPOINT } from './js/config.js';
   ensureAuth('Administrador');
@@ -329,6 +330,7 @@
   const preloadLogo=new Image();
   preloadLogo.src=LOGO_URL;
   const FORMA_COLORES={1:'#90ee90',2:'#fffacd',3:'#add8e6',4:'#d8b0ff',5:'#ffcc99'};
+  const { obtenerLoteriasAsignadas, normalizarMiniaturaLoteria } = window.SorteoDataAdapters;
   const FORMAS_COLLECTION='formas_guardadas';
   const formaEdicionPorTab={};
   let modalFormaIdx=null;
@@ -546,7 +548,7 @@
   function resolverImagenLoteria(d){
     const slug=normalizarSlugLoteria(d?.nombre||d?.id||'loteria');
     const fallbackLoteria=`img/loterias/${slug}.png`;
-    const miniatura=normalizarRutaImagen(d?.imagenMiniatura);
+    const miniatura=normalizarMiniaturaLoteria(d);
     const imagen=normalizarRutaImagen(d?.imagen);
     const logo=normalizarRutaImagen(d?.logo);
     const src=miniatura||imagen||logo||fallbackLoteria||FALLBACK_IMAGEN_LOTERIA;

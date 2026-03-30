@@ -1968,6 +1968,7 @@
   <script src="js/estadoPagoPremio.js"></script>
   <script src="js/cantosCanonicos.js"></script>
   <script src="js/cantosResultadosClave.js"></script>
+  <script src="js/sorteoDataAdapters.js"></script>
   <script>
   ensureAuth('Administrador');
   initServerTime().then(()=>{
@@ -1986,6 +1987,8 @@
   function estadoPagoPremioFinalizado(valor){
     return window.EstadosPagoPremio.estaFinalizado(valor);
   }
+
+  const { obtenerLoteriasAsignadas, normalizarMiniaturaLoteria } = window.SorteoDataAdapters;
 
   let sorteos = [];
   let currentSorteoId = null;
@@ -3244,7 +3247,7 @@
   }
 
   function resolverClaveResultadoCompatible(claveOriginal){
-    return window.CantosResultadosClave?.resolverClaveResultadoCompatible(claveOriginal, {
+    return window.SorteoDataAdapters.normalizarClaveResultado(claveOriginal, {
       obtenerLoteriaIdPorColumna: (idxColumna)=>{
         const columna = columnasSemanticas[idxColumna];
         return columna?.loteria?.id || '';
@@ -3338,9 +3341,7 @@
   }
 
   function formatearNumeroResultado(numero){
-    const texto = (numero ?? '').toString().trim();
-    if(texto === '00') return '00';
-    return normalizarNumeroAnimal(texto);
+    return window.SorteoDataAdapters.formatearNumeroAnimalVisual(numero);
   }
 
   function obtenerNombreAnimal(numero){
@@ -3403,7 +3404,7 @@
     }
     if(resultadoSelectLoteriaEl){
       const nombreLoteria = (loteria?.nombre || 'Lotería').toString();
-      const miniatura = (loteria?.imagen || '').toString().trim();
+      const miniatura = normalizarMiniaturaLoteria(loteria?.imagen || '');
       resultadoSelectLoteriaEl.innerHTML = '';
       if(miniatura){
         const img = document.createElement('img');
@@ -5829,13 +5830,6 @@
         registro.formas = [];
       }
     });
-  }
-
-  function obtenerLoteriasAsignadas(sorteo){
-    const origen = Array.isArray(sorteo?.loteriasAsignadas)
-      ? sorteo.loteriasAsignadas
-      : (Array.isArray(sorteo?.loteriasActivas) ? sorteo.loteriasActivas : []);
-    return origen.map(id=>String(id)).filter(Boolean);
   }
 
   function crearLoteriaNormalizada(id, data = {}){
