@@ -4903,6 +4903,7 @@
   const cantosModoFilaMap = new Map();
   let cantosModoGlobal = 'exacto';
   let cantosColumnasLoteria = [];
+  let cantosTotalColumnasRenderizadas = 0;
   let formasActivas = [];
   let cartonesSorteo = new Map();
   let cartonesGanadoresPorForma = new Map();
@@ -7554,8 +7555,8 @@
       return {
         horaExacta:(bloque?.horaExacta??bloque?.hora??'').toString().trim(),
         horaIntermedia:(bloque?.horaIntermedia??bloque?.horaBloqueIntermedio??'').toString().trim(),
-        exactos:exactosOrigen.slice(0,totalColumnas).map(v=>Number(v)).filter(Number.isFinite),
-        intermedios:intermediosOrigen.slice(0,totalColumnas).map(v=>Number(v)).filter(Number.isFinite),
+        exactos:Array.from({length:totalColumnas},(_,indice)=>normalizarNumero(exactosOrigen[indice])),
+        intermedios:Array.from({length:totalColumnas},(_,indice)=>normalizarNumero(intermediosOrigen[indice])),
         loterias:loterias.slice(0,totalColumnas).map(normalizarMiniaturaLoteria).filter(Boolean),
         idx
       };
@@ -7584,6 +7585,10 @@
 
   function refrescarVistaBloquesCantos(){
     const totalColumnas = obtenerTotalColumnasResultado();
+    if(totalColumnas !== cantosTotalColumnasRenderizadas){
+      crearGridCantos();
+      return;
+    }
     cantosGridEl.style.setProperty('--cantos-columnas', String(totalColumnas + 1));
     actualizarEstiloEncabezadoHora();
     for(let col=1; col<=totalColumnas; col++){
@@ -7619,8 +7624,8 @@
         const bloqueInactivo = !habilitacion.exacta && !habilitacion.intermedia;
         const usarIntermedio = habilitacion.intermedia && (!habilitacion.exacta || (habilitacion.exacta && modoIntermedio));
         const arr = usarIntermedio ? (bloque.intermedios||[]) : (bloque.exactos||[]);
-        const valor = Number(arr[col-1]);
-        numeroCelda.textContent = bloqueInactivo ? '' : (Number.isFinite(valor) ? formatearNumeroAnimalVisual(valor).padStart(2,'0') : '');
+        const valor = normalizarNumero(arr[col-1]);
+        numeroCelda.textContent = bloqueInactivo ? '' : (valor !== null ? formatearNumeroAnimalVisual(valor).padStart(2,'0') : '');
         numeroCelda.classList.toggle('modo-intermedio', usarIntermedio);
         numeroCelda.classList.toggle('modo-exacto', !usarIntermedio);
         numeroCelda.classList.toggle('inactiva-horario', bloqueInactivo);
@@ -7632,6 +7637,7 @@
     cantosGridEl.innerHTML='';
     cantoCellsMap.clear();
     const totalColumnas = obtenerTotalColumnasResultado();
+    cantosTotalColumnasRenderizadas = totalColumnas;
     cantosGridEl.style.setProperty('--cantos-columnas', String(totalColumnas + 1));
     const encabezados=['HORA', ...Array.from({ length: totalColumnas }, (_, idx)=>`L${idx+1}`)];
     encabezados.forEach((letra,idx)=>{
@@ -11539,7 +11545,7 @@
       // cada columna ascendente por fila (1..15). Ejemplo: 1..15, 16..30, ... 61..75.
       // Fórmula de mapeo fila/columna->índice (0-based): indice = (columna * 15) + fila.
       // Aquí se muestran solo columnas I..O (columna 1..4), igual que cantarsorteos.html.
-      const columnasVisibles=[1,2,3,4];
+      const columnasVisibles=Array.from({length:obtenerTotalColumnasResultado()},(_,indice)=>indice+1);
       cantosBloquesData = Array.from({length:15},(_,fila)=>({
         horaExacta:formatearHoraFallbackDesde24h(8+fila,0),
         horaIntermedia:formatearHoraFallbackDesde24h(8+fila,30),
