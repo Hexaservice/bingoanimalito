@@ -1121,14 +1121,21 @@
       cursor: pointer;
     }
     #agregar-loteria-btn { background: #f6ede4; color: #7c4a25; }
+    #eliminar-loteria-btn {
+      background: #fff1f2;
+      color: #b91c1c;
+      border-color: #ef4444;
+      padding: 5px 9px;
+      min-width: 38px;
+      font-size: 1rem;
+      line-height: 1;
+    }
+    #eliminar-loteria-btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
     #guardar-loterias-top-btn { background: #b07a4a; color: #fff; margin-left: auto; }
     #guardar-loterias-btn { background: #b07a4a; color: #fff; width: 100%; margin-top: 10px; }
-    .loterias-help {
-      font-size: 0.8rem;
-      color: #7c4a25;
-      margin: 0;
-      flex-basis: 100%;
-    }
     .loteria-card {
       border: 1px solid #d8b089;
       border-radius: 10px;
@@ -1167,6 +1174,23 @@
       padding: 6px 8px;
       box-sizing: border-box;
       font-size: 0.9rem;
+    }
+    .loteria-nombre-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .loteria-delete-check {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 20px;
+    }
+    .loteria-delete-check input[type="checkbox"] {
+      width: 16px;
+      height: 16px;
+      accent-color: #dc2626;
+      cursor: pointer;
     }
     .loteria-state-row {
       display: flex;
@@ -1284,6 +1308,51 @@
     #loterias-unsaved-save{ background:#16a34a; color:#fff; }
     #loterias-unsaved-discard{ background:#ef4444; color:#fff; }
     #loterias-unsaved-cancel{ background:#e5e7eb; color:#111827; }
+    #loterias-delete-modal{
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.45);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 1500;
+      font-family: Calibri, Arial, sans-serif;
+      padding: 12px;
+      box-sizing: border-box;
+    }
+    .loterias-delete-box{
+      width: min(95vw, 480px);
+      background: #fff;
+      border-radius: 12px;
+      border: 1px solid #fecaca;
+      padding: 14px;
+      box-sizing: border-box;
+    }
+    .loterias-delete-box h3{
+      margin: 0 0 8px;
+      color: #991b1b;
+    }
+    .loterias-delete-warning{
+      margin-top: 8px;
+      color: #b91c1c;
+      font-weight: 700;
+    }
+    .loterias-delete-actions{
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      margin-top: 12px;
+      flex-wrap: wrap;
+    }
+    .loterias-delete-actions button{
+      border: none;
+      border-radius: 8px;
+      padding: 8px 12px;
+      cursor: pointer;
+      font-weight: 700;
+    }
+    #loterias-delete-confirm{ background:#dc2626; color:#fff; }
+    #loterias-delete-cancel{ background:#e5e7eb; color:#111827; }
     #loterias-image-modal {
       position: fixed;
       inset: 0;
@@ -1429,8 +1498,8 @@
     <div id="loterias-content">
       <div class="loterias-toolbar">
         <button id="agregar-loteria-btn" type="button">+ Agregar lotería</button>
+        <button id="eliminar-loteria-btn" type="button" title="Eliminar lotería seleccionada">🗑️</button>
         <button id="guardar-loterias-top-btn" type="button">GUARDAR LOTERÍAS</button>
-        <p class="loterias-help">Puedes crear cualquier cantidad de loterías y activar todas simultáneamente.</p>
       </div>
       <div id="loterias-list"></div>
       <button id="guardar-loterias-btn" type="button">GUARDAR LOTERÍAS</button>
@@ -1592,6 +1661,17 @@
         <button id="loterias-unsaved-save" type="button">Guardar/Actualizar</button>
         <button id="loterias-unsaved-discard" type="button">Descartar</button>
         <button id="loterias-unsaved-cancel" type="button">Cancelar</button>
+      </div>
+    </div>
+  </div>
+  <div id="loterias-delete-modal" aria-hidden="true">
+    <div class="loterias-delete-box" role="dialog" aria-modal="true" aria-labelledby="loterias-delete-title">
+      <h3 id="loterias-delete-title">Confirmar eliminación</h3>
+      <p id="loterias-delete-message">¿Está seguro de eliminar la lotería?</p>
+      <p class="loterias-delete-warning">⚠️ Advertencia: Esta acción no puede deshacerse.</p>
+      <div class="loterias-delete-actions">
+        <button id="loterias-delete-confirm" type="button">Aceptar</button>
+        <button id="loterias-delete-cancel" type="button">Cancelar</button>
       </div>
     </div>
   </div>
@@ -1807,6 +1887,7 @@
     const guardarLoteriasBtn=document.getElementById('guardar-loterias-btn');
     const guardarLoteriasTopBtn=document.getElementById('guardar-loterias-top-btn');
     const agregarLoteriaBtn=document.getElementById('agregar-loteria-btn');
+    const eliminarLoteriaBtn=document.getElementById('eliminar-loteria-btn');
     const loteriasImageModal=document.getElementById('loterias-image-modal');
     const loteriasImageGrid=document.getElementById('loterias-image-grid');
     const loteriasImageFeedback=document.getElementById('loterias-image-feedback');
@@ -1815,12 +1896,17 @@
     const loteriasUnsavedSaveBtn=document.getElementById('loterias-unsaved-save');
     const loteriasUnsavedDiscardBtn=document.getElementById('loterias-unsaved-discard');
     const loteriasUnsavedCancelBtn=document.getElementById('loterias-unsaved-cancel');
+    const loteriasDeleteModal=document.getElementById('loterias-delete-modal');
+    const loteriasDeleteMessage=document.getElementById('loterias-delete-message');
+    const loteriasDeleteConfirmBtn=document.getElementById('loterias-delete-confirm');
+    const loteriasDeleteCancelBtn=document.getElementById('loterias-delete-cancel');
     let loteriasData=[];
     let loteriasImagenesCache=null;
     const LOTERIAS_SOURCE_OF_TRUTH_COLLECTION='loterias';
     let loteriasBaseHash='';
     let loteriaImagenTargetId='';
     let loteriaFocusPendienteId='';
+    let loteriaSeleccionadaEliminarId='';
     loteriasUnsavedModal?.addEventListener('click',(event)=>{
       if(event.target===loteriasUnsavedModal){
         loteriasUnsavedCancelBtn?.click();
@@ -1905,6 +1991,48 @@
     function obtenerLoteriaPorId(id){
       return loteriasData.find((item)=>item.id===id) || null;
     }
+    function obtenerLoteriaSeleccionadaParaEliminar(){
+      if(!loteriaSeleccionadaEliminarId) return null;
+      return obtenerLoteriaPorId(loteriaSeleccionadaEliminarId);
+    }
+    function actualizarEstadoSeleccionEliminacion(){
+      const haySeleccion=Boolean(obtenerLoteriaSeleccionadaParaEliminar());
+      if(eliminarLoteriaBtn){
+        eliminarLoteriaBtn.disabled=!haySeleccion;
+      }
+    }
+    function alternarSeleccionEliminacion(idLoteria,seleccionar){
+      if(seleccionar){
+        loteriaSeleccionadaEliminarId=idLoteria;
+      }else if(loteriaSeleccionadaEliminarId===idLoteria){
+        loteriaSeleccionadaEliminarId='';
+      }
+      renderLoterias();
+    }
+    async function desvincularLoteriaDeSorteos(loteriaId){
+      const sorteoKeys=['loteriasAsignadas','loteriasActivas','loterias'];
+      const snap=await db.collection('sorteos').get();
+      let procesados=0;
+      for(const doc of snap.docs){
+        const data=doc.data()||{};
+        const updatePayload={};
+        let cambios=false;
+        sorteoKeys.forEach((key)=>{
+          if(!Array.isArray(data[key])) return;
+          const filtradas=data[key].filter((item)=>String(item||'').trim()!==loteriaId);
+          if(filtradas.length!==data[key].length){
+            updatePayload[key]=filtradas;
+            cambios=true;
+          }
+        });
+        if(cambios){
+          updatePayload.actualizadoEn=firebase.firestore.FieldValue.serverTimestamp();
+          await db.collection('sorteos').doc(doc.id).set(updatePayload,{merge:true});
+          procesados+=1;
+        }
+      }
+      return procesados;
+    }
     function compararLoteriasParaVista(a,b){
       const aActiva=a.estado==='Activa';
       const bActiva=b.estado==='Activa';
@@ -1933,7 +2061,7 @@
       if(!user || !apiBase){
         throw new Error('No hay sesión activa para consultar imágenes.');
       }
-      const token=await user.getIdToken(true);
+      const token=await user.getIdToken();
       const response=await fetch(`${apiBase}/admin/loterias/images`,{
         method:'GET',
         headers:{ Authorization:`Bearer ${token}` }
@@ -2037,11 +2165,18 @@
         card.className='loteria-card';
         const mostrarIntermedios=!!item.mostrarBloquesIntermedios;
         const jerarquiaTexto=item.estado==='Activa' ? `Jerarquía ${item.jerarquia||'-'}` : 'Inactiva';
+        const seleccionadaParaEliminar=loteriaSeleccionadaEliminarId===item.id;
+        const bloquearCheck=loteriaSeleccionadaEliminarId && !seleccionadaParaEliminar;
         card.innerHTML=`
           <div class="loteria-head">
             <button type="button" class="loteria-img-btn" data-accion="imagen" data-id="${item.id}">${item.imagen?'':'Imagen'}</button>
             <div class="loteria-fields">
-              <input type="text" data-accion="nombre" data-id="${item.id}" value="${item.nombre.replace(/"/g,'&quot;')}" placeholder="Nombre de lotería">
+              <div class="loteria-nombre-row">
+                <input type="text" data-accion="nombre" data-id="${item.id}" value="${item.nombre.replace(/"/g,'&quot;')}" placeholder="Nombre de lotería">
+                <label class="loteria-delete-check" title="Seleccionar lotería para eliminar">
+                  <input type="checkbox" data-accion="seleccionar-eliminar" data-id="${item.id}" ${seleccionadaParaEliminar?'checked':''} ${bloquearCheck?'disabled':''}>
+                </label>
+              </div>
               <div class="loteria-state-row">
                 <span class="jerarquia-chip">${jerarquiaTexto}</span>
                 <label class="switch">
@@ -2087,6 +2222,7 @@
         }
         loteriaFocusPendienteId='';
       }
+      actualizarEstadoSeleccionEliminacion();
       actualizarBotonGuardarLoterias();
     }
     async function abrirSelectorImagen(idLoteria){
@@ -2094,25 +2230,49 @@
       loteriasImageGrid.innerHTML='';
       loteriasImageModal.style.display='flex';
       actualizarFeedbackImagenes({mensaje:'Cargando imágenes...'});
+      let imagenesApi=[];
+      let imagenesManifest=[];
       try{
-        loteriasImagenesCache=await cargarImagenesLoteriaDesdeApi();
+        imagenesApi=await cargarImagenesLoteriaDesdeApi();
       }catch(error){
-        console.warn('No se pudieron cargar imágenes desde API, se intentará manifest local',error);
+        console.warn('No se pudieron cargar imágenes desde API',error);
+      }
+      try{
+        imagenesManifest=await cargarImagenesLoteriaDesdeManifest();
+      }catch(manifestError){
+        console.warn('No se pudieron cargar imágenes desde manifest local',manifestError);
+      }
+      const imagenesUnicas=new Map();
+      [...imagenesApi,...imagenesManifest].forEach((imagen)=>{
+        const clave=normalizarClaveImagenLoteria(imagen?.path||imagen?.url||'');
+        if(!clave || imagenesUnicas.has(clave)) return;
+        imagenesUnicas.set(clave,{
+          ...imagen,
+          path:normalizarPathRelativoImagenLoteria(imagen?.path||''),
+          url:(imagen?.url||'').toString().trim() || `${window.location.origin}/${normalizarPathRelativoImagenLoteria(imagen?.path||'')}`
+        });
+      });
+      loteriasImagenesCache=[...imagenesUnicas.values()].filter((item)=>item.path && item.url);
+      if(!loteriasImagenesCache.length){
         try{
-          loteriasImagenesCache=await cargarImagenesLoteriaDesdeManifest();
-        }catch(manifestError){
-          console.error('No se pudieron cargar imágenes de loterías',manifestError);
-          actualizarFeedbackImagenes({
-            mensaje:'No se pudieron cargar las imágenes.',
-            esError:true,
-            mostrarReintento:true,
-            onRetry:()=>abrirSelectorImagen(idLoteria)
-          });
-          return;
+          const respuestaDirectorio=await fetch('img/loterias/',{cache:'no-store'});
+          if(respuestaDirectorio.ok){
+            const texto=await respuestaDirectorio.text();
+            const paths=[...texto.matchAll(/href=\"([^\"]+\.(?:png|jpe?g|webp|svg|gif))\"/gi)]
+              .map((match)=>normalizarPathRelativoImagenLoteria(`img/loterias/${match[1]}`))
+              .filter(Boolean);
+            loteriasImagenesCache=[...new Set(paths)].map((path)=>({
+              name:path.split('/').pop()||path,
+              path,
+              url:`${window.location.origin}/${path}`
+            }));
+          }
+        }catch(scanError){
+          console.warn('No se pudo explorar directorio de imágenes de lotería',scanError);
         }
       }
       if(!loteriasImagenesCache.length){
-        actualizarFeedbackImagenes({mensaje:'No hay imágenes disponibles en el catálogo oficial.'});
+        actualizarFeedbackImagenes({mensaje:'No hay imágenes disponibles para mostrar.',esError:true,mostrarReintento:true,onRetry:()=>abrirSelectorImagen(idLoteria)});
         return;
       }
       actualizarFeedbackImagenes({mensaje:''});
@@ -2145,21 +2305,6 @@
       return '';
     }
     async function validarImagenesLoteriasContraCatalogo(){
-      const loteriasConImagen=loteriasData.filter(item=>!!(item.imagen||'').toString().trim());
-      if(!loteriasConImagen.length) return '';
-      if(!Array.isArray(loteriasImagenesCache) || !loteriasImagenesCache.length){
-        loteriasImagenesCache=await cargarImagenesLoteriaDesdeApi();
-      }
-      const catalogo=new Set((loteriasImagenesCache||[])
-        .map((img)=>img?.path)
-        .map(normalizarClaveImagenLoteria)
-        .filter(Boolean));
-      for(const item of loteriasConImagen){
-        const clave=normalizarClaveImagenLoteria(item.imagen);
-        if(clave && !catalogo.has(clave)){
-          return `La imagen de "${item.nombre||item.id||'lotería'}" no existe en el catálogo oficial. Selecciona una imagen válida.`;
-        }
-      }
       return '';
     }
     async function cargarLoterias(){
@@ -2168,6 +2313,7 @@
       if(!loteriasData.length){
         loteriasData=[defaultLoteria()];
       }
+      loteriaSeleccionadaEliminarId='';
       normalizarJerarquiasActivas();
       renderLoterias();
       loteriasBaseHash=obtenerLoteriasHash();
@@ -2230,6 +2376,10 @@
     loteriasListEl.addEventListener('change',(event)=>{
       const id=event.target.dataset.id;
       const accion=event.target.dataset.accion;
+      if(accion==='seleccionar-eliminar'){
+        alternarSeleccionEliminacion(id,!!event.target.checked);
+        return;
+      }
       const loteria=obtenerLoteriaPorId(id);
       if(!loteria) return;
       if(accion==='mostrar-intermedios'){
@@ -2244,6 +2394,56 @@
         renderLoterias();
       }
       actualizarBotonGuardarLoterias();
+    });
+    function abrirModalEliminarLoteria(){
+      const loteria=obtenerLoteriaSeleccionadaParaEliminar();
+      if(!loteria){
+        mostrarEstadoLoterias('Selecciona una lotería para eliminar.',true);
+        return;
+      }
+      loteriasDeleteMessage.textContent=`¿Está seguro de eliminar la lotería ${loteria.nombre||'sin nombre'}?`;
+      loteriasDeleteModal.style.display='flex';
+      loteriasDeleteModal.setAttribute('aria-hidden','false');
+    }
+    function cerrarModalEliminarLoteria(){
+      loteriasDeleteModal.style.display='none';
+      loteriasDeleteModal.setAttribute('aria-hidden','true');
+    }
+    eliminarLoteriaBtn?.addEventListener('click',abrirModalEliminarLoteria);
+    loteriasDeleteCancelBtn?.addEventListener('click',cerrarModalEliminarLoteria);
+    loteriasDeleteModal?.addEventListener('click',(event)=>{
+      if(event.target===loteriasDeleteModal){
+        cerrarModalEliminarLoteria();
+      }
+    });
+    loteriasDeleteConfirmBtn?.addEventListener('click',async ()=>{
+      const loteria=obtenerLoteriaSeleccionadaParaEliminar();
+      if(!loteria){
+        cerrarModalEliminarLoteria();
+        mostrarEstadoLoterias('No hay lotería seleccionada para eliminar.',true);
+        return;
+      }
+      try{
+        await desvincularLoteriaDeSorteos(loteria.id);
+        if(loteria.id && !loteria.id.startsWith('tmp-')){
+          await db.collection(LOTERIAS_SOURCE_OF_TRUTH_COLLECTION).doc(loteria.id).delete();
+        }
+        loteriasData=loteriasData.filter((item)=>item.id!==loteria.id);
+        if(!loteriasData.length){
+          loteriasData=[defaultLoteria()];
+        }
+        loteriaSeleccionadaEliminarId='';
+        normalizarJerarquiasActivas();
+        renderLoterias();
+        loteriasBaseHash=obtenerLoteriasHash();
+        actualizarBotonGuardarLoterias();
+        mostrarEstadoLoterias(`Lotería "${loteria.nombre||loteria.id||'sin nombre'}" eliminada correctamente.`);
+      }catch(error){
+        console.error('No se pudo eliminar la lotería',error);
+        mostrarEstadoLoterias('No se pudo eliminar la lotería seleccionada.',true);
+      }finally{
+        cerrarModalEliminarLoteria();
+      }
     });
     loteriasListEl.addEventListener('click',(event)=>{
       const btn=event.target.closest('button[data-accion="imagen"]');
