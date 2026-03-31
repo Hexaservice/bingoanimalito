@@ -6793,6 +6793,81 @@
     }
   }
 
+  function normalizarRolOperativo(role){
+    if(typeof normalizeRole === 'function'){
+      return normalizeRole(role);
+    }
+    if(typeof role !== 'string') return null;
+    const limpio = role.trim().toLowerCase();
+    if(!limpio) return null;
+    if(limpio === 'superadmin' || limpio === 'super administrador' || limpio === 'super-administrador') return 'Superadmin';
+    if(limpio === 'administrador' || limpio === 'admin') return 'Administrador';
+    if(limpio === 'colaborador') return 'Colaborador';
+    if(limpio === 'jugador' || limpio === 'player') return 'Jugador';
+    return role.trim();
+  }
+
+  async function validarPermisoFinalizarSorteo(){
+    const currentUser = auth?.currentUser || null;
+    if(!currentUser){
+      return {
+        permitido: false,
+        mensaje: 'No se encontró una sesión activa. Inicia sesión nuevamente para finalizar el sorteo.',
+        motivo: 'sin_sesion'
+      };
+    }
+
+    try{
+      await currentUser.getIdToken(true);
+    }catch(errorToken){
+      console.warn('[cantarsorteos][finalizar][bloqueado]', {
+        motivo: 'token_refresh_failed',
+        sorteoId: currentSorteoId || '',
+        email: (currentUser.email || '').toString().trim().toLowerCase(),
+        errorCode: (errorToken?.code || '').toString().trim(),
+        errorMessage: (errorToken?.message || '').toString().trim()
+      });
+      return {
+        permitido: false,
+        mensaje: 'No se pudo refrescar tu sesión de seguridad. Vuelve a intentarlo en unos segundos.',
+        motivo: 'token_refresh_failed'
+      };
+    }
+
+    const emailLower = (currentUser.email || '').toString().trim().toLowerCase();
+    if(!emailLower){
+      return {
+        permitido: false,
+        mensaje: 'No se pudo identificar el correo de la cuenta actual para validar permisos.',
+        motivo: 'email_invalido'
+      };
+    }
+
+    const rolesPermitidos = new Set(['Superadmin', 'Administrador', 'Colaborador']);
+    const userRef = db.collection('users').doc(emailLower);
+    const userDoc = await userRef.get();
+    const rawRole = userDoc.exists ? userDoc.data()?.role : null;
+    const role = normalizarRolOperativo(rawRole);
+
+    if(!rolesPermitidos.has(role)){
+      console.warn('[cantarsorteos][finalizar][bloqueado]', {
+        motivo: 'rol_no_permitido',
+        sorteoId: currentSorteoId || '',
+        email: emailLower,
+        roleRaw: rawRole ?? null,
+        roleNormalized: role ?? null,
+        rolesPermitidos: Array.from(rolesPermitidos)
+      });
+      return {
+        permitido: false,
+        mensaje: 'No tienes permisos para finalizar sorteos. Se requiere rol Superadmin, Administrador o Colaborador.',
+        motivo: 'rol_no_permitido'
+      };
+    }
+
+    return { permitido: true, emailLower, role };
+  }
+
   async function finalizarSorteo(){
     if(!currentSorteoId || !currentSorteoData){ alert('Selecciona un sorteo primero.'); return; }
     const estadoActual = obtenerEstadoActualNormalizado();
@@ -6833,6 +6908,13 @@
     const confirmar = await preguntarAccionEstado(`¿Estas seguro de Finalizar el sorteo: ${nombre}?`);
     if(!confirmar) return;
     try {
+      await asegurarDbListo();
+      const validacionPermiso = await validarPermisoFinalizarSorteo();
+      if(!validacionPermiso?.permitido){
+        mostrarAvisoSimple(validacionPermiso?.mensaje || 'No tienes permisos para finalizar sorteos.', 'Acción no permitida');
+        alert(validacionPermiso?.mensaje || 'No tienes permisos para finalizar sorteos.');
+        return;
+      }
       const estadoAcumulado = await registrarAcumuladoFormasSinGanador();
       if(estadoAcumulado?.ok === false){
         console.warn('Finalización con acumulado pendiente para sorteo', currentSorteoId);
