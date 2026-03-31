@@ -606,6 +606,8 @@
     const transacciones=[];
     let porcentajeRetiro=0, porcentajeAdministra=0;
     let creditosTotales=0, creditosTransito=0, creditosDisponibles=0;
+    let retiroAdelantadoActivo=false;
+    let retiroAdelantadoSorteoId='';
     let numeroWhatsappDestino='';
     let numeroWhatsappCargado=false;
     let unsubscribeBilletera=null;
@@ -2363,7 +2365,7 @@
       const billeteraRef=db.collection('Billetera').doc(user.email);
       const transaccionRef=db.collection('transacciones').doc();
       const data={
-        tipotrans:'retiro',
+        tipotrans:retiroAdelantadoActivo?'premio':'retiro',
         bancoreceptor:'',
         MontoSolicitado:monto,
         Monto:montoFinal,
@@ -2377,7 +2379,9 @@
         rolusuario:'',
         fechagestion:'',
         horagestion:'',
-        nota:''
+        nota:'',
+        retiroAdelantado:retiroAdelantadoActivo,
+        sorteoId:retiroAdelantadoSorteoId||''
       };
       let billeteraData=null;
       try{
@@ -2387,7 +2391,9 @@
           const bancoSeleccionado=(billeteraData.banco||'').toString();
           const creditosActual=toNumberSafe(billeteraData.creditos,0);
           const transitoActual=Math.max(0,toNumberSafe(billeteraData.creditostransito,0));
-          const disponibles=Math.max(0,creditosActual-transitoActual);
+          const premioTemporalActual=Math.max(0,toNumberSafe(billeteraData.premioTemporalDisponible,0));
+          const premioTemporalBloqueado=Math.max(0,toNumberSafe(billeteraData.premioTemporalBloqueado,0));
+          const disponibles= retiroAdelantadoActivo ? premioTemporalActual : Math.max(0,creditosActual-transitoActual);
           if(monto>disponibles){
             throw new Error('CREDITOS_INSUFICIENTES');
           }
@@ -2395,7 +2401,12 @@
           if(!data.bancoreceptor){
             data.bancoreceptor=bancoSeleccionado;
           }
-          tx.set(billeteraRef,{creditostransito:nuevoTransito},{merge:true});
+          const payload={creditostransito:nuevoTransito};
+          if(retiroAdelantadoActivo){
+            payload.premioTemporalDisponible=Math.max(0,premioTemporalActual-monto);
+            payload.premioTemporalBloqueado=premioTemporalBloqueado+monto;
+          }
+          tx.set(billeteraRef,payload,{merge:true});
           tx.set(transaccionRef,data);
         });
       }catch(error){
@@ -2417,7 +2428,7 @@
       const montoStr=document.getElementById('monto-retiro').value.trim();
       const monto=parseFloat(montoStr);
       if(!montoStr || isNaN(monto) || monto<=0){await mostrarAlertaModal('Ingrese un monto válido');document.getElementById('monto-retiro').focus();return;}
-      if(monto>creditosDisponibles){ await mostrarAlertaModal(`El monto supera los créditos disponibles (${formatearMontoPantalla(creditosDisponibles)})`); return; }
+      if(!retiroAdelantadoActivo && monto>creditosDisponibles){ await mostrarAlertaModal(`El monto supera los créditos disponibles (${formatearMontoPantalla(creditosDisponibles)})`); return; }
       const montoFinal=monto - (monto*porcentajeRetiro/100) - (monto*porcentajeAdministra/100);
       document.getElementById('monto-retiro-neto').value = montoFinal>0 ? montoFinal.toFixed(2) : '';
       const comentarioRetiro=document.getElementById('comentario-retiro').value.trim();
@@ -2449,6 +2460,21 @@
     document.getElementById('volver-btn').addEventListener('click',()=>{
       window.location.href='player.html';
     });
+
+    (function aplicarRetiroAdelantadoDesdeURL(){
+      const params=new URLSearchParams(window.location.search||'');
+      if(params.get('retiro_adelantado')!=='1') return;
+      const monto=Math.max(0,Number(params.get('monto')||0));
+      const comentario=(params.get('comentario')||'Retiro adelantado de premio').toString();
+      retiroAdelantadoSorteoId=(params.get('sorteoId')||'').toString();
+      retiroAdelantadoActivo=true;
+      activarTab('retirar');
+      if(monto>0){
+        document.getElementById('monto-retiro').value=String(Math.floor(monto));
+        actualizarMontoNeto();
+      }
+      document.getElementById('comentario-retiro').value=comentario;
+    })();
 
     </script>
     <script>

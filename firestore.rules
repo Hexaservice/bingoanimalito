@@ -202,6 +202,11 @@ service cloud.firestore {
       allow write: if isPrivilegedOperator();
     }
 
+    match /acumulados/{docId} {
+      allow read: if isSignedIn();
+      allow write: if isPrivilegedOperator();
+    }
+
     match /cantos/{docId} {
       allow read: if isSignedIn();
       allow write: if isPrivilegedOperator();

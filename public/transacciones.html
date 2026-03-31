@@ -692,6 +692,7 @@
         const billeteraId=((data && data.IDbilletera)||'').toString();
         const esRetiro=tipo==='retiro';
         const esRecarga=tipo==='recarga';
+        const esRetiroAdelantado=tipo==='premio' && data?.retiroAdelantado===true;
 
         if(billeteraId && estado==='ANULADO' && esRetiro){
           const billeteraRef=db.collection('Billetera').doc(billeteraId);
@@ -701,6 +702,22 @@
             const montoTransaccion=toNumberSafe((data.MontoSolicitado ?? data.Monto),0);
             const transitoActual=Math.max(0,toNumberSafe(billeteraData.creditostransito,0));
             const payload={ creditostransito: Math.max(0,transitoActual-montoTransaccion) };
+            t.set(billeteraRef,payload,{merge:true});
+          });
+        }
+
+        if(billeteraId && (estado==='APROBADO' || estado==='ANULADO') && esRetiroAdelantado){
+          const billeteraRef=db.collection('Billetera').doc(billeteraId);
+          await db.runTransaction(async t=>{
+            const bdoc=await t.get(billeteraRef);
+            const billeteraData=bdoc.exists?(bdoc.data()||{}):{};
+            const montoTransaccion=toNumberSafe((data.MontoSolicitado ?? data.Monto),0);
+            const bloqueadoActual=Math.max(0,toNumberSafe(billeteraData.premioTemporalBloqueado,0));
+            const payload={ premioTemporalBloqueado: Math.max(0,bloqueadoActual-montoTransaccion) };
+            if(estado==='ANULADO'){
+              const disponibleActual=Math.max(0,toNumberSafe(billeteraData.premioTemporalDisponible,0));
+              payload.premioTemporalDisponible=disponibleActual+montoTransaccion;
+            }
             t.set(billeteraRef,payload,{merge:true});
           });
         }

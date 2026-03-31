@@ -5605,31 +5605,25 @@
       const montoAcumulado = formasSinGanador.reduce((acc, item)=>acc + Math.max(0, Number(obtenerCreditosForma(item.forma)) || 0), 0);
       if(montoAcumulado <= 0) return { ok: true };
       const sorteoAcumuladoRef = db.collection('cantarsorteos').doc(currentSorteoId);
-      const sorteoGeneralRef = db.collection('sorteos').doc(currentSorteoId);
-      const sorteoCentroPagosRef = db.collection('SorteosCentroPagos').doc(currentSorteoId);
       const acumuladoSnap = await sorteoAcumuladoRef.get();
-      if(acumuladoSnap.exists && acumuladoSnap.data()?.acumuladoFormas?.estado === 'aplicado') return { ok: true };
+      if(acumuladoSnap.exists && acumuladoSnap.data()?.acumuladoFormas?.estado === 'registrado') return { ok: true };
 
       const marcasTiempo = {
         creadoEn: getServerTimestamp() || getPreciseTimestamp(),
         actualizadoEn: getServerTimestamp() || getPreciseTimestamp()
       };
+      const formasDetalladas = formasSinGanador.map(item=>({
+        idx: item.idx,
+        nombre: item.forma?.nombre || `Forma ${item.idx}`,
+        montoCreditos: Math.max(0, Number(obtenerCreditosForma(item.forma)) || 0)
+      }));
       const detalleAcumulado = {
-        estado: 'pendiente',
+        estado: 'registrado',
         montoCreditos: montoAcumulado,
-        formas: formasSinGanador.map(item=>({
-          idx: item.idx,
-          nombre: item.forma?.nombre || `Forma ${item.idx}`,
-          montoCreditos: Math.max(0, Number(obtenerCreditosForma(item.forma)) || 0)
-        })),
-        gestion: {
-          estado: 'PENDIENTE_ADMINISTRACION',
-          origen: 'cantarsorteos/finalizacion'
-        },
+        formas: formasDetalladas,
+        origen: 'cantarsorteos/finalizacion',
         ...marcasTiempo
       };
-      // Reemplaza el flujo legado de bingo anterior donde se pedía por prompt aplicar el acumulado al cierre.
-      // Desde ahora queda pendiente para gestión administrativa unificada en Centro de Pagos.
       const sorteoNombreActual = obtenerNombreSorteoActual();
       const loteAcumulado = db.batch();
       loteAcumulado.set(sorteoAcumuladoRef, {
@@ -5637,33 +5631,32 @@
           ...detalleAcumulado
         }
       }, { merge: true });
-      loteAcumulado.set(sorteoGeneralRef, {
-        acumuladoFormas: {
-          ...detalleAcumulado
-        },
-        acumuladoPendienteGestionAdministrativa: true,
-        acumuladoActualizadoEn: marcasTiempo.actualizadoEn
-      }, { merge: true });
-      loteAcumulado.set(sorteoCentroPagosRef, {
-        sorteoId: currentSorteoId,
-        sorteoNombre: sorteoNombreActual,
-        acumuladoFormas: {
-          ...detalleAcumulado
-        },
-        acumuladoPendienteGestionAdministrativa: true,
-        acumuladoActualizadoEn: marcasTiempo.actualizadoEn,
-        generadoDesde: 'cantarsorteos'
-      }, { merge: true });
+      formasDetalladas.forEach(formaDetalle=>{
+        const acumuladoFormaRef = db.collection('acumulados').doc();
+        loteAcumulado.set(acumuladoFormaRef, {
+          sorteoOrigenId: currentSorteoId,
+          sorteoOrigenNombre: sorteoNombreActual,
+          formaIdx: formaDetalle.idx,
+          formaNombre: formaDetalle.nombre,
+          montoOriginal: formaDetalle.montoCreditos,
+          montoDisponible: formaDetalle.montoCreditos,
+          montoTransferido: 0,
+          estado: 'DISPONIBLE',
+          transferencias: [],
+          creadoEn: marcasTiempo.creadoEn,
+          actualizadoEn: marcasTiempo.actualizadoEn
+        }, { merge: true });
+      });
       await loteAcumulado.commit();
 
       mostrarAvisoSimple(
-        `Acumulado pendiente de ${formatearNumero(montoAcumulado)} créditos registrado para gestión administrativa en Centro de Pagos.`,
-        'Acumulado pendiente de gestión'
+        `Acumulado de ${formatearNumero(montoAcumulado)} créditos registrado en la colección de acumulados.`,
+        'Acumulado registrado'
       );
       return { ok: true, pendiente: true, montoCreditos: montoAcumulado };
     } catch (errorAcumulado) {
-      console.warn('No se pudo registrar el acumulado de formas sin ganador en Centro de Pagos. Se deja pendiente.', errorAcumulado);
-      mostrarAvisoSimple('No se pudo registrar el acumulado en este momento. El sorteo seguirá su finalización y el acumulado quedó pendiente.', 'Acumulado pendiente');
+      console.warn('No se pudo registrar el acumulado de formas sin ganador.', errorAcumulado);
+      mostrarAvisoSimple('No se pudo registrar el acumulado en este momento. El sorteo seguirá su finalización.', 'Acumulado no registrado');
       return { ok: false, pendiente: true, error: errorAcumulado };
     }
   }
