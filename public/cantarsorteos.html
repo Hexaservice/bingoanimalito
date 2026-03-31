@@ -6915,11 +6915,40 @@
         alert(validacionPermiso?.mensaje || 'No tienes permisos para finalizar sorteos.');
         return;
       }
+      const ref = db.collection('sorteos').doc(currentSorteoId);
+      const snap = await ref.get();
+      if(!snap.exists){
+        const mensajeInexistente = 'No se encontró el sorteo en base de datos. Es posible que haya sido eliminado.';
+        mostrarAvisoSimple(mensajeInexistente, 'Sorteo inexistente');
+        alert(mensajeInexistente);
+        return;
+      }
+      const estadoPersistido = normalizarEstadoSorteo(snap.data()?.estado);
+      if(estadoPersistido !== 'jugando'){
+        const mensajeConflictoPrevio = 'El estado del sorteo cambió en el servidor y ya no está en Jugando.';
+        mostrarAvisoSimple(mensajeConflictoPrevio, 'Conflicto de estado');
+        alert(`${mensajeConflictoPrevio} Otro operador pudo haber actualizado el sorteo.`);
+        return;
+      }
       const estadoAcumulado = await registrarAcumuladoFormasSinGanador();
       if(estadoAcumulado?.ok === false){
         console.warn('Finalización con acumulado pendiente para sorteo', currentSorteoId);
       }
-      await db.collection('sorteos').doc(currentSorteoId).update({ estado: 'Finalizado' });
+      await db.runTransaction(async(transaction)=>{
+        const docTx = await transaction.get(ref);
+        if(!docTx.exists){
+          const errorNoExiste = new Error('Sorteo inexistente durante transacción de finalización.');
+          errorNoExiste.code = 'not-found';
+          throw errorNoExiste;
+        }
+        const estadoTx = normalizarEstadoSorteo(docTx.data()?.estado);
+        if(estadoTx !== 'jugando'){
+          const errorConflicto = new Error('Estado de sorteo modificado por otro operador.');
+          errorConflicto.code = 'failed-precondition';
+          throw errorConflicto;
+        }
+        transaction.update(ref, { estado: 'Finalizado' });
+      });
       conservarLoteriasCacheEnSorteoActual();
       mensajeEl.textContent = estadoAcumulado?.pendiente
         ? 'Sorteo finalizado correctamente. Acumulado pendiente de gestión administrativa.'
@@ -6948,6 +6977,9 @@
       } else if(errorCode === 'not-found'){
         mensajeOperador = 'No se encontró el documento del sorteo que intentas finalizar. Revisa si el sorteo existe o fue eliminado.';
         errorId = 'E-FIN-404';
+      } else if(errorCode === 'failed-precondition'){
+        mensajeOperador = 'No se pudo finalizar porque otro operador cambió el estado del sorteo. Refresca la vista y verifica el estado actual.';
+        errorId = 'E-FIN-409';
       } else if(esErrorRed){
         mensajeOperador = 'Hay un problema de conectividad con el servidor. Revisa tu conexión e intenta nuevamente en unos segundos.';
         errorId = 'E-FIN-503';
