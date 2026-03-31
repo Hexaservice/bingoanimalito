@@ -5596,76 +5596,88 @@
   }
 
   async function registrarAcumuladoFormasSinGanador(){
-    if(!db || !currentSorteoId) return;
-    if(!resultadosCompletosLoterias()) return;
-    const formasSinGanador = obtenerFormasSinGanador();
-    if(!formasSinGanador.length) return;
-    const montoAcumulado = formasSinGanador.reduce((acc, item)=>acc + Math.max(0, Number(obtenerCreditosForma(item.forma)) || 0), 0);
-    if(montoAcumulado <= 0) return;
-    const sorteoAcumuladoRef = db.collection('sorteos').doc(currentSorteoId).collection('meta').doc('acumulado_formas');
-    const acumuladoSnap = await sorteoAcumuladoRef.get();
-    if(acumuladoSnap.exists && acumuladoSnap.data()?.estado === 'aplicado') return;
+    if(!db || !currentSorteoId) return { ok: true };
+    if(!resultadosCompletosLoterias()) return { ok: true };
 
-    await sorteoAcumuladoRef.set({
-      estado: 'pendiente',
-      montoCreditos: montoAcumulado,
-      formas: formasSinGanador.map(item=>({
-        idx: item.idx,
-        nombre: item.forma?.nombre || `Forma ${item.idx}`,
-        montoCreditos: Math.max(0, Number(obtenerCreditosForma(item.forma)) || 0)
-      })),
-      creadoEn: getServerTimestamp() || getPreciseTimestamp()
-    }, { merge: true });
+    try {
+      const formasSinGanador = obtenerFormasSinGanador();
+      if(!formasSinGanador.length) return { ok: true };
+      const montoAcumulado = formasSinGanador.reduce((acc, item)=>acc + Math.max(0, Number(obtenerCreditosForma(item.forma)) || 0), 0);
+      if(montoAcumulado <= 0) return { ok: true };
+      const sorteoAcumuladoRef = db.collection('cantarsorteos').doc(currentSorteoId);
+      const acumuladoSnap = await sorteoAcumuladoRef.get();
+      if(acumuladoSnap.exists && acumuladoSnap.data()?.acumuladoFormas?.estado === 'aplicado') return { ok: true };
 
-    const activos = sorteos
-      .filter(s=>s?.id && s.id !== currentSorteoId)
-      .filter(s=>{
-        const estado = (s.estado || '').toString().toLowerCase();
-        return estado === 'activo' || estado === 'sellado';
-      });
-    if(!activos.length){
-      mostrarAvisoSimple(`Hay un acumulado pendiente de ${formatearNumero(montoAcumulado)} créditos y no hay sorteos activos/sellados para aplicarlo aún.`, 'Acumulado pendiente');
-      return;
-    }
-
-    const opciones = activos
-      .map((s, idx)=>`${idx + 1}. ${(s.nombre || 'Sorteo').toString().trim() || 'Sorteo'} (${(s.estado || '').toString().toUpperCase()})`)
-      .join('\n');
-    const seleccion = window.prompt(
-      `Hay un acumulado pendiente de ${formatearNumero(montoAcumulado)} créditos.\n`+
-      'Elige el número del sorteo donde aplicar "Inicial/Acumulado":\n\n'+
-      opciones
-    );
-    const indice = Number.parseInt((seleccion || '').trim(), 10);
-    if(!Number.isInteger(indice) || indice < 1 || indice > activos.length){
-      mostrarAvisoSimple('El acumulado quedó pendiente para aplicarlo luego desde administración.', 'Acumulado pendiente');
-      return;
-    }
-
-    const destino = activos[indice - 1];
-    const destinoRef = db.collection('sorteos').doc(destino.id);
-    await db.runTransaction(async tx=>{
-      const destinoSnap = await tx.get(destinoRef);
-      if(!destinoSnap.exists) throw new Error('Sorteo destino no disponible');
-      const destinoData = destinoSnap.data() || {};
-      const premioInicialActual = Math.max(0, Number(destinoData.premioInicial) || 0);
-      const totalPremiosActual = Math.max(0, Number(destinoData.totalPremios) || 0);
-      tx.set(destinoRef, {
-        premioInicial: premioInicialActual + montoAcumulado,
-        totalPremios: totalPremiosActual + montoAcumulado,
-        acumuladoPendienteAplicado: true,
-        acumuladoActualizadoEn: getServerTimestamp() || getPreciseTimestamp()
+      await sorteoAcumuladoRef.set({
+        acumuladoFormas: {
+          estado: 'pendiente',
+          montoCreditos: montoAcumulado,
+          formas: formasSinGanador.map(item=>({
+            idx: item.idx,
+            nombre: item.forma?.nombre || `Forma ${item.idx}`,
+            montoCreditos: Math.max(0, Number(obtenerCreditosForma(item.forma)) || 0)
+          })),
+          creadoEn: getServerTimestamp() || getPreciseTimestamp()
+        }
       }, { merge: true });
-    });
 
-    await sorteoAcumuladoRef.set({
-      estado: 'aplicado',
-      destinoSorteoId: destino.id,
-      destinoSorteoNombre: destino.nombre || '',
-      aplicadoEn: getServerTimestamp() || getPreciseTimestamp()
-    }, { merge: true });
+      const activos = sorteos
+        .filter(s=>s?.id && s.id !== currentSorteoId)
+        .filter(s=>{
+          const estado = (s.estado || '').toString().toLowerCase();
+          return estado === 'activo' || estado === 'sellado';
+        });
+      if(!activos.length){
+        mostrarAvisoSimple(`Hay un acumulado pendiente de ${formatearNumero(montoAcumulado)} créditos y no hay sorteos activos/sellados para aplicarlo aún.`, 'Acumulado pendiente');
+        return { ok: true, pendiente: true };
+      }
 
-    mostrarAvisoSimple(`Acumulado de ${formatearNumero(montoAcumulado)} créditos aplicado en ${(destino.nombre || 'el sorteo seleccionado')}.`, 'Acumulado aplicado');
+      const opciones = activos
+        .map((s, idx)=>`${idx + 1}. ${(s.nombre || 'Sorteo').toString().trim() || 'Sorteo'} (${(s.estado || '').toString().toUpperCase()})`)
+        .join('\n');
+      const seleccion = window.prompt(
+        `Hay un acumulado pendiente de ${formatearNumero(montoAcumulado)} créditos.\n`+
+        'Elige el número del sorteo donde aplicar "Inicial/Acumulado":\n\n'+
+        opciones
+      );
+      const indice = Number.parseInt((seleccion || '').trim(), 10);
+      if(!Number.isInteger(indice) || indice < 1 || indice > activos.length){
+        mostrarAvisoSimple('El acumulado quedó pendiente para aplicarlo luego desde administración.', 'Acumulado pendiente');
+        return { ok: true, pendiente: true };
+      }
+
+      const destino = activos[indice - 1];
+      const destinoRef = db.collection('sorteos').doc(destino.id);
+      await db.runTransaction(async tx=>{
+        const destinoSnap = await tx.get(destinoRef);
+        if(!destinoSnap.exists) throw new Error('Sorteo destino no disponible');
+        const destinoData = destinoSnap.data() || {};
+        const premioInicialActual = Math.max(0, Number(destinoData.premioInicial) || 0);
+        const totalPremiosActual = Math.max(0, Number(destinoData.totalPremios) || 0);
+        tx.set(destinoRef, {
+          premioInicial: premioInicialActual + montoAcumulado,
+          totalPremios: totalPremiosActual + montoAcumulado,
+          acumuladoPendienteAplicado: true,
+          acumuladoActualizadoEn: getServerTimestamp() || getPreciseTimestamp()
+        }, { merge: true });
+      });
+
+      await sorteoAcumuladoRef.set({
+        acumuladoFormas: {
+          estado: 'aplicado',
+          destinoSorteoId: destino.id,
+          destinoSorteoNombre: destino.nombre || '',
+          aplicadoEn: getServerTimestamp() || getPreciseTimestamp()
+        }
+      }, { merge: true });
+
+      mostrarAvisoSimple(`Acumulado de ${formatearNumero(montoAcumulado)} créditos aplicado en ${(destino.nombre || 'el sorteo seleccionado')}.`, 'Acumulado aplicado');
+      return { ok: true };
+    } catch (errorAcumulado) {
+      console.warn('No se pudo registrar/aplicar el acumulado de formas sin ganador. Se deja acumulado pendiente.', errorAcumulado);
+      mostrarAvisoSimple('No se pudo registrar el acumulado en este momento. El sorteo seguirá su finalización y el acumulado quedó pendiente.', 'Acumulado pendiente');
+      return { ok: false, pendiente: true, error: errorAcumulado };
+    }
   }
 
   function pagosCentroAprobados(data){
@@ -6833,7 +6845,10 @@
     const confirmar = await preguntarAccionEstado(`¿Estas seguro de Finalizar el sorteo: ${nombre}?`);
     if(!confirmar) return;
     try {
-      await registrarAcumuladoFormasSinGanador();
+      const estadoAcumulado = await registrarAcumuladoFormasSinGanador();
+      if(estadoAcumulado?.ok === false){
+        console.warn('Finalización con acumulado pendiente para sorteo', currentSorteoId);
+      }
       await db.collection('sorteos').doc(currentSorteoId).update({ estado: 'Finalizado' });
       conservarLoteriasCacheEnSorteoActual();
       mensajeEl.textContent = 'El sorteo fue finalizado correctamente.';
