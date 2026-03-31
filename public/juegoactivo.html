@@ -4531,8 +4531,8 @@
 
   <div id="complementarios-aviso" class="aviso-overlay aviso-overlay--complementarios" role="dialog" aria-modal="true" aria-labelledby="complementarios-aviso-titulo" aria-hidden="true">
     <div class="aviso-overlay__box">
-      <h2 id="complementarios-aviso-titulo" class="aviso-overlay__titulo">Cantos de transparencia</h2>
-      <p id="complementarios-aviso-mensaje" class="aviso-overlay__mensaje">Ya hay GANADORES en todas las FORMAS, ahora se continua con los cantos de números faltantes para transparencia del SORTEO</p>
+      <h2 id="complementarios-aviso-titulo" class="aviso-overlay__titulo">Resultados del sorteo</h2>
+      <p id="complementarios-aviso-mensaje" class="aviso-overlay__mensaje">Los resultados continúan cargándose durante el sorteo.</p>
       <div class="aviso-overlay__acciones">
         <button type="button" id="complementarios-aviso-aceptar">Aceptar</button>
       </div>
@@ -4893,8 +4893,8 @@
   const BINGO_LETRAS = ['B','I','N','G','O'];
 
   const TEXTO_BOTON_CONSULTAR_SELECCIONADOS = 'CONSULTAR SORTEOS FINALIZADOS';
-  const MENSAJE_COMPLEMENTARIOS_PENDIENTES = 'Ya hay GANADORES en todas las FORMAS, ahora se continua con los cantos de números faltantes para transparencia del SORTEO';
-  const MENSAJE_COMPLEMENTARIOS_COMPLETOS = 'Ya hay GANADORES en todas las FORMAS, y ya se han cantado todos los cantos restantes para la transparencia del SORTEO';
+  const MENSAJE_COMPLEMENTARIOS_PENDIENTES = 'Los resultados continúan cargándose durante el sorteo.';
+  const MENSAJE_COMPLEMENTARIOS_COMPLETOS = 'Los resultados continúan cargándose durante el sorteo.';
   const MENSAJE_WHATSAPP_NO_DISPONIBLE = 'Aún no hay grupos disponibles de WhatsApp';
   const MENSAJE_LIVE_NO_DISPONIBLE = 'No hay transmisiones en vivo actualmente';
   const cantoCellsMap = new Map();
@@ -9449,12 +9449,7 @@
   }
 
   function esCantoComplementario(numero){
-    if(!normalizarNumero(numero)) return false;
-    if(!todasFormasConGanadores || !Number.isInteger(indiceUltimoGanador)) return false;
-    if(!(cantosIndiceMap instanceof Map)) return false;
-    if(!cantosIndiceMap.has(numero)) return false;
-    const idx=cantosIndiceMap.get(numero);
-    return Number.isInteger(idx) && idx>indiceUltimoGanador;
+    return false;
   }
 
   function esCantoGanador(numero){
@@ -9945,7 +9940,7 @@
     });
     ultimoCantoEl.innerHTML='';
     const total=cantosOrdenados.length;
-    const complementariosActivos=cantosComplementariosActivos && Number.isInteger(indiceUltimoGanador);
+    const complementariosActivos=false;
     let ultimoEstadoNormalizado='';
     cantosOrdenados.forEach((num,idx)=>{
       const celda=cantoCellsMap.get(num);
@@ -9956,8 +9951,6 @@
         if(esPenalizado){
           celda.classList.add('invalido');
           celda.classList.remove('complementario');
-        }else if(complementariosActivos && idx>indiceUltimoGanador){
-          celda.classList.add('complementario');
         }
         if(idx===total-1){
           celda.classList.add('ultimo');
@@ -9988,6 +9981,7 @@
           })
           .filter(Boolean);
         if(etiquetasFormas.length){
+          celda.classList.add('ganador');
           celda.dataset.formasGanadoras=etiquetasFormas.join(', ');
           const tituloBase=celda.dataset?.tituloBase || generarEtiquetaDesdeNumero(numero);
           const descripcionFormas=etiquetasFormas.map(texto=>`Forma ${texto.slice(1)}`).join(', ');
@@ -11732,27 +11726,11 @@
       indiceUltimoGanador=null;
     }
     const totalCantos=cantosOrdenados.length;
-    if(todasFormasConGanadores && Number.isInteger(indiceUltimoGanador)){
-      const limite=Number(indiceUltimoGanador)+1;
-      cantosComplementariosActivos=totalCantos>limite;
-    }else{
-      cantosComplementariosActivos=false;
-    }
+    cantosComplementariosActivos=false;
+    avisoComplementariosMostrado=false;
+    transparenciaCompletaAnunciada=false;
     actualizarMensajeAvisoComplementarios(totalCantos);
-    const transparenciaCompleta=cantosComplementariosActivos && totalCantos>=75;
-    if(transparenciaCompleta && !transparenciaCompletaAnunciada){
-      avisoComplementariosMostrado=false;
-      transparenciaCompletaAnunciada=true;
-    }else if(!transparenciaCompleta){
-      transparenciaCompletaAnunciada=false;
-    }
-    if(!cantosComplementariosActivos || !haySorteoJugando){
-      avisoComplementariosMostrado=false;
-      transparenciaCompletaAnunciada=false;
-      cerrarAvisoComplementarios();
-    }else if(!avisoComplementariosMostrado){
-      mostrarAvisoComplementarios();
-    }
+    cerrarAvisoComplementarios();
     evaluarMensajeSinPremio(estadoAnterior);
     evaluarFormasSinGanadores(totalCantos);
   }

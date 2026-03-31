@@ -1938,7 +1938,7 @@
   </div>
   <div id="canto-confirm-modal" class="confirm-modal" role="dialog" aria-modal="true" aria-labelledby="canto-confirm-mensaje">
     <div class="pdf-confirm-box canto-confirm-box">
-      <p id="canto-confirm-mensaje" class="canto-confirm-mensaje">¿Este es el Canto a guardar?</p>
+      <p id="canto-confirm-mensaje" class="canto-confirm-mensaje">¿Este es el resultado a guardar?</p>
       <div id="canto-confirm-valor"></div>
       <div class="pdf-confirm-actions canto-confirm-actions">
         <button id="canto-confirm-aceptar">Aceptar</button>
@@ -1979,8 +1979,8 @@
   </div>
   <div id="complementarios-modal" class="info-overlay info-overlay--complementarios" role="dialog" aria-modal="true" aria-labelledby="complementarios-modal-titulo" aria-hidden="true">
     <div class="info-overlay__box">
-      <h2 id="complementarios-modal-titulo" class="info-overlay__titulo">Transparencia en curso</h2>
-      <p id="complementarios-modal-mensaje" class="info-overlay__mensaje">Se han completado los ganadores en todas las formas, se procede a continuar con los cantos complementarios.</p>
+      <h2 id="complementarios-modal-titulo" class="info-overlay__titulo">Resultados en curso</h2>
+      <p id="complementarios-modal-mensaje" class="info-overlay__mensaje">Se han completado los ganadores en todas las formas.</p>
       <div class="info-overlay__acciones">
         <button type="button" id="complementarios-modal-aceptar">Aceptar</button>
       </div>
@@ -3996,19 +3996,6 @@
 
   function actualizarEstilosCantos(){
     cantoCeldas.forEach(celda=>celda.classList.remove('complementario'));
-    if(!cantosSeleccionados.size) return;
-    if(!(todasFormasConGanadores && Number.isInteger(indiceUltimoGanador))){
-      return;
-    }
-    const valores = Array.from(cantosSeleccionados);
-    valores.forEach((valor, idx)=>{
-      const clave = (valor ?? '').toString().toUpperCase();
-      const celda = cantoCeldas.get(clave);
-      if(!celda) return;
-      if(idx > indiceUltimoGanador){
-        celda.classList.add('complementario');
-      }
-    });
   }
 
   function solicitarSincronizacionMetadatos(){
@@ -6861,6 +6848,31 @@
     return { permitido: true, emailLower, role };
   }
 
+  function obtenerLoteriasConResultadosPendientes(){
+    const pendientes = [];
+    const setPendientes = new Set();
+    for(let fila=0; fila<15; fila++){
+      columnasSemanticas.forEach(({ tipo, loteria })=>{
+        if(tipo === 'horario' || !loteria?.id) return;
+        const clave = construirClaveResultado(loteria.id, fila);
+        const claveCompatible = resolverClaveResultadoCompatible(clave);
+        if(!claveCompatible) return;
+        const habilitacion = obtenerBloquesHabilitadosEnFila(loteria, fila);
+        if(!habilitacion.exacta && !habilitacion.intermedia) return;
+        const resultados = resultadosPorCelda.get(claveCompatible) || {};
+        const exactaLista = !habilitacion.exacta || Boolean(window.CantosCanonicos?.normalizarNumeroCanonico(resultados?.exacta));
+        const intermediaLista = !habilitacion.intermedia || Boolean(window.CantosCanonicos?.normalizarNumeroCanonico(resultados?.intermedia));
+        if(exactaLista && intermediaLista) return;
+        const loteriaId = (loteria.id || '').toString().trim();
+        if(!loteriaId || setPendientes.has(loteriaId)) return;
+        setPendientes.add(loteriaId);
+        const nombreLoteria = (loteria.nombre || '').toString().trim() || `Lotería ${loteriaId}`;
+        pendientes.push(nombreLoteria);
+      });
+    }
+    return pendientes;
+  }
+
   async function finalizarSorteo(){
     if(!currentSorteoId || !currentSorteoData){ alert('Selecciona un sorteo primero.'); return; }
     const estadoActual = obtenerEstadoActualNormalizado();
@@ -6926,6 +6938,13 @@
       const estadoAcumulado = await registrarAcumuladoFormasSinGanador();
       if(estadoAcumulado?.ok === false){
         console.warn('Finalización con acumulado pendiente para sorteo', currentSorteoId);
+      }
+      const loteriasPendientes = obtenerLoteriasConResultadosPendientes();
+      if(loteriasPendientes.length){
+        const mensajePendientes = `Aún existen resultados de las loterías ${loteriasPendientes.join(', ')} por cargar`;
+        mostrarAvisoSimple(mensajePendientes, 'Resultados pendientes');
+        alert(mensajePendientes);
+        return;
       }
       await db.runTransaction(async(transaction)=>{
         const docTx = await transaction.get(ref);
