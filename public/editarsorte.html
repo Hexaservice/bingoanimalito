@@ -255,7 +255,7 @@
   <div id="tipo-sorteo-group" class="toggle-group">
     <button data-value="Sorteo Especial">Especial</button>
     <button data-value="Sorteo Diario">Diario</button>
-    <input id="premio-inicial" class="premio-inicial-input" type="text" inputmode="numeric" pattern="[0-9]*" placeholder="Premio Inicial">
+    <input id="premio-inicial" class="premio-inicial-input" type="text" inputmode="numeric" pattern="[0-9]*" placeholder="Inicial/Acumulado">
   </div>
   <div class="row">
     <div class="input-wrapper"><span class="label-left" id="fecha-label">Fecha</span><input id="fecha-sorteo" type="date"></div>
@@ -1285,7 +1285,7 @@ firebase.auth().onAuthStateChanged(u=>{
       return;
     }
     if(premioInicialVal!==null && (!Number.isFinite(premioInicialVal) || premioInicialVal<0)){
-      alert('El premio inicial debe ser un número válido igual o mayor a 0.');
+      alert('El valor Inicial/Acumulado debe ser un número válido igual o mayor a 0.');
       premioInicialInput.focus();
       return;
     }
