@@ -6846,8 +6846,45 @@
       forzarVisibilidadResultado(true);
       abrirPdfResultados();
     } catch (err) {
-      console.error('Error finalizando sorteo', err);
-      alert('No fue posible finalizar el sorteo.');
+      const errorCode = (err?.code || '').toString().trim().toLowerCase();
+      const errorMessage = (err?.message || '').toString().trim();
+      const errorName = (err?.name || '').toString().trim();
+      console.error('Error finalizando sorteo', {
+        err,
+        errorCode,
+        errorName,
+        errorMessage
+      });
+      const userEmail = (adminActual?.email || auth?.currentUser?.email || '').toString().trim();
+
+      const esErrorRed = errorCode.includes('unavailable') || errorCode.includes('deadline-exceeded');
+      let mensajeOperador = 'No fue posible finalizar el sorteo en este momento. Verifica el estado e inténtalo de nuevo.';
+      let errorId = 'E-FIN-500';
+      if(errorCode === 'permission-denied'){
+        mensajeOperador = 'No tienes permisos suficientes para finalizar este sorteo. Verifica tu rol de operador/administrador.';
+        errorId = 'E-FIN-403';
+      } else if(errorCode === 'not-found'){
+        mensajeOperador = 'No se encontró el documento del sorteo que intentas finalizar. Revisa si el sorteo existe o fue eliminado.';
+        errorId = 'E-FIN-404';
+      } else if(esErrorRed){
+        mensajeOperador = 'Hay un problema de conectividad con el servidor. Revisa tu conexión e intenta nuevamente en unos segundos.';
+        errorId = 'E-FIN-503';
+      }
+
+      const telemetriaErrorFinalizar = {
+        sorteoId: currentSorteoId || '',
+        estadoActual,
+        userEmail,
+        errorCode
+      };
+      if(typeof window.trackEvent === 'function'){
+        window.trackEvent('cantarsorteos_finalizar_error', telemetriaErrorFinalizar);
+      } else {
+        console.info('[telemetria] cantarsorteos_finalizar_error', telemetriaErrorFinalizar);
+      }
+
+      mostrarAvisoSimple(`${mensajeOperador} (Ref: ${errorId})`, 'No se pudo finalizar');
+      alert(`No fue posible finalizar el sorteo. Código de soporte: ${errorId}`);
     }
   }
 
