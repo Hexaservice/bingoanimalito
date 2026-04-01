@@ -4496,7 +4496,6 @@
       <h2 id="modal-celebracion-titulo">¡Felicidades!</h2>
       <p id="modal-celebracion-mensaje">Así se ven tus premios más recientes:</p>
       <div id="modal-celebracion-lista"></div>
-      <button type="button" id="modal-celebracion-retiro">Solicitar Retiro Ahora</button>
       <button type="button" id="modal-celebracion-aceptar">Aceptar</button>
     </div>
   </div>
@@ -4857,7 +4856,6 @@
   const confetiOverlayEl = document.getElementById('confeti-overlay');
   const modalCelebracionEl = document.getElementById('modal-celebracion');
   const modalCelebracionListaEl = document.getElementById('modal-celebracion-lista');
-  const modalCelebracionRetiroBtn = document.getElementById('modal-celebracion-retiro');
   const modalCelebracionAceptarBtn = document.getElementById('modal-celebracion-aceptar');
   const modalCelebracionMensajeEl = document.getElementById('modal-celebracion-mensaje');
   const modalCelebracionTituloEl = document.getElementById('modal-celebracion-titulo');
@@ -4943,7 +4941,7 @@
   let liveStreamPlatform = 'otro';
   let liveStreamIconInterval = null;
   let liveStreamMostrarTexto = true;
-  let premioTemporalDisponible = 0;
+  let acreditandoPremioAhora = false;
   const LIVE_ICON_INTERVAL_MS = 3000;
   let ventanaEnFoco = document.visibilityState === 'visible' && document.hasFocus();
   let cantosRecientesSinAnimacion = false;
@@ -10102,7 +10100,14 @@
     }
   }
 
-  function crearLineaCelebracionGanador(detalle){
+  function construirClavePremioPendiente(detalle){
+    const sorteoId = (detalle?.sorteoId || activeSorteoId || '').toString().trim();
+    const idx = Number(detalle?.idx) || 0;
+    const cartonLabel = (detalle?.cartonLabel || '').toString().trim();
+    return `${sorteoId}::${idx}::${cartonLabel}`.toLowerCase();
+  }
+
+  function crearLineaCelebracionGanador(detalle, { mostrarAcreditar = false } = {}){
     const linea=document.createElement('div');
     linea.className='celebracion-linea';
     if(detalle?.color){
@@ -10143,6 +10148,14 @@
       cartonInfo.className='celebracion-carton';
       cartonInfo.textContent=detalle.cartonLabel;
       linea.appendChild(cartonInfo);
+    }
+    if(mostrarAcreditar){
+      const botonAcreditar = document.createElement('button');
+      botonAcreditar.type = 'button';
+      botonAcreditar.className = 'modal-simulacion-boton';
+      botonAcreditar.textContent = 'Acreditar Ahora';
+      botonAcreditar.addEventListener('click',()=>acreditarPremioAhora(detalle));
+      linea.appendChild(botonAcreditar);
     }
     return linea;
   }
@@ -10193,8 +10206,10 @@
     const lista=Array.isArray(detalles)?detalles.filter(Boolean):[];
     if(!lista.length) return;
     modalCelebracionListaEl.innerHTML='';
+    const sorteoFinalizado = ((activeSorteo?.estado || '').toString().toLowerCase()==='finalizado');
     lista.forEach(detalle=>{
-      modalCelebracionListaEl.appendChild(crearLineaCelebracionGanador(detalle));
+      const mostrarAcreditar = !esSimulacion && !detalle?.perdido && !sorteoFinalizado;
+      modalCelebracionListaEl.appendChild(crearLineaCelebracionGanador(detalle, { mostrarAcreditar }));
     });
     if(modalCelebracionMensajeEl){
       const total=lista.length;
@@ -10210,9 +10225,6 @@
       modalCelebracionTituloEl.textContent = esSimulacion ? 'SI HUBIERAS JUGADO' : '¡Felicidades!';
     }
     modalCelebracionEl.classList.add('activa');
-    if(modalCelebracionRetiroBtn){
-      modalCelebracionRetiroBtn.style.display = (!esSimulacion && premioTemporalDisponible > 0) ? '' : 'none';
-    }
     modalCelebracionEl.setAttribute('aria-hidden','false');
     playGameAudioEvent(AUDIO_EVENTS.MODAL_OPEN, { priority: 2 });
     celebracionModalActiva = true;
@@ -10220,31 +10232,97 @@
     modalCelebracionAceptarBtn?.focus({preventScroll:true});
   }
 
-  async function registrarPremioTemporalGanado(detalles){
+  async function registrarPremiosPendientes(detalles){
     if(!db || !usuarioActual || !Array.isArray(detalles) || !detalles.length) return;
-    const total = detalles.reduce((acc,item)=>acc + Math.max(0, Number(item?.creditos||0)),0);
-    if(total<=0) return;
     const billeteraId = (usuarioActual?.email || usuarioActual?.uid || '').toString();
     if(!billeteraId) return;
     const billeteraRef = db.collection('Billetera').doc(billeteraId);
-    await db.runTransaction(async tx=>{
-      const snap=await tx.get(billeteraRef);
-      const data=snap.exists?(snap.data()||{}):{};
-      const actual=Math.max(0,Number(data.premioTemporalDisponible||0));
-      tx.set(billeteraRef,{
-        premioTemporalDisponible: actual + total,
-        premioTemporalActualizadoEn: firebase.firestore.FieldValue.serverTimestamp()
-      },{merge:true});
+    const payload = {};
+    detalles.forEach(detalle=>{
+      const clave = construirClavePremioPendiente(detalle);
+      if(!clave) return;
+      payload[`premiosPendientesDirectos.${clave}`] = {
+        idx: Number(detalle?.idx) || 0,
+        nombre: (detalle?.nombre || '').toString(),
+        creditos: Math.max(0, Number(detalle?.creditos) || 0),
+        cartonesGratis: Math.max(0, Number(detalle?.cartonesGratis) || 0),
+        cartonLabel: (detalle?.cartonLabel || '').toString(),
+        color: (detalle?.color || '').toString(),
+        sorteoId: (detalle?.sorteoId || activeSorteoId || '').toString(),
+        creadoEn: firebase.firestore.FieldValue.serverTimestamp()
+      };
     });
-    premioTemporalDisponible += total;
+    if(Object.keys(payload).length){
+      await billeteraRef.set(payload,{ merge:true });
+    }
   }
-  function suscribirPremioTemporalUsuario(){
+
+  async function mostrarPremiosPendientesDelSorteoActual(){
+    if(!db || !usuarioActual || !activeSorteoId) return;
     const billeteraId = (usuarioActual?.email || usuarioActual?.uid || '').toString();
-    if(!db || !billeteraId) return;
-    db.collection('Billetera').doc(billeteraId).onSnapshot(snap=>{
-      const data=snap.exists?(snap.data()||{}):{};
-      premioTemporalDisponible=Math.max(0,Number(data.premioTemporalDisponible||0));
-    },err=>console.warn('No se pudo observar premio temporal disponible',err));
+    if(!billeteraId) return;
+    try{
+      const snap = await db.collection('Billetera').doc(billeteraId).get();
+      const data = snap.exists ? (snap.data() || {}) : {};
+      const pendientes = data?.premiosPendientesDirectos || {};
+      const lista = Object.values(pendientes)
+        .filter(item=>(item?.sorteoId || '').toString() === (activeSorteoId || '').toString())
+        .map(item=>({
+          idx: Number(item?.idx) || 0,
+          nombre: (item?.nombre || '').toString(),
+          creditos: Math.max(0, Number(item?.creditos) || 0),
+          cartonesGratis: Math.max(0, Number(item?.cartonesGratis) || 0),
+          cartonLabel: (item?.cartonLabel || '').toString(),
+          color: (item?.color || '').toString(),
+          sorteoId: (item?.sorteoId || '').toString()
+        }));
+      if(lista.length){
+        mostrarModalCelebracionGanador(lista, false);
+      }
+    }catch(err){
+      console.warn('No se pudieron cargar premios pendientes del sorteo', err);
+    }
+  }
+
+  async function acreditarPremioAhora(detalle){
+    if(acreditandoPremioAhora || !db || !usuarioActual) return;
+    const billeteraId = (usuarioActual?.email || usuarioActual?.uid || '').toString();
+    const clave = construirClavePremioPendiente(detalle);
+    if(!billeteraId || !clave) return;
+    acreditandoPremioAhora = true;
+    try{
+      const billeteraRef = db.collection('Billetera').doc(billeteraId);
+      await db.runTransaction(async tx=>{
+        const snap = await tx.get(billeteraRef);
+        const data = snap.exists ? (snap.data() || {}) : {};
+        const pendientes = data?.premiosPendientesDirectos || {};
+        if(!pendientes[clave]){
+          return;
+        }
+        const creditosActual = Number(data.creditos) || 0;
+        const gratisActual = Number(data.CartonesGratis ?? data.cartonesGratis) || 0;
+        const creditosPremio = Math.max(0, Number(pendientes[clave]?.creditos) || 0);
+        const cartonesPremio = Math.max(0, Number(pendientes[clave]?.cartonesGratis) || 0);
+        tx.set(billeteraRef,{
+          creditos: creditosActual + creditosPremio,
+          CartonesGratis: gratisActual + cartonesPremio,
+          [`premiosPendientesDirectos.${clave}`]: firebase.firestore.FieldValue.delete()
+        },{ merge:true });
+      });
+      const listaActual = Array.from(modalCelebracionListaEl?.querySelectorAll('.celebracion-linea') || []);
+      const indice = listaActual.findIndex(linea=>{
+        const etiqueta = linea.querySelector('.celebracion-forma')?.textContent || '';
+        return etiqueta.includes(String(detalle?.idx || '').padStart(2,'0'));
+      });
+      if(indice>=0){
+        listaActual[indice].remove();
+      }
+    }catch(err){
+      console.warn('No se pudo acreditar el premio pendiente', err);
+      alert('No se pudo acreditar este premio ahora. Intenta nuevamente.');
+    }finally{
+      acreditandoPremioAhora = false;
+    }
   }
 
   function cerrarModalCelebracionGanador(){
@@ -10478,10 +10556,11 @@
       formasCelebradasPorCarton.set(carton.id, registro);
     });
     if(detalles.length){
+      const detallesConSorteo = detalles.map(item=>({ ...item, sorteoId: activeSorteoId || '' }));
       if(!esSimulacion){
-        registrarPremioTemporalGanado(detalles).catch(err=>console.warn('No se pudo registrar premio temporal',err));
+        registrarPremiosPendientes(detallesConSorteo).catch(err=>console.warn('No se pudo registrar premio pendiente',err));
       }
-      mostrarModalCelebracionGanador(detalles, esSimulacion);
+      mostrarModalCelebracionGanador(detallesConSorteo, esSimulacion);
       if(!esSimulacion){
         playGameAudioEvent(AUDIO_EVENTS.WINNER, { priority: 3, force: true });
       }
@@ -11885,6 +11964,7 @@
       suscribirCantos();
       suscribirFormas();
       suscribirCartones();
+      mostrarPremiosPendientesDelSorteoActual();
     }
   }
 
@@ -12054,6 +12134,7 @@
       suscribirCantos();
       suscribirFormas();
       suscribirCartones();
+      mostrarPremiosPendientesDelSorteoActual();
     }catch(err){
       console.error('Error cargando sorteo finalizado',err);
       alert('No se pudo cargar el sorteo seleccionado. Intenta nuevamente.');
@@ -12087,19 +12168,12 @@
 
   initFirebase()
     .then(()=>{
-      modalCelebracionRetiroBtn?.addEventListener('click',()=>{
-        const monto=Math.max(0,Math.floor(Number(premioTemporalDisponible||0)));
-        if(monto<=0){ alert('Aún no tienes premio temporal disponible para retiro adelantado.'); return; }
-        const sorteoIdParam = encodeURIComponent(activeSorteoId||'');
-        window.location.href=`billetera.html?tab=retirar&retiro_adelantado=1&monto=${monto}&comentario=${encodeURIComponent('Retiro adelantado de premio')}&sorteoId=${sorteoIdParam}`;
-      });
       auth.onAuthStateChanged(user=>{
         if(!user){
           window.location.href='index.html';
           return;
         }
         usuarioActual=user;
-        suscribirPremioTemporalUsuario();
         suscribirCartonesGuardados(user.uid);
         iniciarContadoresSorteosProximos();
         obtenerLinkPublicidadSorteos();
