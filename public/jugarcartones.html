@@ -4778,7 +4778,7 @@ function toggleForma(idx){
     if(clave) tutorialState.celdasTemporales.delete(clave);
     validateBoard();
     saveToCookie();
-    openModal(currentCell,{tutorialAuto:false});
+    document.getElementById('number-modal').style.display='none';
   });
 document.getElementById('jugar-carton-btn').addEventListener('click',()=>{
   if(editandoTipo){
