@@ -3578,6 +3578,32 @@ function toggleForma(idx){
     validateBoard();
     saveToCookie();
   }
+  function obtenerResumenCeldasCarton(){
+    let vacias=0;
+    let conValor=0;
+    const celdas=[];
+    document.querySelectorAll('#bingo-board td').forEach(td=>{
+      if(td.classList.contains('free')) return;
+      celdas.push(td);
+      const valor=(td.dataset.value||'').toString().trim();
+      if(valor) conValor++;
+      else vacias++;
+    });
+    return { vacias, conValor, celdas };
+  }
+
+  function cargarAzarSoloVacias(){
+    const { celdas }=obtenerResumenCeldasCarton();
+    celdas.forEach(celda=>{
+      const valor=(celda.dataset.value||'').toString().trim();
+      if(valor) return;
+      const numero=calcularNumeroAleatorioValidoParaCelda(celda);
+      if(numero===null || numero===undefined) return;
+      renderCeldaAnimalito(celda,numero);
+    });
+    validateBoard();
+    saveToCookie();
+  }
 
   async function actualizarDatosSorteo(){
     if(!currentSorteo) return;
@@ -4781,7 +4807,19 @@ document.getElementById('gratis-label').addEventListener('click',()=>{
   document.getElementById('premio-valor').addEventListener('click',mostrarPremiosModal);
   document.getElementById('premios-aceptar').addEventListener('click',()=>{document.getElementById('premios-modal').style.display='none';});
   document.getElementById('limpiar-btn').addEventListener('click',async()=>{if(await confirm('¿Deseas limpiar todas las jugadas del carton?')) limpiarcarton();});
-  document.getElementById('azar-btn').addEventListener('click',async()=>{if(await confirm('¿Quieres cargar jugadas al azar?')) cargarAzar();});
+  document.getElementById('azar-btn').addEventListener('click',async()=>{
+    const { vacias, conValor }=obtenerResumenCeldasCarton();
+    if(conValor>0){
+      if(vacias<=0){
+        alert('Este cartón ya tiene todas las celdas seleccionadas.');
+        return;
+      }
+      const continuar=await confirm('¿Deseas jugar aleatoriamente las celdas restantes que no has seleccionado?');
+      if(continuar) cargarAzarSoloVacias();
+      return;
+    }
+    if(await confirm('¿Quieres cargar jugadas al azar?')) cargarAzar();
+  });
   document.getElementById('volver-btn').addEventListener('click',()=>{window.location.href='player.html';});
   document.getElementById('guardar-check').addEventListener('change',e=>{
     const show=e.target.checked;
