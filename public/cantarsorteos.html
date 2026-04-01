@@ -1227,6 +1227,31 @@
       grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
       gap: 12px;
     }
+    .ganadores-alerta-modal .modal-contenido{
+      width:min(92vw,560px);
+      max-height:82vh;
+      overflow:auto;
+      border-radius:14px;
+      padding:14px;
+    }
+    #ganadores-alerta-lista{display:grid;gap:8px;margin-top:8px;}
+    .ganadores-alerta-item{
+      border:1px solid rgba(0,0,0,0.12);
+      border-left:6px solid var(--ganador-alerta-color,#0b7a28);
+      border-radius:10px;
+      padding:8px 10px;
+      background:linear-gradient(180deg,#fff,#f8fafc);
+      display:grid;
+      gap:2px;
+      font-size:.92rem;
+    }
+    .ganadores-alerta-item .forma{font-weight:800;color:var(--ganador-alerta-color,#0b7a28);font-size:.9rem;}
+    .ganadores-alerta-item .alias{font-weight:700;color:#111827;}
+    .ganadores-alerta-item .detalle{color:#374151;font-size:.85rem;line-height:1.2;}
+    @media (max-width:640px){
+      .ganadores-alerta-modal .modal-contenido{width:95vw;padding:10px;}
+      .ganadores-alerta-item{padding:7px 8px;border-left-width:4px;}
+    }
     .modal-mensaje {
       font-size: 0.85rem;
       color: var(--texto-secundario);
@@ -1925,6 +1950,13 @@
       <div id="modal-ganadores-sin" class="modal-mensaje"></div>
     </div>
   </div>
+  <div id="ganadores-alerta-modal" class="modal ganadores-alerta-modal" role="dialog" aria-modal="true" aria-labelledby="ganadores-alerta-titulo" aria-hidden="true">
+    <div class="modal-contenido">
+      <button id="ganadores-alerta-cerrar" class="modal-cerrar" type="button" aria-label="Cerrar">✖</button>
+      <h2 id="ganadores-alerta-titulo">Nuevos ganadores detectados</h2>
+      <div id="ganadores-alerta-lista"></div>
+    </div>
+  </div>
   <div id="mensaje-area">Selecciona un sorteo para administrar su estado.</div>
   <div id="footer">
     <div id="fecha-hora"></div>
@@ -2074,6 +2106,9 @@
   const modalPremioFormaEl = document.getElementById('modal-premio-forma');
   const modalPremioFormaValorEl = document.getElementById('modal-premio-forma-valor');
   const modalPremioFormaLabelEl = document.getElementById('modal-premio-forma-label');
+  const ganadoresAlertaModalEl = document.getElementById('ganadores-alerta-modal');
+  const ganadoresAlertaListaEl = document.getElementById('ganadores-alerta-lista');
+  const ganadoresAlertaCerrarBtn = document.getElementById('ganadores-alerta-cerrar');
   const modalComplementariosEl = document.getElementById('complementarios-modal');
   const modalComplementariosMensajeEl = document.getElementById('complementarios-modal-mensaje');
   const modalComplementariosAceptarBtn = document.getElementById('complementarios-modal-aceptar');
@@ -2173,6 +2208,7 @@
   let sincronizacionResultadosTimeout = null;
   let cantosInicializados = false;
   let nuevosGanadoresModalActivo = false;
+  const GANADORES_ALERTA_KEY = 'cantarsorteos_ganadores_alerta_v1';
   let mostrarComplementariosPendiente = false;
   let evaluandoCantoActual = false;
   const advertenciasGanadorSinEmail = new Set();
@@ -2644,6 +2680,9 @@
       if(avisoModalEl?.classList?.contains('activa')){
         cerrarAvisoSimple();
       }
+      if(ganadoresAlertaModalEl?.classList?.contains('activa')){
+        cerrarModalAlertaGanadores();
+      }
       if(resultadoSelectModalEl?.classList?.contains('activo')){
         cerrarModalSeleccionResultado();
       }
@@ -2654,6 +2693,16 @@
     resultadoSelectModalEl.addEventListener('click', evento=>{
       if(evento.target === resultadoSelectModalEl){
         cerrarModalSeleccionResultado();
+      }
+    });
+  }
+  if(ganadoresAlertaCerrarBtn){
+    ganadoresAlertaCerrarBtn.addEventListener('click', cerrarModalAlertaGanadores);
+  }
+  if(ganadoresAlertaModalEl){
+    ganadoresAlertaModalEl.addEventListener('click', evento=>{
+      if(evento.target === ganadoresAlertaModalEl){
+        cerrarModalAlertaGanadores();
       }
     });
   }
@@ -4841,6 +4890,54 @@
     actualizarTablaEstado();
     gestionarComplementariosPendientes();
   }
+  function construirClaveGanadorForma(sorteoId, formaIdx){
+    return `${String(sorteoId || '').trim()}::${String(formaIdx || '').trim()}`;
+  }
+  function obtenerGanadoresAlertados(){
+    try{
+      const raw=localStorage.getItem(GANADORES_ALERTA_KEY);
+      const data=raw?JSON.parse(raw):{};
+      if(data && typeof data==='object') return data;
+    }catch(err){
+      console.warn('No se pudo leer cache de alertas de ganadores',err);
+    }
+    return {};
+  }
+  function guardarGanadoresAlertados(payload){
+    try{
+      localStorage.setItem(GANADORES_ALERTA_KEY,JSON.stringify(payload||{}));
+    }catch(err){
+      console.warn('No se pudo guardar cache de alertas de ganadores',err);
+    }
+  }
+  function fueNotificadaFormaGanadora(sorteoId, formaIdx){
+    const data=obtenerGanadoresAlertados();
+    return Boolean(data[construirClaveGanadorForma(sorteoId, formaIdx)]);
+  }
+  function marcarFormaGanadoraNotificada(sorteoId, formaIdx){
+    const data=obtenerGanadoresAlertados();
+    data[construirClaveGanadorForma(sorteoId, formaIdx)]=Date.now();
+    guardarGanadoresAlertados(data);
+  }
+  function abrirModalAlertaGanadores(items){
+    if(!ganadoresAlertaModalEl || !ganadoresAlertaListaEl || !Array.isArray(items) || !items.length) return;
+    ganadoresAlertaListaEl.innerHTML='';
+    items.forEach(item=>{
+      const fila=document.createElement('article');
+      fila.className='ganadores-alerta-item';
+      fila.style.setProperty('--ganador-alerta-color',item.color||'#0b7a28');
+      fila.innerHTML=`<div class="forma">${item.forma}</div><div class="alias">Alias: ${item.alias||'Sin alias'}</div><div class="detalle">Cartón: ${item.carton} · Tipo: ${item.tipo}</div>`;
+      ganadoresAlertaListaEl.appendChild(fila);
+    });
+    ganadoresAlertaModalEl.classList.add('activa');
+    ganadoresAlertaModalEl.setAttribute('aria-hidden','false');
+    ganadoresAlertaCerrarBtn?.focus({ preventScroll:true });
+  }
+  function cerrarModalAlertaGanadores(){
+    if(!ganadoresAlertaModalEl) return;
+    ganadoresAlertaModalEl.classList.remove('activa');
+    ganadoresAlertaModalEl.setAttribute('aria-hidden','true');
+  }
 
   function suscribirCantoManual(){
     // Eliminado: los sorteos ahora se cantan únicamente en modo automático.
@@ -4863,6 +4960,7 @@
     const actual = Number(longitudActual) || 0;
     if(actual <= anterior) return;
     const nuevos = [];
+    const detallesGanadoresNuevos = [];
     const formasNuevas = new Set();
     cartonesGanadoresPorForma.forEach((registro, indice)=>{
       const idxNumero = Number(indice);
@@ -4875,6 +4973,24 @@
         const nombreForma = (forma?.nombre && forma.nombre.trim()) ? forma.nombre.trim() : `Forma ${String(idxNumero).padStart(2,'0')}`;
         const colorForma = obtenerColorParaForma(forma?.idx || idxNumero || 1);
         nuevos.push({ nombre: nombreForma, color: colorForma, total: totalActual });
+        if(!fueNotificadaFormaGanadora(currentSorteoId, idxNumero)){
+          const ganadoresOrdenados=(registro?.cartones||[]).slice().sort((a,b)=>{
+            const na=Number(a?.cartonNum ?? a?.Ncarton);
+            const nb=Number(b?.cartonNum ?? b?.Ncarton);
+            if(Number.isFinite(na) && Number.isFinite(nb)) return na-nb;
+            return (a?.id||'').localeCompare(b?.id||'');
+          });
+          ganadoresOrdenados.forEach(carton=>{
+            detallesGanadoresNuevos.push({
+              forma:nombreForma,
+              color:colorForma,
+              alias:carton?.alias || 'Sin alias',
+              carton:formatearNumeroCarton(carton),
+              tipo:normalizarTipoCarton(carton).toUpperCase()
+            });
+          });
+          marcarFormaGanadoraNotificada(currentSorteoId, idxNumero);
+        }
         formasNuevas.add(idxNumero);
       }
     });
@@ -4885,6 +5001,9 @@
       });
     }
     if(esPrimerProcesamiento || !nuevos.length) return;
+    if(detallesGanadoresNuevos.length){
+      abrirModalAlertaGanadores(detallesGanadoresNuevos);
+    }
   }
 
   function buildPremioId({ sorteoId, formaIdx, cartonId, prefijo = '' } = {}){
