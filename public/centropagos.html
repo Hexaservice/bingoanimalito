@@ -2453,6 +2453,49 @@
       return '';
     }
 
+    function construirNotificacionInternaTransaccion(data = {}, estadoFinal = 'APROBADO'){
+      const tipo = ((data.tipotrans || 'retiro').toString() || 'retiro').toUpperCase();
+      const montoSolicitado = Number(data.MontoSolicitado ?? data.Monto) || 0;
+      const referencia = (data.referencia || '').toString().trim() || 'pendiente';
+      const estadoPrevio = (data.estado || '').toString().trim() || 'PENDIENTE';
+      const mensaje = estadoFinal === 'APROBADO'
+        ? `Tu solicitud ${tipo} por ${montoSolicitado} fue aprobada automáticamente al cierre del sorteo. Referencia: ${referencia}.`
+        : `Tu solicitud ${tipo} por ${montoSolicitado} fue actualizada automáticamente al cierre del sorteo.`;
+      return {
+        mensaje,
+        estadoObjetivo: estadoFinal,
+        estadoPrevio,
+        pendienteMostrar: true,
+        aceptada: false,
+        creadaEn: firebase.firestore.FieldValue.serverTimestamp()
+      };
+    }
+
+    async function buscarRetirosAdelantadosPendientes({ billeteraId, sorteoId } = {}){
+      const billeteraSeguro = cpNormalizarEmail(billeteraId || '');
+      const sorteoSeguro = (sorteoId || '').toString().trim();
+      if(!billeteraSeguro || !sorteoSeguro){
+        return [];
+      }
+      const db = dbRef();
+      const snap = await db.collection('transacciones')
+        .where('IDbilletera', '==', billeteraSeguro)
+        .where('tipotrans', '==', 'premio')
+        .where('estado', '==', 'PENDIENTE')
+        .where('retiroAdelantado', '==', true)
+        .where('sorteoId', '==', sorteoSeguro)
+        .get();
+      return snap.docs
+        .map(doc => ({ id: doc.id, ref: doc.ref, data: doc.data() || {} }))
+        .sort((a, b)=>{
+          const fechaA = (a.data.fechasolicitud || '').toString();
+          const horaA = (a.data.horasolicitud || '').toString();
+          const fechaB = (b.data.fechasolicitud || '').toString();
+          const horaB = (b.data.horasolicitud || '').toString();
+          return `${fechaA} ${horaA}`.localeCompare(`${fechaB} ${horaB}`);
+        });
+    }
+
     async function acreditarPremioEnFirestore(enRegistro){
       const db = dbRef();
       const premioRef = db.collection('PremiosSorteos').doc(enRegistro.id);
@@ -2465,6 +2508,25 @@
       if(!creditos && !cartones){
         throw new Error('El premio no tiene créditos ni cartones para acreditar.');
       }
+
+      const retirosAdelantadosPendientes = await buscarRetirosAdelantadosPendientes({
+        billeteraId,
+        sorteoId: enRegistro.sorteoId || ''
+      });
+      let restanteCompensacion = creditos;
+      const retirosAProcesar = [];
+      for(const retiro of retirosAdelantadosPendientes){
+        if(restanteCompensacion <= 0) break;
+        const monto = Math.max(0, Number(retiro.data.MontoSolicitado ?? retiro.data.Monto) || 0);
+        if(monto <= 0) continue;
+        if(monto > restanteCompensacion){
+          continue;
+        }
+        retirosAProcesar.push({ ...retiro, monto });
+        restanteCompensacion -= monto;
+      }
+      const totalRetirosAutoAprobados = retirosAProcesar.reduce((acc, item)=>acc + item.monto, 0);
+      const creditosPorAcreditar = Math.max(0, creditos - totalRetirosAutoAprobados);
 
       await db.runTransaction(async tx => {
         const premioSnap = await tx.get(premioRef);
@@ -2480,29 +2542,51 @@
         const billeteraData = billeteraSnap.exists ? billeteraSnap.data() || {} : {};
         const saldoCreditos = Number(billeteraData.creditos) || 0;
         const saldoCartones = Number(billeteraData.CartonesGratis ?? billeteraData.cartonesGratis) || 0;
+        const saldoTransito = Math.max(0, Number(billeteraData.creditostransito) || 0);
+        const saldoPremioBloqueado = Math.max(0, Number(billeteraData.premioTemporalBloqueado) || 0);
 
         tx.set(billeteraRef, {
-          creditos: saldoCreditos + creditos,
+          creditos: saldoCreditos + creditosPorAcreditar,
           CartonesGratis: saldoCartones + cartones,
+          creditostransito: Math.max(0, saldoTransito - totalRetirosAutoAprobados),
+          premioTemporalBloqueado: Math.max(0, saldoPremioBloqueado - totalRetirosAutoAprobados),
           actualizadoEn: firebase.firestore.FieldValue.serverTimestamp()
         }, { merge: true });
+
+        retirosAProcesar.forEach(item=>{
+          tx.set(item.ref, {
+            estado: validarEstadoGuardado('APROBADO', `transacciones:${item.id}`),
+            usuariogestor: authInstance().currentUser?.email || '',
+            rolusuario: window.currentRole || '',
+            fechagestion: fechaServidor(),
+            horagestion: horaServidor(),
+            nota: 'Aprobado automáticamente durante cierre/finalización del sorteo.',
+            notificacionInterna: construirNotificacionInternaTransaccion(item.data, 'APROBADO'),
+            mensajeLeido: false,
+            actualizadoEn: firebase.firestore.FieldValue.serverTimestamp()
+          }, { merge: true });
+        });
 
         tx.set(premioRef, {
           estado: validarEstadoGuardado('APROBADO', `PremiosSorteos:${enRegistro.id}`),
           idBilletera: billeteraId,
+          creditosSolicitadosRetiroAdelantado: totalRetirosAutoAprobados,
+          creditosAcreditadosNeto: creditosPorAcreditar,
           fechaGestion: fechaServidor(),
           horaGestion: horaServidor(),
           gestionadoPor: authInstance().currentUser?.email || '',
           rolGestor: window.currentRole || '',
           actualizadoEn: firebase.firestore.FieldValue.serverTimestamp(),
-          source: 'centropagos/manual-aprobacion'
+          source: totalRetirosAutoAprobados > 0
+            ? 'centropagos/manual-aprobacion-con-auto-retiro-adelantado'
+            : 'centropagos/manual-aprobacion'
         }, { merge: true });
       });
 
       await registrarTransaccionPremio({
         ...enRegistro,
         billetera: billeteraId,
-        creditos,
+        creditos: creditosPorAcreditar,
         cartones,
         tipotrans: 'premio',
         origen: 'premios_jugadores',
