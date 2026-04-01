@@ -52,6 +52,32 @@ service cloud.firestore {
         && get(/databases/$(database)/documents/Variablesglobales/Parametros).data.bloquearEscriturasClientePremios == true;
     }
 
+    function allowedPlayerDirectPrizeAccreditationKeys() {
+      return ['creditos', 'CartonesGratis', 'cartonesGratis', 'premiosPendientesDirectos'];
+    }
+
+    function isDirectPrizePendingEntryRemovalOnly() {
+      let beforePendingDirectPrizes = resource.data.premiosPendientesDirectos is map
+        ? resource.data.premiosPendientesDirectos
+        : {};
+      let afterPendingDirectPrizes = request.resource.data.premiosPendientesDirectos is map
+        ? request.resource.data.premiosPendientesDirectos
+        : {};
+      let pendingDirectPrizeDiff = beforePendingDirectPrizes.diff(afterPendingDirectPrizes);
+      return pendingDirectPrizeDiff.removedKeys().size() == 1
+        && pendingDirectPrizeDiff.addedKeys().size() == 0
+        && pendingDirectPrizeDiff.changedKeys().size() == 0;
+    }
+
+    function isPlayerDirectPrizeAccreditationUpdate(email) {
+      let walletDiff = request.resource.data.diff(resource.data);
+      return isOwner(email)
+        && walletDiff.changedKeys().hasOnly(allowedPlayerDirectPrizeAccreditationKeys())
+        && walletDiff.changedKeys().hasAny(['creditos', 'CartonesGratis', 'cartonesGratis'])
+        && walletDiff.changedKeys().hasAny(['premiosPendientesDirectos'])
+        && isDirectPrizePendingEntryRemovalOnly();
+    }
+
     function blockedUserFields() {
       return ['role', 'disabled', 'contrasenasu', 'emailVerified', 'customClaims', 'uid'];
     }
@@ -101,6 +127,7 @@ service cloud.firestore {
     match /Billetera/{email} {
       allow read: if isAdmin() || isOwner(email);
       allow create, update: if isSystemRequest()
+        || (isPlayerDirectPrizeAccreditationUpdate(email))
         || (!isProductionLockEnabled() && (isAdmin() || isOwner(email) || isPrivilegedOperator()));
       allow delete: if isAdmin();
     }
