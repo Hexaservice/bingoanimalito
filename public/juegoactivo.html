@@ -10313,31 +10313,45 @@
     try{
       const billeteraRef = db.collection('Billetera').doc(billeteraId);
       let acreditado = false;
+      let premioYaNoDisponible = false;
       await db.runTransaction(async tx=>{
         const snap = await tx.get(billeteraRef);
         const data = snap.exists ? (snap.data() || {}) : {};
         const pendientes = data?.premiosPendientesDirectos || {};
-        if(!pendientes[clave]){
+        const claveNormalizada = clave.toLowerCase();
+        const claveCoincidente = Object.keys(pendientes).find((itemClave='')=>{
+          if(itemClave === clave || itemClave.toLowerCase() === claveNormalizada) return true;
+          const item = pendientes[itemClave] || {};
+          const claveItem = (item?.clavePendiente || '').toString().toLowerCase();
+          if(claveItem && claveItem === claveNormalizada) return true;
+          return (
+            (item?.sorteoId || '').toString() === (detalle?.sorteoId || activeSorteoId || '').toString()
+            && Number(item?.idx) === (Number(detalle?.idx) || 0)
+            && (item?.cartonLabel || '').toString() === (detalle?.cartonLabel || '').toString()
+          );
+        });
+        if(!claveCoincidente){
+          premioYaNoDisponible = true;
           return;
         }
         const creditosActual = Number(data.creditos) || 0;
         const gratisActual = Number(data.CartonesGratis ?? data.cartonesGratis) || 0;
-        const creditosPremio = Math.max(0, Number(pendientes[clave]?.creditos) || 0);
-        const cartonesPremio = Math.max(0, Number(pendientes[clave]?.cartonesGratis) || 0);
+        const creditosPremio = Math.max(0, Number(pendientes[claveCoincidente]?.creditos) || 0);
+        const cartonesPremio = Math.max(0, Number(pendientes[claveCoincidente]?.cartonesGratis) || 0);
         tx.set(billeteraRef,{
           creditos: creditosActual + creditosPremio,
           CartonesGratis: gratisActual + cartonesPremio,
           cartonesGratis: gratisActual + cartonesPremio,
-          [`premiosPendientesDirectos.${clave}`]: firebase.firestore.FieldValue.delete()
+          [`premiosPendientesDirectos.${claveCoincidente}`]: firebase.firestore.FieldValue.delete()
         },{ merge:true });
         acreditado = true;
       });
       if(acreditado){
         botonEl?.closest('.celebracion-linea')?.remove();
         cerrarModalCelebracionSiSinPendientes();
-      }else if(botonEl){
-        botonEl.disabled = true;
-        botonEl.textContent = 'Ya acreditado';
+      }else if(premioYaNoDisponible && botonEl){
+        botonEl?.closest('.celebracion-linea')?.remove();
+        cerrarModalCelebracionSiSinPendientes();
       }
     }catch(err){
       console.warn('No se pudo acreditar el premio pendiente', err);
