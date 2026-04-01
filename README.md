@@ -131,6 +131,21 @@ node scripts/assignRoleClaims.js \
 
 Ese flujo deja en Authentication los claims `{ role: 'Superadmin', roles: ['Superadmin'], admin: true }` y en Firestore actualiza `users/{email}` con al menos `email`, `role`, `roles`, `admin` y `uid`.
 
+## Operación: lock de escrituras de premios y excepción segura de acreditación directa
+
+Cuando `Variablesglobales/Parametros.bloquearEscriturasClientePremios == true`, las reglas de Firestore mantienen bloqueadas las escrituras de cliente relacionadas con premios.
+
+Excepción controlada en `Billetera/{email}`:
+
+- El dueño del documento (`isOwner(email)`) puede ejecutar **únicamente** una mutación de acreditación directa de premio pendiente.
+- Esa mutación está restringida a:
+  - actualización de `creditos`,
+  - actualización de `CartonesGratis` o `cartonesGratis`,
+  - eliminación de **exactamente una** entrada en `premiosPendientesDirectos`.
+- No se permiten altas/cambios de contenido dentro de `premiosPendientesDirectos`, ni cambios en otros campos sensibles o no previstos.
+
+En resumen: con lock activo, el cliente no recupera permisos generales de escritura; solo se habilita esta acreditación puntual y validada por reglas.
+
 ## Catálogo oficial de imágenes de loterías
 
 La fuente oficial de imágenes permitidas para loterías está en:
