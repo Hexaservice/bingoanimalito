@@ -3197,27 +3197,33 @@
           font-weight: 500;
           color: rgba(255,255,255,0.85);
       }
-      #modal-celebracion-aceptar, #modal-celebracion-retiro {
+      .boton-acreditar-ahora {
           font-family: 'Bangers', cursive;
-          font-size: clamp(1rem, 3.2vw, 1.25rem);
-          padding: 10px 34px;
+          font-size: clamp(0.95rem, 3vw, 1.1rem);
+          padding: 10px 24px;
           border-radius: 999px;
-          border: 3px solid rgba(255,171,64,0.85);
-          background: linear-gradient(160deg, rgba(255,152,0,0.92), rgba(255,234,167,0.95));
-          color: #3b1b00;
+          border: 2px solid rgba(255,215,64,0.95);
+          background: linear-gradient(160deg, rgba(255,152,0,0.96), rgba(255,193,7,0.95));
+          color: #2a1200;
           cursor: pointer;
-          box-shadow: 0 14px 32px rgba(0,0,0,0.4);
-          transition: transform 0.2s ease, box-shadow 0.2s ease;
+          box-shadow: 0 8px 20px rgba(0,0,0,0.38), 0 0 18px rgba(255,170,0,0.45);
+          transition: transform 0.2s ease, box-shadow 0.2s ease, filter 0.2s ease;
+          animation: premioZoom 2s ease-in-out infinite;
       }
-      #modal-celebracion-aceptar:hover, #modal-celebracion-retiro:hover {
+      .boton-acreditar-ahora:hover {
           transform: translateY(-1px) scale(1.03);
-          box-shadow: 0 18px 36px rgba(0,0,0,0.45);
+          box-shadow: 0 14px 28px rgba(0,0,0,0.45), 0 0 22px rgba(255,170,0,0.55);
+          filter: brightness(1.06);
       }
-      #modal-celebracion-aceptar:active, #modal-celebracion-retiro:active {
+      .boton-acreditar-ahora:active {
           transform: translateY(1px) scale(0.97);
           box-shadow: 0 10px 24px rgba(0,0,0,0.35);
       }
-      #modal-celebracion-retiro{background:linear-gradient(160deg,#ff9800,#ff7043);}
+      .boton-acreditar-ahora:disabled {
+          cursor: not-allowed;
+          opacity: 0.8;
+          animation: none;
+      }
       #confeti-overlay {
           position: fixed;
           inset: 0;
@@ -4496,7 +4502,6 @@
       <h2 id="modal-celebracion-titulo">¡Felicidades!</h2>
       <p id="modal-celebracion-mensaje">Así se ven tus premios más recientes:</p>
       <div id="modal-celebracion-lista"></div>
-      <button type="button" id="modal-celebracion-aceptar">Aceptar</button>
     </div>
   </div>
 
@@ -4856,7 +4861,6 @@
   const confetiOverlayEl = document.getElementById('confeti-overlay');
   const modalCelebracionEl = document.getElementById('modal-celebracion');
   const modalCelebracionListaEl = document.getElementById('modal-celebracion-lista');
-  const modalCelebracionAceptarBtn = document.getElementById('modal-celebracion-aceptar');
   const modalCelebracionMensajeEl = document.getElementById('modal-celebracion-mensaje');
   const modalCelebracionTituloEl = document.getElementById('modal-celebracion-titulo');
   const modalSinPremioEl = document.getElementById('modal-sin-premio');
@@ -10152,9 +10156,10 @@
     if(mostrarAcreditar){
       const botonAcreditar = document.createElement('button');
       botonAcreditar.type = 'button';
-      botonAcreditar.className = 'modal-simulacion-boton';
+      botonAcreditar.className = 'boton-acreditar-ahora';
       botonAcreditar.textContent = 'Acreditar Ahora';
-      botonAcreditar.addEventListener('click',()=>acreditarPremioAhora(detalle));
+      botonAcreditar.dataset.premioClave = (detalle?.clavePendiente || construirClavePremioPendiente(detalle) || '').toString();
+      botonAcreditar.addEventListener('click',()=>acreditarPremioAhora(detalle, botonAcreditar));
       linea.appendChild(botonAcreditar);
     }
     return linea;
@@ -10229,7 +10234,8 @@
     playGameAudioEvent(AUDIO_EVENTS.MODAL_OPEN, { priority: 2 });
     celebracionModalActiva = true;
     iniciarConfetiCelebracion(esSimulacion);
-    modalCelebracionAceptarBtn?.focus({preventScroll:true});
+    const primerBotonAcreditar = modalCelebracionListaEl.querySelector('.boton-acreditar-ahora');
+    primerBotonAcreditar?.focus({preventScroll:true});
   }
 
   async function registrarPremiosPendientes(detalles){
@@ -10242,6 +10248,7 @@
       const clave = construirClavePremioPendiente(detalle);
       if(!clave) return;
       payload[`premiosPendientesDirectos.${clave}`] = {
+        clavePendiente: clave,
         idx: Number(detalle?.idx) || 0,
         nombre: (detalle?.nombre || '').toString(),
         creditos: Math.max(0, Number(detalle?.creditos) || 0),
@@ -10268,6 +10275,7 @@
       const lista = Object.values(pendientes)
         .filter(item=>(item?.sorteoId || '').toString() === (activeSorteoId || '').toString())
         .map(item=>({
+          clavePendiente: (item?.clavePendiente || '').toString(),
           idx: Number(item?.idx) || 0,
           nombre: (item?.nombre || '').toString(),
           creditos: Math.max(0, Number(item?.creditos) || 0),
@@ -10284,14 +10292,27 @@
     }
   }
 
-  async function acreditarPremioAhora(detalle){
+  function cerrarModalCelebracionSiSinPendientes(){
+    if(!modalCelebracionListaEl) return;
+    const quedanBotones = modalCelebracionListaEl.querySelector('.boton-acreditar-ahora');
+    if(!quedanBotones){
+      cerrarModalCelebracionGanador();
+    }
+  }
+
+  async function acreditarPremioAhora(detalle, botonEl=null){
     if(acreditandoPremioAhora || !db || !usuarioActual) return;
     const billeteraId = (usuarioActual?.email || usuarioActual?.uid || '').toString();
-    const clave = construirClavePremioPendiente(detalle);
+    const clave = (detalle?.clavePendiente || construirClavePremioPendiente(detalle) || '').toString();
     if(!billeteraId || !clave) return;
     acreditandoPremioAhora = true;
+    if(botonEl){
+      botonEl.disabled = true;
+      botonEl.textContent = 'Acreditando...';
+    }
     try{
       const billeteraRef = db.collection('Billetera').doc(billeteraId);
+      let acreditado = false;
       await db.runTransaction(async tx=>{
         const snap = await tx.get(billeteraRef);
         const data = snap.exists ? (snap.data() || {}) : {};
@@ -10306,19 +10327,24 @@
         tx.set(billeteraRef,{
           creditos: creditosActual + creditosPremio,
           CartonesGratis: gratisActual + cartonesPremio,
+          cartonesGratis: gratisActual + cartonesPremio,
           [`premiosPendientesDirectos.${clave}`]: firebase.firestore.FieldValue.delete()
         },{ merge:true });
+        acreditado = true;
       });
-      const listaActual = Array.from(modalCelebracionListaEl?.querySelectorAll('.celebracion-linea') || []);
-      const indice = listaActual.findIndex(linea=>{
-        const etiqueta = linea.querySelector('.celebracion-forma')?.textContent || '';
-        return etiqueta.includes(String(detalle?.idx || '').padStart(2,'0'));
-      });
-      if(indice>=0){
-        listaActual[indice].remove();
+      if(acreditado){
+        botonEl?.closest('.celebracion-linea')?.remove();
+        cerrarModalCelebracionSiSinPendientes();
+      }else if(botonEl){
+        botonEl.disabled = true;
+        botonEl.textContent = 'Ya acreditado';
       }
     }catch(err){
       console.warn('No se pudo acreditar el premio pendiente', err);
+      if(botonEl){
+        botonEl.disabled = false;
+        botonEl.textContent = 'Acreditar Ahora';
+      }
       alert('No se pudo acreditar este premio ahora. Intenta nuevamente.');
     }finally{
       acreditandoPremioAhora = false;
@@ -11050,9 +11076,6 @@
         cerrarModalFormasSinGanadores();
       }
     });
-  }
-  if(modalCelebracionAceptarBtn){
-    modalCelebracionAceptarBtn.addEventListener('click',cerrarModalCelebracionGanador);
   }
   if(modalCelebracionEl){
     modalCelebracionEl.addEventListener('click',evento=>{
