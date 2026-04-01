@@ -10300,6 +10300,35 @@
     }
   }
 
+  function buscarPremioPendientePorCriterios(pendientes, detalle, clave=''){
+    const claves = Object.keys(pendientes || {});
+    if(!claves.length) return '';
+    const claveNormalizada = (clave || '').toString().trim().toLowerCase();
+    const sorteoObjetivo = (detalle?.sorteoId || activeSorteoId || '').toString().trim();
+    const idxObjetivo = Number(detalle?.idx);
+    const cartonObjetivo = (detalle?.cartonLabel || '').toString().trim().toLowerCase();
+
+    return claves.find((itemClave='')=>{
+      const item = pendientes[itemClave] || {};
+      const claveItem = (item?.clavePendiente || '').toString().trim().toLowerCase();
+      const itemClaveNormalizada = (itemClave || '').toString().trim().toLowerCase();
+      if(claveNormalizada && (itemClaveNormalizada === claveNormalizada || claveItem === claveNormalizada)){
+        return true;
+      }
+      const sorteoItem = (item?.sorteoId || '').toString().trim();
+      const idxItem = Number(item?.idx);
+      const cartonItem = (item?.cartonLabel || '').toString().trim().toLowerCase();
+      const coincideSorteo = Boolean(sorteoObjetivo) && sorteoItem === sorteoObjetivo;
+      const coincideIdx = Number.isFinite(idxObjetivo) && Number.isFinite(idxItem) && idxItem === idxObjetivo;
+      const coincideCarton = Boolean(cartonObjetivo) && cartonItem === cartonObjetivo;
+
+      if(coincideSorteo && coincideIdx && coincideCarton) return true;
+      if(coincideSorteo && coincideIdx && !cartonObjetivo) return true;
+      if(coincideSorteo && coincideCarton && !Number.isFinite(idxObjetivo)) return true;
+      return false;
+    }) || '';
+  }
+
   async function acreditarPremioAhora(detalle, botonEl=null){
     if(acreditandoPremioAhora || !db || !usuarioActual) return;
     const billeteraId = (usuarioActual?.email || usuarioActual?.uid || '').toString();
@@ -10318,18 +10347,7 @@
         const snap = await tx.get(billeteraRef);
         const data = snap.exists ? (snap.data() || {}) : {};
         const pendientes = data?.premiosPendientesDirectos || {};
-        const claveNormalizada = clave.toLowerCase();
-        const claveCoincidente = Object.keys(pendientes).find((itemClave='')=>{
-          if(itemClave === clave || itemClave.toLowerCase() === claveNormalizada) return true;
-          const item = pendientes[itemClave] || {};
-          const claveItem = (item?.clavePendiente || '').toString().toLowerCase();
-          if(claveItem && claveItem === claveNormalizada) return true;
-          return (
-            (item?.sorteoId || '').toString() === (detalle?.sorteoId || activeSorteoId || '').toString()
-            && Number(item?.idx) === (Number(detalle?.idx) || 0)
-            && (item?.cartonLabel || '').toString() === (detalle?.cartonLabel || '').toString()
-          );
-        });
+        const claveCoincidente = buscarPremioPendientePorCriterios(pendientes, detalle, clave);
         if(!claveCoincidente){
           premioYaNoDisponible = true;
           return;
@@ -10350,8 +10368,16 @@
         botonEl?.closest('.celebracion-linea')?.remove();
         cerrarModalCelebracionSiSinPendientes();
       }else if(premioYaNoDisponible && botonEl){
-        botonEl?.closest('.celebracion-linea')?.remove();
-        cerrarModalCelebracionSiSinPendientes();
+        console.warn('Premio pendiente no encontrado para acreditar', {
+          billeteraId,
+          clave,
+          sorteoId: (detalle?.sorteoId || activeSorteoId || '').toString(),
+          idx: Number(detalle?.idx) || 0,
+          cartonLabel: (detalle?.cartonLabel || '').toString()
+        });
+        botonEl.disabled = false;
+        botonEl.textContent = 'Acreditar Ahora';
+        alert('No se encontró el premio pendiente para acreditar. Recarga e intenta de nuevo.');
       }
     }catch(err){
       console.warn('No se pudo acreditar el premio pendiente', err);
