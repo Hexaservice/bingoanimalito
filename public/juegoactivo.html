@@ -10243,12 +10243,15 @@
     const billeteraId = (usuarioActual?.email || usuarioActual?.uid || '').toString();
     if(!billeteraId) return;
     const billeteraRef = db.collection('Billetera').doc(billeteraId);
-    const payload = {};
+    const lote = db.batch();
+    let total = 0;
     detalles.forEach(detalle=>{
-      const clave = construirClavePremioPendiente(detalle);
-      if(!clave) return;
-      payload[`premiosPendientesDirectos.${clave}`] = {
-        clavePendiente: clave,
+      const premioId = (detalle?.premioId || construirClavePremioPendiente(detalle) || '').toString().trim().toLowerCase();
+      if(!premioId) return;
+      const premioRef = billeteraRef.collection('premiosPendientesDirectos').doc(premioId);
+      lote.set(premioRef, {
+        premioId,
+        clavePendiente: premioId,
         idx: Number(detalle?.idx) || 0,
         nombre: (detalle?.nombre || '').toString(),
         creditos: Math.max(0, Number(detalle?.creditos) || 0),
@@ -10256,11 +10259,14 @@
         cartonLabel: (detalle?.cartonLabel || '').toString(),
         color: (detalle?.color || '').toString(),
         sorteoId: (detalle?.sorteoId || activeSorteoId || '').toString(),
+        estado: 'pendiente',
+        origen: 'juegoactivo:registro-directo',
         creadoEn: firebase.firestore.FieldValue.serverTimestamp()
-      };
+      }, { merge: true });
+      total += 1;
     });
-    if(Object.keys(payload).length){
-      await billeteraRef.set(payload,{ merge:true });
+    if(total){
+      await lote.commit();
     }
   }
 
@@ -10269,13 +10275,18 @@
     const billeteraId = (usuarioActual?.email || usuarioActual?.uid || '').toString();
     if(!billeteraId) return;
     try{
-      const snap = await db.collection('Billetera').doc(billeteraId).get();
-      const data = snap.exists ? (snap.data() || {}) : {};
-      const pendientes = data?.premiosPendientesDirectos || {};
-      const lista = Object.values(pendientes)
-        .filter(item=>(item?.sorteoId || '').toString() === (activeSorteoId || '').toString())
-        .map(item=>({
-          clavePendiente: (item?.clavePendiente || '').toString(),
+      const pendientesRef = db.collection('Billetera')
+        .doc(billeteraId)
+        .collection('premiosPendientesDirectos');
+      const snap = await pendientesRef
+        .where('sorteoId', '==', (activeSorteoId || '').toString())
+        .where('estado', '==', 'pendiente')
+        .get();
+      const lista = snap.docs.map(doc=>{
+        const item = doc.data() || {};
+        return {
+          premioId: doc.id,
+          clavePendiente: (item?.clavePendiente || doc.id || '').toString(),
           idx: Number(item?.idx) || 0,
           nombre: (item?.nombre || '').toString(),
           creditos: Math.max(0, Number(item?.creditos) || 0),
@@ -10283,7 +10294,8 @@
           cartonLabel: (item?.cartonLabel || '').toString(),
           color: (item?.color || '').toString(),
           sorteoId: (item?.sorteoId || '').toString()
-        }));
+        };
+      });
       if(lista.length){
         mostrarModalCelebracionGanador(lista, false);
       }
@@ -10300,40 +10312,11 @@
     }
   }
 
-  function buscarPremioPendientePorCriterios(pendientes, detalle, clave=''){
-    const claves = Object.keys(pendientes || {});
-    if(!claves.length) return '';
-    const claveNormalizada = (clave || '').toString().trim().toLowerCase();
-    const sorteoObjetivo = (detalle?.sorteoId || activeSorteoId || '').toString().trim();
-    const idxObjetivo = Number(detalle?.idx);
-    const cartonObjetivo = (detalle?.cartonLabel || '').toString().trim().toLowerCase();
-
-    return claves.find((itemClave='')=>{
-      const item = pendientes[itemClave] || {};
-      const claveItem = (item?.clavePendiente || '').toString().trim().toLowerCase();
-      const itemClaveNormalizada = (itemClave || '').toString().trim().toLowerCase();
-      if(claveNormalizada && (itemClaveNormalizada === claveNormalizada || claveItem === claveNormalizada)){
-        return true;
-      }
-      const sorteoItem = (item?.sorteoId || '').toString().trim();
-      const idxItem = Number(item?.idx);
-      const cartonItem = (item?.cartonLabel || '').toString().trim().toLowerCase();
-      const coincideSorteo = Boolean(sorteoObjetivo) && sorteoItem === sorteoObjetivo;
-      const coincideIdx = Number.isFinite(idxObjetivo) && Number.isFinite(idxItem) && idxItem === idxObjetivo;
-      const coincideCarton = Boolean(cartonObjetivo) && cartonItem === cartonObjetivo;
-
-      if(coincideSorteo && coincideIdx && coincideCarton) return true;
-      if(coincideSorteo && coincideIdx && !cartonObjetivo) return true;
-      if(coincideSorteo && coincideCarton && !Number.isFinite(idxObjetivo)) return true;
-      return false;
-    }) || '';
-  }
-
   async function acreditarPremioAhora(detalle, botonEl=null){
     if(acreditandoPremioAhora || !db || !usuarioActual) return;
     const billeteraId = (usuarioActual?.email || usuarioActual?.uid || '').toString();
-    const clave = (detalle?.clavePendiente || construirClavePremioPendiente(detalle) || '').toString();
-    if(!billeteraId || !clave) return;
+    const premioId = (detalle?.premioId || detalle?.clavePendiente || construirClavePremioPendiente(detalle) || '').toString().trim().toLowerCase();
+    if(!billeteraId || !premioId) return;
     acreditandoPremioAhora = true;
     if(botonEl){
       botonEl.disabled = true;
@@ -10341,27 +10324,40 @@
     }
     try{
       const billeteraRef = db.collection('Billetera').doc(billeteraId);
+      const premioRef = billeteraRef.collection('premiosPendientesDirectos').doc(premioId);
       let acreditado = false;
       let premioYaNoDisponible = false;
       await db.runTransaction(async tx=>{
-        const snap = await tx.get(billeteraRef);
-        const data = snap.exists ? (snap.data() || {}) : {};
-        const pendientes = data?.premiosPendientesDirectos || {};
-        const claveCoincidente = buscarPremioPendientePorCriterios(pendientes, detalle, clave);
-        if(!claveCoincidente){
+        const [premioSnap, billeteraSnap] = await Promise.all([
+          tx.get(premioRef),
+          tx.get(billeteraRef)
+        ]);
+        if(!premioSnap.exists){
           premioYaNoDisponible = true;
           return;
         }
+        const premioData = premioSnap.data() || {};
+        const estadoPremio = (premioData?.estado || '').toString().trim().toLowerCase();
+        if(estadoPremio && estadoPremio !== 'pendiente'){
+          premioYaNoDisponible = true;
+          return;
+        }
+        const data = billeteraSnap.exists ? (billeteraSnap.data() || {}) : {};
         const creditosActual = Number(data.creditos) || 0;
         const gratisActual = Number(data.CartonesGratis ?? data.cartonesGratis) || 0;
-        const creditosPremio = Math.max(0, Number(pendientes[claveCoincidente]?.creditos) || 0);
-        const cartonesPremio = Math.max(0, Number(pendientes[claveCoincidente]?.cartonesGratis) || 0);
+        const creditosPremio = Math.max(0, Number(premioData?.creditos) || 0);
+        const cartonesPremio = Math.max(0, Number(premioData?.cartonesGratis) || 0);
         tx.set(billeteraRef,{
           creditos: creditosActual + creditosPremio,
           CartonesGratis: gratisActual + cartonesPremio,
-          cartonesGratis: gratisActual + cartonesPremio,
-          [`premiosPendientesDirectos.${claveCoincidente}`]: firebase.firestore.FieldValue.delete()
+          cartonesGratis: gratisActual + cartonesPremio
         },{ merge:true });
+        tx.set(premioRef, {
+          estado: 'acreditado',
+          acreditadoEn: firebase.firestore.FieldValue.serverTimestamp(),
+          acreditadoPor: billeteraId,
+          origen: 'juegoactivo:acreditar-ahora'
+        }, { merge: true });
         acreditado = true;
       });
       if(acreditado){
@@ -10370,7 +10366,7 @@
       }else if(premioYaNoDisponible && botonEl){
         console.warn('Premio pendiente no encontrado para acreditar', {
           billeteraId,
-          clave,
+          premioId,
           sorteoId: (detalle?.sorteoId || activeSorteoId || '').toString(),
           idx: Number(detalle?.idx) || 0,
           cartonLabel: (detalle?.cartonLabel || '').toString()
