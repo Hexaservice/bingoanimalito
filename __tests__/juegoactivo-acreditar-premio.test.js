@@ -33,10 +33,9 @@ function extraerFuncion(html, nombre) {
   return html.slice(inicio, fin + 1);
 }
 
-describe('juegoactivo.html - acreditarPremioAhora cuando no hay claveCoincidente', () => {
+describe('juegoactivo.html - acreditarPremioAhora cuando no hay premio pendiente', () => {
   test('no remueve la línea visual ni cierra modal, muestra mensaje y permite reintento', async () => {
     const html = fs.readFileSync('public/juegoactivo.html', 'utf8');
-    const fnBuscar = extraerFuncion(html, 'buscarPremioPendientePorCriterios');
     const fnAcreditar = extraerFuncion(html, 'acreditarPremioAhora');
 
     const dom = new JSDOM('<div id="root"><div class="celebracion-linea"><button class="boton-acreditar-ahora">Acreditar Ahora</button></div></div>');
@@ -51,26 +50,23 @@ describe('juegoactivo.html - acreditarPremioAhora cuando no hay claveCoincidente
       activeSorteoId: 'SRT-1',
       acreditandoPremioAhora: false,
       db: {
-        collection: () => ({ doc: () => ({}) }),
+        collection: () => ({
+          doc: () => ({
+            collection: () => ({ doc: () => ({ __tipo: 'premioRef' }) }),
+            __tipo: 'billeteraRef'
+          })
+        }),
         runTransaction: async (cb) => {
           const tx = {
-            get: async () => ({
-              exists: true,
-              data: () => ({
-                creditos: 15,
-                CartonesGratis: 2,
-                premiosPendientesDirectos: {
-                  otraClave: {
-                    clavePendiente: 'otraClave',
-                    sorteoId: 'SRT-1',
-                    idx: 999,
-                    cartonLabel: 'Cartón XYZ',
-                    creditos: 1,
-                    cartonesGratis: 0
-                  }
-                }
-              })
-            }),
+            get: async (ref) => {
+              if (ref && ref.__tipo === 'premioRef') {
+                return { exists: false, data: () => ({}) };
+              }
+              return {
+                exists: true,
+                data: () => ({ creditos: 15, CartonesGratis: 2 })
+              };
+            },
             set: jest.fn()
           };
           return cb(tx);
@@ -80,11 +76,11 @@ describe('juegoactivo.html - acreditarPremioAhora cuando no hay claveCoincidente
       cerrarModalCelebracionSiSinPendientes,
       alert: alertMock,
       console: { warn: warnMock },
-      firebase: { firestore: { FieldValue: { delete: () => 'DELETE_OP' } } }
+      firebase: { firestore: { FieldValue: { serverTimestamp: () => 'TS' } } }
     };
 
     vm.createContext(context);
-    vm.runInContext(`${fnBuscar}\n${fnAcreditar}`, context);
+    vm.runInContext(fnAcreditar, context);
 
     await context.acreditarPremioAhora({
       clavePendiente: 'clave-inexistente',
@@ -102,7 +98,7 @@ describe('juegoactivo.html - acreditarPremioAhora cuando no hay claveCoincidente
       'Premio pendiente no encontrado para acreditar',
       expect.objectContaining({
         billeteraId: 'jugador@test.com',
-        clave: 'clave-inexistente',
+        premioId: 'clave-inexistente',
         sorteoId: 'SRT-1',
         idx: 1,
         cartonLabel: 'Cartón 001'
