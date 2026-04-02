@@ -8,7 +8,7 @@ const APP_SHELL_URLS = [
   '/index.html',
   '/registrarse.html',
   '/css/desktopFrame.css',
-  '/img/Logo-BingOnline-nuevo500p.png',
+  '/img/Logo-bingo-animalito500p.png',
   '/img/apple-touch-icon.png',
   '/img/android-chrome-192x192.png',
   '/img/android-chrome-512x512.png',
