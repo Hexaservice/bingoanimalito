@@ -10243,15 +10243,30 @@
     const billeteraId = (usuarioActual?.email || usuarioActual?.uid || '').toString();
     if(!billeteraId) return;
     const billeteraRef = db.collection('Billetera').doc(billeteraId);
-    const lote = db.batch();
-    let total = 0;
+    const premiosNormalizados = [];
     detalles.forEach(detalle=>{
       const premioId = (detalle?.premioId || construirClavePremioPendiente(detalle) || '').toString().trim().toLowerCase();
       if(!premioId) return;
-      const premioRef = billeteraRef.collection('premiosPendientesDirectos').doc(premioId);
-      lote.set(premioRef, {
+      premiosNormalizados.push({
         premioId,
-        clavePendiente: premioId,
+        detalle,
+        premioRef: billeteraRef.collection('premiosPendientesDirectos').doc(premioId)
+      });
+    });
+    if(!premiosNormalizados.length) return;
+
+    const existentes = await Promise.all(
+      premiosNormalizados.map(item=>item.premioRef.get().catch(()=>null))
+    );
+    const lote = db.batch();
+    let totalNuevos = 0;
+    premiosNormalizados.forEach((item, index)=>{
+      const snap = existentes[index];
+      if(snap?.exists) return;
+      const detalle = item.detalle;
+      lote.set(item.premioRef, {
+        premioId: item.premioId,
+        clavePendiente: item.premioId,
         idx: Number(detalle?.idx) || 0,
         nombre: (detalle?.nombre || '').toString(),
         creditos: Math.max(0, Number(detalle?.creditos) || 0),
@@ -10262,10 +10277,10 @@
         estado: 'pendiente',
         origen: 'juegoactivo:registro-directo',
         creadoEn: firebase.firestore.FieldValue.serverTimestamp()
-      }, { merge: true });
-      total += 1;
+      });
+      totalNuevos += 1;
     });
-    if(total){
+    if(totalNuevos){
       await lote.commit();
     }
   }
