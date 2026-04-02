@@ -3224,6 +3224,26 @@
           opacity: 0.8;
           animation: none;
       }
+      .boton-cerrar-forma {
+          font-family: 'Bangers', cursive;
+          font-size: clamp(0.95rem, 3vw, 1.1rem);
+          padding: 10px 24px;
+          border-radius: 999px;
+          border: 2px solid rgba(255,255,255,0.92);
+          background: linear-gradient(160deg, rgba(183,28,28,0.96), rgba(229,57,53,0.94));
+          color: #fff;
+          cursor: pointer;
+          box-shadow: 0 8px 20px rgba(0,0,0,0.38), 0 0 18px rgba(255,82,82,0.35);
+          transition: transform 0.2s ease, box-shadow 0.2s ease, filter 0.2s ease;
+      }
+      .boton-cerrar-forma:hover {
+          transform: translateY(-1px) scale(1.03);
+          box-shadow: 0 14px 28px rgba(0,0,0,0.45), 0 0 22px rgba(255,82,82,0.5);
+          filter: brightness(1.08);
+      }
+      .boton-cerrar-forma:active {
+          transform: translateY(1px) scale(0.97);
+      }
       #confeti-overlay {
           position: fixed;
           inset: 0;
@@ -10111,6 +10131,13 @@
     return `${sorteoId}::${idx}::${cartonLabel}`.toLowerCase();
   }
 
+  function cerrarSeccionCelebracionGanador(botonEl=null){
+    botonEl?.closest('.celebracion-linea')?.remove();
+    if(!modalCelebracionListaEl?.children?.length){
+      cerrarModalCelebracionGanador();
+    }
+  }
+
   function crearLineaCelebracionGanador(detalle, { mostrarAcreditar = false } = {}){
     const linea=document.createElement('div');
     linea.className='celebracion-linea';
@@ -10153,7 +10180,9 @@
       cartonInfo.textContent=detalle.cartonLabel;
       linea.appendChild(cartonInfo);
     }
-    if(mostrarAcreditar){
+    const estadoPremio = (detalle?.estado || '').toString().trim().toLowerCase();
+    const mostrarCerrar = estadoPremio === 'acreditado';
+    if(mostrarAcreditar && !mostrarCerrar){
       const botonAcreditar = document.createElement('button');
       botonAcreditar.type = 'button';
       botonAcreditar.className = 'boton-acreditar-ahora';
@@ -10161,6 +10190,13 @@
       botonAcreditar.dataset.premioClave = (detalle?.clavePendiente || construirClavePremioPendiente(detalle) || '').toString();
       botonAcreditar.addEventListener('click',()=>acreditarPremioAhora(detalle, botonAcreditar));
       linea.appendChild(botonAcreditar);
+    }else if(mostrarCerrar){
+      const botonCerrar = document.createElement('button');
+      botonCerrar.type = 'button';
+      botonCerrar.className = 'boton-cerrar-forma';
+      botonCerrar.textContent = 'Cerrar';
+      botonCerrar.addEventListener('click',()=>cerrarSeccionCelebracionGanador(botonCerrar));
+      linea.appendChild(botonCerrar);
     }
     return linea;
   }
@@ -10295,10 +10331,10 @@
         .collection('premiosPendientesDirectos');
       const snap = await pendientesRef
         .where('sorteoId', '==', (activeSorteoId || '').toString())
-        .where('estado', '==', 'pendiente')
         .get();
       const lista = snap.docs.map(doc=>{
         const item = doc.data() || {};
+        const estado = (item?.estado || 'pendiente').toString();
         return {
           premioId: doc.id,
           clavePendiente: (item?.clavePendiente || doc.id || '').toString(),
@@ -10308,8 +10344,12 @@
           cartonesGratis: Math.max(0, Number(item?.cartonesGratis) || 0),
           cartonLabel: (item?.cartonLabel || '').toString(),
           color: (item?.color || '').toString(),
-          sorteoId: (item?.sorteoId || '').toString()
+          sorteoId: (item?.sorteoId || '').toString(),
+          estado
         };
+      }).filter(item=>{
+        const estado = (item?.estado || '').toString().trim().toLowerCase();
+        return estado === 'pendiente' || estado === 'acreditado';
       });
       if(lista.length){
         mostrarModalCelebracionGanador(lista, false);
@@ -10382,8 +10422,14 @@
         botonEl?.closest('.celebracion-linea')?.remove();
         cerrarModalCelebracionSiSinPendientes();
       }else if(premioYaAcreditado){
-        botonEl?.closest('.celebracion-linea')?.remove();
-        cerrarModalCelebracionSiSinPendientes();
+        if(botonEl){
+          const botonCerrar = document.createElement('button');
+          botonCerrar.type = 'button';
+          botonCerrar.className = 'boton-cerrar-forma';
+          botonCerrar.textContent = 'Cerrar';
+          botonCerrar.addEventListener('click',()=>cerrarSeccionCelebracionGanador(botonCerrar));
+          botonEl.replaceWith(botonCerrar);
+        }
       }else if(premioYaNoDisponible && botonEl){
         console.warn('Premio pendiente no encontrado para acreditar', {
           billeteraId,
