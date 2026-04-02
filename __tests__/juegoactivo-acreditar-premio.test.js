@@ -172,7 +172,7 @@ describe('juegoactivo.html - registrarPremiosPendientes idempotente', () => {
 });
 
 describe('juegoactivo.html - acreditarPremioAhora cuando premio ya está acreditado', () => {
-  test('remueve la línea visual sin mostrar alerta de premio pendiente', async () => {
+  test('reemplaza el botón por Cerrar sin mostrar alerta de premio pendiente', async () => {
     const html = fs.readFileSync('public/juegoactivo.html', 'utf8');
     const fnAcreditar = extraerFuncion(html, 'acreditarPremioAhora');
 
@@ -212,6 +212,7 @@ describe('juegoactivo.html - acreditarPremioAhora cuando premio ya está acredit
       },
       usuarioActual: { email: 'jugador@test.com' },
       cerrarModalCelebracionSiSinPendientes,
+      document: dom.window.document,
       alert: alertMock,
       console: { warn: warnMock },
       firebase: { firestore: { FieldValue: { serverTimestamp: () => 'TS' } } }
@@ -227,8 +228,11 @@ describe('juegoactivo.html - acreditarPremioAhora cuando premio ya está acredit
       cartonLabel: 'Cartón 003'
     }, button);
 
-    expect(dom.window.document.body.contains(linea)).toBe(false);
-    expect(cerrarModalCelebracionSiSinPendientes).toHaveBeenCalledTimes(1);
+    expect(dom.window.document.body.contains(linea)).toBe(true);
+    const botonCerrar = dom.window.document.querySelector('.boton-cerrar-forma');
+    expect(botonCerrar).not.toBeNull();
+    expect(botonCerrar.textContent).toBe('Cerrar');
+    expect(cerrarModalCelebracionSiSinPendientes).not.toHaveBeenCalled();
     expect(alertMock).not.toHaveBeenCalled();
     expect(warnMock).not.toHaveBeenCalled();
   });
