@@ -4369,6 +4369,31 @@
     return porGanador * ganadoresNumero;
   }
 
+  function construirClaveCartonGanador(carton){
+    if(!carton) return '';
+    const userId = (carton?.userId || carton?.usuarioId || '').toString().trim().toLowerCase();
+    const cartonNumRaw = carton?.cartonNum ?? carton?.Ncarton ?? carton?.carton;
+    const cartonNum = Number(cartonNumRaw);
+    if(userId && Number.isFinite(cartonNum)){
+      return `usr:${userId}::num:${cartonNum}`;
+    }
+    const id = (carton?.id || '').toString().trim();
+    if(id) return `id:${id}`;
+    return '';
+  }
+
+  function resolverCartonesGanadoresBloqueados(claves){
+    if(!Array.isArray(claves) || !claves.length) return [];
+    const index = new Map();
+    cartonesSorteo.forEach(carton=>{
+      const clave = construirClaveCartonGanador(carton);
+      if(clave && !index.has(clave)){
+        index.set(clave, carton);
+      }
+    });
+    return claves.map(clave=>index.get(clave)).filter(Boolean);
+  }
+
   function calcularGanadores(){
     cartonesGanadoresPorForma = new Map();
     formasPorCarton = new Map();
@@ -4415,15 +4440,13 @@
       const registroBloqueado = ganadoresBloqueadosPorForma.get(idx);
       let ganadoresFinales = ganadores;
       let pasoFinal = mejorPaso;
-      if(registroBloqueado && Array.isArray(registroBloqueado.cartonIds) && registroBloqueado.cartonIds.length){
-        ganadoresFinales = registroBloqueado.cartonIds
-          .map(cartonId=>cartonesSorteo.get(cartonId))
-          .filter(Boolean);
+      if(registroBloqueado && Array.isArray(registroBloqueado.cartonClaves) && registroBloqueado.cartonClaves.length){
+        ganadoresFinales = resolverCartonesGanadoresBloqueados(registroBloqueado.cartonClaves);
         pasoFinal = Number.isFinite(Number(registroBloqueado.paso)) ? Number(registroBloqueado.paso) : mejorPaso;
       }else if(ganadores.length && Number.isFinite(mejorPaso)){
         ganadoresBloqueadosPorForma.set(idx, {
           paso: mejorPaso,
-          cartonIds: ganadores.map(item=>item.id).filter(Boolean)
+          cartonClaves: ganadores.map(item=>construirClaveCartonGanador(item)).filter(Boolean)
         });
       }
       cartonesGanadoresPorForma.set(idx, { forma, cartones: ganadoresFinales, paso: pasoFinal });
