@@ -2,8 +2,8 @@
   const PRODUCT_NAME = 'Bingo Animalito';
   // Estos archivos conservan el nombre histórico BingOnline porque se comparten intencionalmente
   // entre productos y no deben renombrarse sin una migración coordinada de branding/assets.
-  const DEFAULT_LOGO = 'img/Logo-BingOnline-nuevo500p.png';
-  const DECEMBER_LOGO = 'img/Logo-BingOnline-cuadrado500p-navidad.png';
+  const DEFAULT_LOGO = 'img/Logo-bingo-animalito500p.png';
+  const DECEMBER_LOGO = 'img/Logo-bingo-animalito-navidad500p.png';
 
   const isDecember = (date = new Date()) => date.getMonth && date.getMonth() === 11;
 
