@@ -675,10 +675,11 @@
           text-align: left;
       }
       #cantos-grid {
+          --cantos-gap: 2px;
           display: grid;
           grid-template-columns: repeat(var(--cantos-columnas, 5), var(--canto-cell-size));
           justify-content: flex-start;
-          gap: 2px;
+          gap: var(--cantos-gap);
           font-family: 'Poppins', sans-serif;
           margin: 0;
           width: max-content;
@@ -869,6 +870,41 @@
       }
       .canto-cell.encabezado.columna-hora-sticky {
           z-index: 6;
+      }
+      .canto-cell.resumen-celda {
+          background: #fff;
+          border: 1px solid rgba(75, 0, 130, 0.35);
+          font-weight: 700;
+          z-index: 8;
+      }
+      .canto-cell.resumen-celda.resumen-etiqueta {
+          color: #6a0dad;
+          font-size: 0.46rem;
+          line-height: 1.05;
+          text-align: center;
+          cursor: pointer;
+          user-select: none;
+      }
+      .canto-cell.resumen-celda.resumen-etiqueta.activa {
+          color: #000000;
+      }
+      .canto-cell.resumen-celda.resumen-valor {
+          color: #6a0dad;
+          font-size: 1rem;
+      }
+      .canto-cell.resumen-celda.sticky-resumen-izq {
+          position: sticky;
+          left: 0;
+          z-index: 10;
+      }
+      .canto-cell.resumen-celda.sticky-resumen-der {
+          position: sticky;
+          left: calc((var(--canto-cell-size) * 3) + (var(--cantos-gap) * 2));
+          z-index: 10;
+      }
+      .canto-cell.resultado-numero.resultado-repetido-resaltado {
+          border: 2px solid #6a0dad;
+          box-shadow: inset 0 0 0 1px rgba(106, 13, 173, 0.35);
       }
 
       #cantos-conducto-grid {
@@ -5395,6 +5431,11 @@
   let conductoSyncPendiente = false;
   let vistaConductoActiva = false;
   const conductoIngresoCola = [];
+  let cantosConductoSecuencia = [];
+  let cantosConductoIndiceMap = new Map();
+  const RESUMEN_FILA_REPETIDOS = 13;
+  const RESUMEN_FILA_TOTAL = 14;
+  let resumenRepetidosActivo = false;
   let conductoAnimacionEntradaActiva = false;
   let conductoAnimacionBloqueada = false;
   let conductoActualizacionProgramada = false;
@@ -7610,6 +7651,37 @@
     encabezadoHora.classList.toggle('modo-exacto', !modoIntermedio);
   }
 
+  function obtenerResumenRepetidosResultados(){
+    const celdasResultado = Array.from(document.querySelectorAll('.canto-cell.resultado-numero'));
+    const conteo = new Map();
+    let totalResultados = 0;
+    celdasResultado.forEach(celda=>{
+      if(!(celda instanceof HTMLElement)) return;
+      const fila = Number(celda.dataset.fila);
+      if(fila === RESUMEN_FILA_REPETIDOS || fila === RESUMEN_FILA_TOTAL) return;
+      const texto = (celda.textContent || '').trim();
+      if(!texto || celda.classList.contains('inactiva-horario')) return;
+      const numero = normalizarNumero(texto);
+      if(numero === null) return;
+      totalResultados += 1;
+      conteo.set(numero, (conteo.get(numero) || 0) + 1);
+    });
+    const repetidos = new Set(Array.from(conteo.entries()).filter(([,cantidad])=>cantidad > 1).map(([numero])=>numero));
+    return { repetidos, totalResultados };
+  }
+
+  function aplicarResaltadoRepetidosEnTabla(){
+    const { repetidos } = obtenerResumenRepetidosResultados();
+    const celdasResultado = Array.from(document.querySelectorAll('.canto-cell.resultado-numero'));
+    celdasResultado.forEach(celda=>{
+      if(!(celda instanceof HTMLElement)) return;
+      const texto = (celda.textContent || '').trim();
+      const numero = normalizarNumero(texto);
+      const resaltar = resumenRepetidosActivo && numero !== null && repetidos.has(numero);
+      celda.classList.toggle('resultado-repetido-resaltado', resaltar);
+    });
+  }
+
   function refrescarVistaBloquesCantos(){
     const totalColumnas = obtenerTotalColumnasResultado();
     if(totalColumnas !== cantosTotalColumnasRenderizadas){
@@ -7634,6 +7706,9 @@
       }
     }
     for(let fila=0; fila<15; fila++){
+      if(fila === RESUMEN_FILA_REPETIDOS || fila === RESUMEN_FILA_TOTAL){
+        continue;
+      }
       const modoIntermedio = (cantosModoFilaMap.get(fila) || cantosModoGlobal) === 'intermedio';
       const bloque = cantosBloquesData[fila] || {};
       const horaCelda = document.querySelector(`.canto-cell.hora-celda[data-fila="${fila}"]`);
@@ -7652,12 +7727,31 @@
         const usarIntermedio = habilitacion.intermedia && (!habilitacion.exacta || (habilitacion.exacta && modoIntermedio));
         const arr = usarIntermedio ? (bloque.intermedios||[]) : (bloque.exactos||[]);
         const valor = normalizarNumero(arr[col-1]);
-        numeroCelda.textContent = bloqueInactivo ? '' : (valor !== null ? formatearNumeroAnimalVisual(valor).padStart(2,'0') : '');
+        numeroCelda.textContent = bloqueInactivo ? '' : (valor !== null ? formatearNumeroAnimalVisual(valor) : '');
         numeroCelda.classList.toggle('modo-intermedio', usarIntermedio);
         numeroCelda.classList.toggle('modo-exacto', !usarIntermedio);
         numeroCelda.classList.toggle('inactiva-horario', bloqueInactivo);
       }
     }
+    const resumenRepetidosLabel = document.querySelector('.canto-cell.resumen-repetidos-etiqueta');
+    const resumenRepetidosValor = document.querySelector('.canto-cell.resumen-repetidos-valor');
+    const resumenTotalLabel = document.querySelector('.canto-cell.resumen-total-etiqueta');
+    const resumenTotalValor = document.querySelector('.canto-cell.resumen-total-valor');
+    const { repetidos, totalResultados } = obtenerResumenRepetidosResultados();
+    if(resumenRepetidosLabel){
+      resumenRepetidosLabel.innerHTML = 'ANIMALITOS<br>REPETIDOS';
+      resumenRepetidosLabel.classList.toggle('activa', resumenRepetidosActivo);
+    }
+    if(resumenRepetidosValor){
+      resumenRepetidosValor.textContent = String(repetidos.size);
+    }
+    if(resumenTotalLabel){
+      resumenTotalLabel.innerHTML = 'TOTAL DE<br>RESULTADOS';
+    }
+    if(resumenTotalValor){
+      resumenTotalValor.textContent = String(totalResultados);
+    }
+    aplicarResaltadoRepetidosEnTabla();
   }
 
   function crearGridCantos(){
@@ -7671,6 +7765,8 @@
       const celda=document.createElement('div');
       celda.textContent=letra;
       celda.className='canto-cell encabezado';
+      celda.style.gridRow='1';
+      celda.style.gridColumn=String(idx+1);
       if(idx===0){
         celda.classList.add('encabezado-hora','columna-hora-sticky','modo-exacto');
         celda.addEventListener('click',()=>{
@@ -7700,16 +7796,59 @@
     });
     for(let fila=0;fila<15;fila++){
       for(let col=0;col<=totalColumnas;col++){
+        const esFilaResumen = fila === RESUMEN_FILA_REPETIDOS || fila === RESUMEN_FILA_TOTAL;
+        const totalSlots = totalColumnas + 1;
+        const primerSpanResumen = Math.max(1, Math.min(3, totalSlots - 1));
+        const segundoInicioResumen = primerSpanResumen + 1;
+        const segundoSpanResumen = Math.max(1, totalSlots - primerSpanResumen);
         const numero=fila+1+col*15;
         const etiquetaBase=generarEtiquetaDesdeNumero(numero);
         const celda=document.createElement('div');
         celda.dataset.numero=numero;
         celda.dataset.fila=String(fila);
         celda.dataset.col=String(col);
+        celda.style.gridRow=String(fila + 2);
+        celda.style.gridColumn=String(col + 1);
         celda.dataset.tituloBase=etiquetaBase;
         celda.title=etiquetaBase;
         celda.setAttribute('aria-label', etiquetaBase);
         celda.tabIndex=-1;
+        if(esFilaResumen){
+          const esPrimerBloque = col === 0;
+          const esSegundoBloque = col === segundoInicioResumen - 1;
+          if(esPrimerBloque){
+            celda.className='canto-cell resumen-celda resumen-etiqueta sticky-resumen-izq';
+            celda.style.gridColumn=`1 / span ${primerSpanResumen}`;
+            if(fila === RESUMEN_FILA_REPETIDOS){
+              celda.classList.add('resumen-repetidos-etiqueta');
+              celda.addEventListener('click',()=>{
+                resumenRepetidosActivo = !resumenRepetidosActivo;
+                refrescarVistaBloquesCantos();
+              });
+              celda.addEventListener('keydown',evento=>{
+                if(evento.key==='Enter' || evento.key===' '){
+                  evento.preventDefault();
+                  resumenRepetidosActivo = !resumenRepetidosActivo;
+                  refrescarVistaBloquesCantos();
+                }
+              });
+              celda.tabIndex=0;
+            }else{
+              celda.classList.add('resumen-total-etiqueta');
+              celda.tabIndex=-1;
+            }
+          }else if(esSegundoBloque){
+            celda.className='canto-cell resumen-celda resumen-valor sticky-resumen-der';
+            celda.style.gridColumn=`${segundoInicioResumen} / span ${segundoSpanResumen}`;
+            celda.classList.add(fila === RESUMEN_FILA_REPETIDOS ? 'resumen-repetidos-valor' : 'resumen-total-valor');
+            celda.tabIndex=-1;
+          }else{
+            celda.hidden=true;
+            celda.style.display='none';
+          }
+          cantosGridEl.appendChild(celda);
+          continue;
+        }
         if(col===0){
           celda.className='canto-cell hora-celda modo-exacto columna-hora-sticky';
           celda.addEventListener('click',()=>{
@@ -8025,12 +8164,12 @@
     return CONDUCTO_EMPUJE_DURACION;
   }
 
-  function programarAnimacionIngresoConducto(numero){
+  function programarAnimacionIngresoConducto(clave){
     if(!vistaConductoActiva) return;
-    const sphere=conductoSpheresMap.get(numero);
+    const sphere=conductoSpheresMap.get(clave);
     if(!sphere || !sphere.element) return;
-    if(conductoIngresoCola.some(item=>Number(item?.numero)===Number(numero))) return;
-    conductoIngresoCola.push({numero, sphere});
+    if(conductoIngresoCola.some(item=>String(item?.clave||'')===String(clave||''))) return;
+    conductoIngresoCola.push({clave, sphere});
     procesarColaIngresoConducto();
   }
 
@@ -8071,7 +8210,7 @@
     const transicionAnterior=elemento.style.transition;
     const moveDurationAnterior=elemento.style.getPropertyValue('--conducto-move-duration');
     const scaleDurationAnterior=elemento.style.getPropertyValue('--conducto-scale-duration');
-    const destinoPlaneado=Number.isInteger(sphere.destino)?sphere.destino:obtenerIndiceConductoParaNumero(sphere.numero);
+    const destinoPlaneado=Number.isInteger(sphere.destino)?sphere.destino:obtenerIndiceConductoParaClave(sphere.clave);
     if(Number.isInteger(destinoPlaneado)){
       sphere.destinoPendienteIngreso=destinoPlaneado;
       sphere.destino=null;
@@ -8219,23 +8358,41 @@
     modalSubtituloEl.textContent=base?`${base} • ${mensaje}`:mensaje;
   }
 
-  function obtenerIndiceConductoParaNumero(numero){
-    if(!(cantosIndiceMap instanceof Map)) return null;
-    if(!cantosIndiceMap.has(numero)) return null;
-    const idxOrden=cantosIndiceMap.get(numero);
-    if(!Number.isInteger(idxOrden)) return null;
-    const total=cantosOrdenados.length;
-    if(total<=0) return null;
-    return (total-1)-idxOrden;
+  function construirSecuenciaConductoDesdeCantos(){
+    const inicio=Math.max(0, cantosOrdenados.length - 75);
+    const secuencia=[];
+    for(let idx=inicio; idx<cantosOrdenados.length; idx++){
+      const numero=normalizarNumero(cantosOrdenados[idx]);
+      if(numero===null) continue;
+      secuencia.push({
+        clave:`${idx}:${numero}`,
+        numero,
+        indiceGlobal:idx
+      });
+    }
+    cantosConductoSecuencia=secuencia;
+    cantosConductoIndiceMap=new Map();
+    secuencia.forEach((item, idxLocal)=>{
+      cantosConductoIndiceMap.set(item.clave, (secuencia.length-1)-idxLocal);
+    });
   }
 
-  function crearConductoSphere(numero){
+  function obtenerIndiceConductoParaClave(clave){
+    if(!(cantosConductoIndiceMap instanceof Map)) return null;
+    if(!cantosConductoIndiceMap.has(clave)) return null;
+    const idxOrden=cantosConductoIndiceMap.get(clave);
+    if(!Number.isInteger(idxOrden)) return null;
+    return idxOrden;
+  }
+
+  function crearConductoSphere(numero, clave){
     if(!cantosConductoTrackEl) return null;
     const valor=normalizarNumero(numero);
     if(valor===null) return null;
     const esfera=document.createElement('div');
     esfera.className='conducto-sphere conducto-sphere--pre';
     esfera.dataset.numero=valor;
+    esfera.dataset.clave=String(clave || '');
     const etiqueta=document.createElement('span');
     etiqueta.className='conducto-sphere-label';
     const etiquetaNumero=formatearNumeroAnimalito(valor);
@@ -8258,7 +8415,7 @@
       }
     });
     cantosConductoTrackEl.appendChild(esfera);
-    return {numero:valor, element:esfera, destino:null, recienCreada:true, pendiente:false};
+    return {numero:valor, clave:String(clave || ''), element:esfera, destino:null, recienCreada:true, pendiente:false};
   }
 
   function actualizarAspectoSphere(sphere, numero){
@@ -8408,50 +8565,57 @@
   function actualizarConductoEsferas(nuevosCantos=[], forzar=false, permitirAnimacion=true){
     if(!cantosConductoEl || !cantosConductoGridEl) return;
     crearConductoTabla();
-    const numerosActivos=new Set(cantosOrdenados);
-    conductoSpheresMap.forEach((sphere, numero)=>{
-      if(!numerosActivos.has(numero)){
+    construirSecuenciaConductoDesdeCantos();
+    const clavesActivas=new Set(cantosConductoSecuencia.map(item=>item.clave));
+    conductoSpheresMap.forEach((sphere, clave)=>{
+      if(!clavesActivas.has(clave)){
         sphere.element.remove();
-        conductoSpheresMap.delete(numero);
+        conductoSpheresMap.delete(clave);
       }
     });
-    const nuevosSet=new Set(Array.isArray(nuevosCantos)?nuevosCantos:[]);
+    const nuevasClaves=[];
     if(forzar){
-      cantosOrdenados.forEach(numero=>{
-        if(!conductoSpheresMap.has(numero)){
-          const sphere=crearConductoSphere(numero);
-          if(sphere) conductoSpheresMap.set(numero, sphere);
+      cantosConductoSecuencia.forEach(item=>{
+        if(!conductoSpheresMap.has(item.clave)){
+          const sphere=crearConductoSphere(item.numero, item.clave);
+          if(sphere){
+            conductoSpheresMap.set(item.clave, sphere);
+            nuevasClaves.push(item.clave);
+          }
         }
       });
     }else{
-      nuevosSet.forEach(numero=>{
-        if(!conductoSpheresMap.has(numero)){
-          const sphere=crearConductoSphere(numero);
-          if(sphere) conductoSpheresMap.set(numero, sphere);
+      cantosConductoSecuencia.forEach(item=>{
+        if(!conductoSpheresMap.has(item.clave)){
+          const sphere=crearConductoSphere(item.numero, item.clave);
+          if(sphere){
+            conductoSpheresMap.set(item.clave, sphere);
+            nuevasClaves.push(item.clave);
+          }
         }
       });
     }
-    if(!cantosOrdenados.length){
+    if(!cantosConductoSecuencia.length){
       conductoSpheresMap.forEach(sphere=>sphere.element.classList.remove('activa'));
       return;
     }
-    cantosOrdenados.forEach(numero=>{
-      const sphere=conductoSpheresMap.get(numero);
+    cantosConductoSecuencia.forEach(item=>{
+      const sphere=conductoSpheresMap.get(item.clave);
       if(!sphere) return;
-      const destinoCalculado=obtenerIndiceConductoParaNumero(numero);
+      const destinoCalculado=obtenerIndiceConductoParaClave(item.clave);
       if(sphere.ingresando){
         sphere.destinoPendienteIngreso=destinoCalculado;
       }else{
         sphere.destino=destinoCalculado;
       }
-      sphere.recienCreada=sphere.recienCreada || nuevosSet.has(numero);
-      actualizarAspectoSphere(sphere, numero);
+      sphere.recienCreada=sphere.recienCreada || nuevasClaves.includes(item.clave);
+      actualizarAspectoSphere(sphere, item.numero);
     });
     conductoSyncPendiente=true;
-    if(vistaConductoActiva && permitirAnimacion && !forzar && nuevosSet.size){
-      nuevosSet.forEach(numero=>{
-        if(conductoSpheresMap.has(numero)){
-          programarAnimacionIngresoConducto(numero);
+    if(vistaConductoActiva && permitirAnimacion && !forzar && nuevasClaves.length){
+      nuevasClaves.forEach(clave=>{
+        if(conductoSpheresMap.has(clave)){
+          programarAnimacionIngresoConducto(clave);
         }
       });
     }
