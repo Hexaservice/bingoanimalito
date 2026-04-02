@@ -884,6 +884,10 @@
           text-align: center;
           cursor: pointer;
           user-select: none;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          border-color: transparent;
       }
       .canto-cell.resumen-celda.resumen-etiqueta.activa {
           color: #000000;
@@ -903,8 +907,9 @@
           z-index: 10;
       }
       .canto-cell.resultado-numero.resultado-repetido-resaltado {
-          border: 2px solid #6a0dad;
-          box-shadow: inset 0 0 0 1px rgba(106, 13, 173, 0.35);
+          background: #c8a2ff;
+          color: #ffffff !important;
+          box-shadow: inset 0 0 0 1px rgba(106, 13, 173, 0.12);
       }
 
       #cantos-conducto-grid {
@@ -7739,14 +7744,14 @@
     const resumenTotalValor = document.querySelector('.canto-cell.resumen-total-valor');
     const { repetidos, totalResultados } = obtenerResumenRepetidosResultados();
     if(resumenRepetidosLabel){
-      resumenRepetidosLabel.innerHTML = 'ANIMALITOS<br>REPETIDOS';
+      resumenRepetidosLabel.innerHTML = 'ANIMALITOS REPETIDOS';
       resumenRepetidosLabel.classList.toggle('activa', resumenRepetidosActivo);
     }
     if(resumenRepetidosValor){
       resumenRepetidosValor.textContent = String(repetidos.size);
     }
     if(resumenTotalLabel){
-      resumenTotalLabel.innerHTML = 'TOTAL DE<br>RESULTADOS';
+      resumenTotalLabel.innerHTML = 'CANTIDAD DE<br>RESULTADOS';
     }
     if(resumenTotalValor){
       resumenTotalValor.textContent = String(totalResultados);
