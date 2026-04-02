@@ -170,3 +170,66 @@ describe('juegoactivo.html - registrarPremiosPendientes idempotente', () => {
     expect(commitMock).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('juegoactivo.html - acreditarPremioAhora cuando premio ya está acreditado', () => {
+  test('remueve la línea visual sin mostrar alerta de premio pendiente', async () => {
+    const html = fs.readFileSync('public/juegoactivo.html', 'utf8');
+    const fnAcreditar = extraerFuncion(html, 'acreditarPremioAhora');
+
+    const dom = new JSDOM('<div id="root"><div class="celebracion-linea"><button class="boton-acreditar-ahora">Acreditar Ahora</button></div></div>');
+    const button = dom.window.document.querySelector('button');
+    const linea = dom.window.document.querySelector('.celebracion-linea');
+
+    const alertMock = jest.fn();
+    const warnMock = jest.fn();
+    const cerrarModalCelebracionSiSinPendientes = jest.fn();
+
+    const context = {
+      activeSorteoId: 'SRT-1',
+      acreditandoPremioAhora: false,
+      db: {
+        collection: () => ({
+          doc: () => ({
+            collection: () => ({ doc: () => ({ __tipo: 'premioRef' }) }),
+            __tipo: 'billeteraRef'
+          })
+        }),
+        runTransaction: async (cb) => {
+          const tx = {
+            get: async (ref) => {
+              if (ref && ref.__tipo === 'premioRef') {
+                return { exists: true, data: () => ({ estado: 'acreditado' }) };
+              }
+              return {
+                exists: true,
+                data: () => ({ creditos: 15, CartonesGratis: 2 })
+              };
+            },
+            set: jest.fn()
+          };
+          return cb(tx);
+        }
+      },
+      usuarioActual: { email: 'jugador@test.com' },
+      cerrarModalCelebracionSiSinPendientes,
+      alert: alertMock,
+      console: { warn: warnMock },
+      firebase: { firestore: { FieldValue: { serverTimestamp: () => 'TS' } } }
+    };
+
+    vm.createContext(context);
+    vm.runInContext(fnAcreditar, context);
+
+    await context.acreditarPremioAhora({
+      clavePendiente: 'clave-acreditada',
+      sorteoId: 'SRT-1',
+      idx: 5,
+      cartonLabel: 'Cartón 003'
+    }, button);
+
+    expect(dom.window.document.body.contains(linea)).toBe(false);
+    expect(cerrarModalCelebracionSiSinPendientes).toHaveBeenCalledTimes(1);
+    expect(alertMock).not.toHaveBeenCalled();
+    expect(warnMock).not.toHaveBeenCalled();
+  });
+});
