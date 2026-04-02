@@ -106,3 +106,67 @@ describe('juegoactivo.html - acreditarPremioAhora cuando no hay premio pendiente
     );
   });
 });
+
+describe('juegoactivo.html - registrarPremiosPendientes idempotente', () => {
+  test('no vuelve a crear ni sobreescribe premios que ya existen', async () => {
+    const html = fs.readFileSync('public/juegoactivo.html', 'utf8');
+    const fnRegistrar = extraerFuncion(html, 'registrarPremiosPendientes');
+
+    const premioRefExistente = { id: 'srt-1::1::cartón 1' };
+    const premioRefNuevo = { id: 'srt-1::2::cartón 2' };
+    const docMap = new Map([
+      [premioRefExistente, { exists: true }],
+      [premioRefNuevo, { exists: false }]
+    ]);
+
+    const setMock = jest.fn();
+    const commitMock = jest.fn(async () => {});
+    const batchMock = {
+      set: setMock,
+      commit: commitMock
+    };
+
+    const context = {
+      activeSorteoId: 'SRT-1',
+      construirClavePremioPendiente: (detalle) => `${(detalle?.sorteoId || 'SRT-1').toLowerCase()}::${Number(detalle?.idx) || 0}::${(detalle?.cartonLabel || '').toString().trim().toLowerCase()}`,
+      db: {
+        collection: () => ({
+          doc: () => ({
+            collection: () => ({
+              doc: (id) => {
+                if (id.includes('::1::')) return premioRefExistente;
+                return premioRefNuevo;
+              }
+            })
+          })
+        }),
+        batch: () => batchMock
+      },
+      usuarioActual: { email: 'jugador@test.com' },
+      firebase: { firestore: { FieldValue: { serverTimestamp: () => 'TS' } } }
+    };
+
+    premioRefExistente.get = jest.fn(async () => docMap.get(premioRefExistente));
+    premioRefNuevo.get = jest.fn(async () => docMap.get(premioRefNuevo));
+
+    vm.createContext(context);
+    vm.runInContext(fnRegistrar, context);
+
+    await context.registrarPremiosPendientes([
+      { idx: 1, nombre: 'Forma 1', creditos: 100, cartonLabel: 'Cartón 1', sorteoId: 'SRT-1' },
+      { idx: 2, nombre: 'Forma 2', creditos: 200, cartonLabel: 'Cartón 2', sorteoId: 'SRT-1' }
+    ]);
+
+    expect(premioRefExistente.get).toHaveBeenCalled();
+    expect(premioRefNuevo.get).toHaveBeenCalled();
+    expect(setMock).toHaveBeenCalledTimes(1);
+    expect(setMock).toHaveBeenCalledWith(
+      premioRefNuevo,
+      expect.objectContaining({
+        premioId: 'srt-1::2::cartón 2',
+        estado: 'pendiente'
+      })
+    );
+    expect(commitMock).toHaveBeenCalledTimes(1);
+  });
+});
