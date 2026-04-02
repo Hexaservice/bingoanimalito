@@ -10342,6 +10342,7 @@
       const premioRef = billeteraRef.collection('premiosPendientesDirectos').doc(premioId);
       let acreditado = false;
       let premioYaNoDisponible = false;
+      let premioYaAcreditado = false;
       await db.runTransaction(async tx=>{
         const [premioSnap, billeteraSnap] = await Promise.all([
           tx.get(premioRef),
@@ -10354,6 +10355,9 @@
         const premioData = premioSnap.data() || {};
         const estadoPremio = (premioData?.estado || '').toString().trim().toLowerCase();
         if(estadoPremio && estadoPremio !== 'pendiente'){
+          if(estadoPremio === 'acreditado'){
+            premioYaAcreditado = true;
+          }
           premioYaNoDisponible = true;
           return;
         }
@@ -10364,8 +10368,7 @@
         const cartonesPremio = Math.max(0, Number(premioData?.cartonesGratis) || 0);
         tx.set(billeteraRef,{
           creditos: creditosActual + creditosPremio,
-          CartonesGratis: gratisActual + cartonesPremio,
-          cartonesGratis: gratisActual + cartonesPremio
+          CartonesGratis: gratisActual + cartonesPremio
         },{ merge:true });
         tx.set(premioRef, {
           estado: 'acreditado',
@@ -10376,6 +10379,9 @@
         acreditado = true;
       });
       if(acreditado){
+        botonEl?.closest('.celebracion-linea')?.remove();
+        cerrarModalCelebracionSiSinPendientes();
+      }else if(premioYaAcreditado){
         botonEl?.closest('.celebracion-linea')?.remove();
         cerrarModalCelebracionSiSinPendientes();
       }else if(premioYaNoDisponible && botonEl){
