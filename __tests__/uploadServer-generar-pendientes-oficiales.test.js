@@ -216,6 +216,71 @@ describe('generatePendingDirectPrizesFromOfficialResults', () => {
     });
   });
 
+
+  test('prorratea de forma exacta con múltiples ganadores en una misma forma', async () => {
+    const { db, premios } = createDbDouble({
+      formas: [{
+        idx: 2,
+        nombre: 'Cuatro esquinas',
+        valorPremio: 100,
+        cartonesGratis: 2
+      }],
+      lockPorForma: {
+        '2': {
+          cartonClaves: [
+            'usr:ganador@example.com::num:7',
+            'usr:ganador2@example.com::num:8',
+            'usr:ganador3@example.com::num:9'
+          ],
+          cerradoEn: '2026-04-01T00:00:00Z'
+        }
+      },
+      cartones: [
+        {
+          id: 'carton-doc-7',
+          data: {
+            sorteoId: 'SRT-OF-1',
+            userId: 'ganador@example.com',
+            cartonNum: 7,
+            email: 'ganador@example.com'
+          }
+        },
+        {
+          id: 'carton-doc-8',
+          data: {
+            sorteoId: 'SRT-OF-1',
+            userId: 'ganador2@example.com',
+            cartonNum: 8,
+            email: 'ganador2@example.com'
+          }
+        },
+        {
+          id: 'carton-doc-9',
+          data: {
+            sorteoId: 'SRT-OF-1',
+            userId: 'ganador3@example.com',
+            cartonNum: 9,
+            email: 'ganador3@example.com'
+          }
+        }
+      ]
+    });
+
+    const result = await generatePendingDirectPrizesFromOfficialResults({
+      db,
+      sorteoId: 'SRT-OF-1',
+      generadoPor: 'admin@test.com'
+    });
+
+    expect(result.creados).toBe(3);
+    const premiosCreados = Array.from(premios.values());
+    expect(premiosCreados).toHaveLength(3);
+    premiosCreados.forEach((premio) => {
+      expect(premio.creditos).toBe(33.333333);
+      expect(premio.cartonesGratis).toBe(0.666667);
+    });
+  });
+
   test('respeta cartonesGratisPorGanador como valor fijo por ganador', async () => {
     const { db, premios } = createDbDouble({
       formas: [{

@@ -778,6 +778,7 @@
   <script src="js/timezone.js"></script>
   <script src="js/estadoPagoPremio.js"></script>
   <script src="js/admin-payout-distribution.js"></script>
+  <script src="js/centropagosResumen.js"></script>
   <script>
     ensureAuth('Administrador');
     initServerTime();
@@ -2541,6 +2542,9 @@
     }
 
     function cpResolverNombreForma(registro = {}){
+      if(window.CentroPagosResumen?.resolverNombreForma){
+        return window.CentroPagosResumen.resolverNombreForma(registro);
+      }
       const idx = Number(registro.formaIdx);
       const formas = Array.isArray(registro.formasGanadoras) ? registro.formasGanadoras : [];
       const porIndice = Number.isInteger(idx) && idx >= 0 && idx < formas.length ? formas[idx] : null;
@@ -2552,6 +2556,15 @@
 
     function cpCalcularResumenMontos(sorteoId){
       const idObjetivo = (sorteoId || cpObtenerSorteoIdObjetivo() || '').toString().trim();
+      if(window.CentroPagosResumen?.calcularResumenMontos){
+        return window.CentroPagosResumen.calcularResumenMontos({
+          premiosActivos,
+          sorteoId: idObjetivo,
+          normalizarEstado,
+          estaFinalizado: window.EstadosPagoPremio?.estaFinalizado,
+          resolverNombre: cpResolverNombreForma
+        });
+      }
       if(!idObjetivo){
         return {
           totalPremiosRepartir: 0,
