@@ -681,6 +681,7 @@
   <script src="js/notificationCenter.js"></script>
   <script src="js/timezone.js"></script>
   <script src="js/estadoPagoPremio.js"></script>
+  <script src="js/admin-payout-distribution.js"></script>
   <script>
     ensureAuth('Administrador');
     initServerTime();
@@ -725,6 +726,7 @@
     const formatNumber = new Intl.NumberFormat('es-ES', { maximumFractionDigits: 2, minimumFractionDigits: 0 });
     const formatNumberEntero = new Intl.NumberFormat('es-ES', { maximumFractionDigits: 0, minimumFractionDigits: 0 });
     let firebaseReadyPromiseCentro = null;
+    const cpAdminDistribucion = window.CentroPagosAdminDistribucion || {};
 
     function normalizarConteoTecnico(valor){
       const numero = Number(valor);
@@ -887,7 +889,17 @@
           return;
         }
         const ctx = cpCrearContextoSorteo(sorteoId, sorteoData);
-        const resultado = await cpGenerarSolicitudesParaSorteo(ctx);
+        const administrativos = await cpObtenerAdministrativosProcesados(ctx);
+        const detalleAdministrativos = cpConstruirConfirmacionAdministrativos(administrativos);
+        const confirmar = window.confirm(
+          `Se generarán solicitudes para el sorteo ${nombreSorteo}.\n\n`+
+          `Desglose administrativo:\n${detalleAdministrativos}\n\n`+
+          '¿Deseas continuar?'
+        );
+        if(!confirmar){
+          return;
+        }
+        const resultado = await cpGenerarSolicitudesParaSorteo(ctx, { administrativosPrecalculados: administrativos });
         await cpRecargarTablasTrasGeneracion(sorteoId);
         alert(
           `Solicitudes generadas para el sorteo ${nombreSorteo}.\n`+
@@ -1279,29 +1291,85 @@
       return resultados;
     }
 
+    function cpOrdenarUsuariosRolDeterministicamente(usuarios = []){
+      return [...usuarios].sort((a, b)=>{
+        const emailA = cpNormalizarEmail(a?.email || a?.uid || '');
+        const emailB = cpNormalizarEmail(b?.email || b?.uid || '');
+        if(emailA !== emailB) return emailA.localeCompare(emailB, 'es', { sensitivity: 'base' });
+        const uidA = (a?.uid || '').toString();
+        const uidB = (b?.uid || '').toString();
+        return uidA.localeCompare(uidB, 'es', { sensitivity: 'base' });
+      });
+    }
+
+    function cpResolverModoMontoAdministrativo(ctx, definicion){
+      const modoRaw = definicion?.campoModoMonto
+        ? (ctx?.sorteoData?.[definicion.campoModoMonto] || '')
+        : (definicion?.modoMonto || '');
+      const modo = (modoRaw || '').toString().trim().toLowerCase();
+      return modo === 'monto_fijo_por_cuenta' ? 'monto_fijo_por_cuenta' : 'total_por_rol';
+    }
+
     async function cpObtenerAdministrativosProcesados(ctx){
       const definiciones = [
-        { rolInterno: 'agencia', clavesMonto: ['totalporcentaje','totalPorcentaje','total_porcentaje'] },
-        { rolInterno: 'desarrollador', clavesMonto: ['totalporcentajesu','totalPorcentajeSu','total_porcentajesu'] }
+        {
+          rolInterno: 'agencia',
+          clavesMonto: ['totalporcentaje','totalPorcentaje','total_porcentaje'],
+          clavesMontoFijo: ['montoFijoAgencia','monto_fijo_agencia'],
+          modoMonto: 'total_por_rol'
+        },
+        {
+          rolInterno: 'desarrollador',
+          clavesMonto: ['totalporcentajesu','totalPorcentajeSu','total_porcentajesu'],
+          clavesMontoFijo: ['montoFijoDesarrollador','monto_fijo_desarrollador'],
+          modoMonto: 'total_por_rol'
+        }
       ];
       const lista = [];
       for(const definicion of definiciones){
-        const monto = cpObtenerCampoNumeroFlexible(ctx.sorteoData || {}, definicion.clavesMonto);
-        const usuarios = await cpObtenerUsuariosPorRolInterno(ctx, definicion.rolInterno);
-        usuarios.forEach(usuario=>{
+        const montoRol = cpObtenerCampoNumeroFlexible(ctx.sorteoData || {}, definicion.clavesMonto);
+        const montoFijoPorCuenta = cpObtenerCampoNumeroFlexible(ctx.sorteoData || {}, definicion.clavesMontoFijo || []);
+        const modoMonto = cpResolverModoMontoAdministrativo(ctx, definicion);
+        const usuarios = cpOrdenarUsuariosRolDeterministicamente(await cpObtenerUsuariosPorRolInterno(ctx, definicion.rolInterno));
+        const distribucion = cpAdminDistribucion.distribuirMontoPorUsuarios
+          ? cpAdminDistribucion.distribuirMontoPorUsuarios({
+            montoRol,
+            usuarios,
+            rolInterno: definicion.rolInterno,
+            modoMonto,
+            montoFijoPorCuenta
+          })
+          : [];
+        distribucion.forEach(item=>{
+          const usuario = item?.usuario || {};
           const email = cpNormalizarEmail(usuario.email || usuario.uid || '');
           if(!email) return;
           lista.push({
             gmail: email,
             alias: usuario.alias || '',
             nombre: usuario.nombre || '',
-            creditos: Number.isFinite(monto) ? Number(monto) || 0 : 0,
+            creditos: Number(item?.montoAsignado) || 0,
             rolInterno: definicion.rolInterno,
-            userIds: usuario.uid ? [usuario.uid] : []
+            userIds: usuario.uid ? [usuario.uid] : [],
+            montoRolBase: Number(item?.montoRolBase) || 0,
+            totalUsuariosRol: Number(item?.totalUsuariosRol) || 0,
+            metodoDistribucion: item?.metodoDistribucion || ''
           });
         });
       }
       return lista;
+    }
+
+    function cpConstruirConfirmacionAdministrativos(administrativos = []){
+      const resumen = cpAdminDistribucion.resumirDistribucionPorRol
+        ? cpAdminDistribucion.resumirDistribucionPorRol(administrativos)
+        : [];
+      if(!resumen.length){
+        return 'No hay pagos administrativos para este sorteo.';
+      }
+      return resumen.map(item=>(
+        `- ${item.rolInterno}: base ${item.montoRolBase}, usuarios ${item.totalUsuarios}, asignado ${item.totalCreditos} (${item.metodoDistribucion || 'n/d'})`
+      )).join('\n');
     }
 
     async function cpObtenerColaboradoresSistema(ctx){
@@ -1819,6 +1887,9 @@
           actualizadoEn: timestamp,
           tipoRegistro: 'ADMINISTRATIVO_SORTEO',
           rolInterno: administrativo.rolInterno || '',
+          montoRolBase: Number(administrativo.montoRolBase) || 0,
+          totalUsuariosRol: Number(administrativo.totalUsuariosRol) || 0,
+          metodoDistribucion: administrativo.metodoDistribucion || '',
           userIds: administrativo.userIds || [],
           generadoDesde: 'centropagos'
         };
@@ -1847,7 +1918,10 @@
           alias: item.alias || '',
           nombre: item.nombre || '',
           rolInterno: item.rolInterno || '',
-          creditos: Number(item.creditos) || 0
+          creditos: Number(item.creditos) || 0,
+          montoRolBase: Number(item.montoRolBase) || 0,
+          totalUsuariosRol: Number(item.totalUsuariosRol) || 0,
+          metodoDistribucion: item.metodoDistribucion || ''
         })),
         colaboradores: colaboradores.map(item=>({
           gmail: cpNormalizarEmail(item.gmail || ''),
@@ -1943,7 +2017,9 @@
         totalCreditos = premiosData.totalCreditos || 0;
         totalCartonesGratis = premiosData.totalCartonesGratis || 0;
       }
-      const administrativos = await cpObtenerAdministrativosProcesados(ctx);
+      const administrativos = Array.isArray(opciones.administrativosPrecalculados)
+        ? opciones.administrativosPrecalculados
+        : await cpObtenerAdministrativosProcesados(ctx);
       const colaboradores = await cpObtenerColaboradoresSistema(ctx);
       await cpRegistrarSolicitudes(ctx, ganadores, administrativos, colaboradores, totalCreditos, totalCartonesGratis, { incluirPremios });
       await cpMarcarSolicitudesGeneradas(ctx);
