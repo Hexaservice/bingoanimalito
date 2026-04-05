@@ -639,6 +639,7 @@ async function generatePendingDirectPrizesFromOfficialResults({
   let evaluados = 0;
   let creados = 0;
   let duplicados = 0;
+  let bloqueadosTotales = 0;
 
   for (const [idxRaw, lockValue] of Object.entries(lockRaw)) {
     const formaIdx = Number(idxRaw);
@@ -647,6 +648,7 @@ async function generatePendingDirectPrizesFromOfficialResults({
       ? lockValue.cartonClaves.map((item) => normalizeString(item, 220)).filter(Boolean)
       : [];
     if (!cartonClaves.length) continue;
+    bloqueadosTotales += cartonClaves.length;
 
     const forma = formas.find((item) => Number(item?.idx) === formaIdx) || {};
     const { creditos, cartonesGratis } = computeWinnerPrizeAmounts(forma, cartonClaves.length);
@@ -681,7 +683,18 @@ async function generatePendingDirectPrizesFromOfficialResults({
         normalizeString(winnerIdentity?.canonicalEmail, 160).toLowerCase() ||
         normalizeString(billeteraCandidates[0], 160)
       );
-      if (!billeteraId) continue;
+      if (!billeteraId) {
+        console.info('[premios-directos-oficiales][control]', {
+          sorteoId: normalizedSorteoId,
+          evaluados,
+          creados,
+          duplicados,
+          billeteraId: null,
+          eventoGanadorId: null,
+          estado: 'omitido_billetera_no_resuelta'
+        });
+        continue;
+      }
 
       const eventoGanadorId = construirEventoGanadorIdCanonico({
         sorteoId: normalizedSorteoId,
@@ -689,7 +702,18 @@ async function generatePendingDirectPrizesFromOfficialResults({
         cartonClaveGanador: cartonClave,
         cartonId: normalizeString(carton.id, 180)
       });
-      if (!eventoGanadorId) continue;
+      if (!eventoGanadorId) {
+        console.info('[premios-directos-oficiales][control]', {
+          sorteoId: normalizedSorteoId,
+          evaluados,
+          creados,
+          duplicados,
+          billeteraId,
+          eventoGanadorId: null,
+          estado: 'omitido_evento_ganador_invalido'
+        });
+        continue;
+      }
       const premioId = buildOfficialPendingPrizeId(eventoGanadorId);
       const billeteraRef = db.collection('Billetera').doc(billeteraId);
       const premioRef = billeteraRef.collection('premiosPendientesDirectos').doc(premioId);
@@ -704,6 +728,15 @@ async function generatePendingDirectPrizesFromOfficialResults({
       ]);
       if (premioSnap.exists || !duplicatedByEventSnap.empty) {
         duplicados += 1;
+        console.info('[premios-directos-oficiales][control]', {
+          sorteoId: normalizedSorteoId,
+          evaluados,
+          creados,
+          duplicados,
+          billeteraId,
+          eventoGanadorId,
+          estado: 'duplicado'
+        });
         continue;
       }
 
@@ -730,14 +763,41 @@ async function generatePendingDirectPrizesFromOfficialResults({
         ganadorLockCerradoEn: lockValue?.cerradoEn || null
       }, { merge: false });
       creados += 1;
+      console.info('[premios-directos-oficiales][control]', {
+        sorteoId: normalizedSorteoId,
+        evaluados,
+        creados,
+        duplicados,
+        billeteraId,
+        eventoGanadorId,
+        estado: 'creado'
+      });
     }
+  }
+
+  console.info('[premios-directos-oficiales][resumen]', {
+    sorteoId: normalizedSorteoId,
+    evaluados,
+    creados,
+    duplicados,
+    bloqueadosTotales
+  });
+  if (creados === 0 && bloqueadosTotales > 0) {
+    console.warn('[premios-directos-oficiales][alerta-operativa] Sin premios creados con ganadores bloqueados', {
+      sorteoId: normalizedSorteoId,
+      evaluados,
+      creados,
+      duplicados,
+      bloqueadosTotales
+    });
   }
 
   return {
     sorteoId: normalizedSorteoId,
     evaluados,
     creados,
-    duplicados
+    duplicados,
+    bloqueadosTotales
   };
 }
 

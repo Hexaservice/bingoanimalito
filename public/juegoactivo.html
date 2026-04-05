@@ -10416,7 +10416,10 @@
     modalCelebracionListaEl.innerHTML='';
     const sorteoFinalizado = ((activeSorteo?.estado || '').toString().toLowerCase()==='finalizado');
     lista.forEach(detalle=>{
-      const mostrarAcreditar = !esSimulacion && !detalle?.perdido && !sorteoFinalizado;
+      const mostrarAcreditar = !esSimulacion
+        && !detalle?.perdido
+        && !sorteoFinalizado
+        && detalle?.documentoPendienteReal === true;
       modalCelebracionListaEl.appendChild(crearLineaCelebracionGanador(detalle, { mostrarAcreditar }));
     });
     if(modalCelebracionMensajeEl){
@@ -10482,7 +10485,8 @@
           cartonId: (item?.cartonId || '').toString(),
           color: (item?.color || '').toString(),
           sorteoId: (item?.sorteoId || '').toString(),
-          estado
+          estado,
+          documentoPendienteReal: estado.trim().toLowerCase() === 'pendiente'
         };
       }).filter(item=>{
         const estado = (item?.estado || '').toString().trim().toLowerCase();
