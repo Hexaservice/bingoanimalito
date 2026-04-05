@@ -7196,6 +7196,107 @@
     return pendientes;
   }
 
+  function resolverApiAdminBaseCantarsorteos(){
+    if(typeof window.getAdminApiBase === 'function'){
+      const base = (window.getAdminApiBase() || '').toString().trim();
+      if(base) return base.replace(/\/+$/, '');
+    }
+    const uploadEndpoint = (window.UPLOAD_ENDPOINT || '').toString().trim();
+    if(uploadEndpoint){
+      return uploadEndpoint.replace(/\/upload\/?$/i, '').replace(/\/+$/, '');
+    }
+    return (window.location?.origin || '').replace(/\/+$/, '');
+  }
+
+  function registrarTelemetriaOperacion(nombreEvento, payload = {}){
+    if(typeof window.trackEvent === 'function'){
+      window.trackEvent(nombreEvento, payload);
+    } else {
+      console.info(`[telemetria] ${nombreEvento}`, payload);
+    }
+  }
+
+  function extraerResumenPremiosDirectosOficiales(data = {}){
+    const candidatos = [
+      data?.resumen,
+      data?.resultado,
+      data
+    ];
+    let origen = {};
+    for(const item of candidatos){
+      if(item && typeof item === 'object'){
+        origen = item;
+        break;
+      }
+    }
+    const numeroSeguro = (valor)=>{
+      const numero = Number(valor);
+      return Number.isFinite(numero) && numero >= 0 ? numero : 0;
+    };
+    return {
+      creados: numeroSeguro(origen.creados ?? origen.totalCreados ?? origen.insertados),
+      duplicados: numeroSeguro(origen.duplicados ?? origen.totalDuplicados ?? origen.existentes),
+      evaluados: numeroSeguro(origen.evaluados ?? origen.totalEvaluados ?? origen.procesados)
+    };
+  }
+
+  async function generarPremiosPendientesDirectosOficiales(sorteoId){
+    const sorteoSeguro = (sorteoId || '').toString().trim();
+    if(!sorteoSeguro){
+      return { ok: false, omitido: true, motivo: 'sorteo_id_vacio', resumen: { creados: 0, duplicados: 0, evaluados: 0 } };
+    }
+    const currentUser = auth?.currentUser || null;
+    if(!currentUser){
+      throw new Error('No hay usuario autenticado para generar premios pendientes directos oficiales.');
+    }
+    const validacionPermiso = await validarPermisoFinalizarSorteo();
+    if(!validacionPermiso?.permitido){
+      const errorPermisos = new Error(validacionPermiso?.mensaje || 'No tienes permisos para generar premios pendientes directos oficiales.');
+      errorPermisos.code = 'permission-denied';
+      throw errorPermisos;
+    }
+    const apiBase = resolverApiAdminBaseCantarsorteos();
+    if(!apiBase){
+      throw new Error('No se pudo resolver la URL base del API administrativo.');
+    }
+    const token = await currentUser.getIdToken(true);
+    let responseData = {};
+    let statusCode = 0;
+    try {
+      const response = await fetch(`${apiBase}/admin/generar-premios-pendientes-directos-oficiales`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ sorteoId: sorteoSeguro })
+      });
+      statusCode = Number(response.status) || 0;
+      responseData = await response.json().catch(()=>({}));
+      if(!response.ok && response.status !== 409){
+        const detalle = (responseData?.message || responseData?.error || '').toString().trim();
+        throw new Error(detalle || `HTTP ${response.status}`);
+      }
+      const resumen = extraerResumenPremiosDirectosOficiales(responseData);
+      const idempotente = statusCode === 409 || resumen.duplicados > 0 || Boolean(responseData?.idempotente || responseData?.yaExistianPremios);
+      registrarTelemetriaOperacion('cantarsorteos_generar_premios_directos_oficiales_exito', {
+        sorteoId: sorteoSeguro,
+        statusCode,
+        ...resumen,
+        idempotente
+      });
+      return { ok: true, idempotente, statusCode, resumen, data: responseData };
+    } catch (error) {
+      registrarTelemetriaOperacion('cantarsorteos_generar_premios_directos_oficiales_error', {
+        sorteoId: sorteoSeguro,
+        statusCode,
+        errorCode: (error?.code || '').toString().trim() || null,
+        errorMessage: (error?.message || '').toString().trim() || null
+      });
+      throw error;
+    }
+  }
+
   async function finalizarSorteo(){
     if(!currentSorteoId || !currentSorteoData){ alert('Selecciona un sorteo primero.'); return; }
     const estadoActual = obtenerEstadoActualNormalizado();
@@ -7285,6 +7386,26 @@
         transaction.update(ref, { estado: 'Finalizado' });
       });
       conservarLoteriasCacheEnSorteoActual();
+      try{
+        const resultadoPremiosDirectos = await generarPremiosPendientesDirectosOficiales(currentSorteoId);
+        const resumen = resultadoPremiosDirectos?.resumen || { creados: 0, duplicados: 0, evaluados: 0 };
+        const mensajeResumen = `Premios directos oficiales: creados ${resumen.creados}, duplicados ${resumen.duplicados}, evaluados ${resumen.evaluados}.`;
+        if(resultadoPremiosDirectos?.idempotente){
+          mostrarAvisoSimple(`${mensajeResumen} El proceso fue idempotente (ya existían registros previos).`, 'Premios directos oficiales');
+        } else {
+          mostrarAvisoSimple(mensajeResumen, 'Premios directos oficiales');
+        }
+      }catch(errorPremiosDirectos){
+        console.warn('No se pudo generar premios pendientes directos oficiales durante la finalización', {
+          sorteoId: currentSorteoId || '',
+          errorCode: (errorPremiosDirectos?.code || '').toString().trim(),
+          errorMessage: (errorPremiosDirectos?.message || '').toString().trim()
+        });
+        mostrarAvisoSimple(
+          'El sorteo se finalizó, pero no se pudo completar la generación automática de premios directos oficiales. Puedes reintentar desde PDF de resultados o Centro de Pagos.',
+          'Aviso operativo'
+        );
+      }
       mensajeEl.textContent = estadoAcumulado?.pendiente
         ? 'Sorteo finalizado correctamente. Acumulado pendiente de gestión administrativa.'
         : 'Sorteo finalizado correctamente.';
