@@ -4658,6 +4658,7 @@
   <script src="js/cantosCanonicos.js"></script>
   <script src="js/cantosResultadosClave.js"></script>
   <script src="js/sorteoDataAdapters.js"></script>
+  <script src="js/premiosPendientesIds.js"></script>
   <script>
   ensureAuth();
   initFechaHora('fecha-hora');
@@ -4676,6 +4677,7 @@
   const sorteoDetallesEl = document.getElementById('sorteo-detalles');
 
   const { obtenerLoteriasAsignadas, normalizarMiniaturaLoteria, formatearNumeroAnimalVisual, normalizarClaveResultado } = window.SorteoDataAdapters;
+  const premiosPendientesIdsApi = window.PremiosPendientesIds || {};
 
   initBingoAudioControl({
     containerId: 'audio-control-game',
@@ -10281,10 +10283,12 @@
   }
 
   function construirClavePremioPendiente(detalle){
-    const sorteoId = (detalle?.sorteoId || activeSorteoId || '').toString().trim();
-    const idx = Number(detalle?.idx) || 0;
-    const cartonLabel = (detalle?.cartonLabel || '').toString().trim();
-    return `${sorteoId}::${idx}::${cartonLabel}`.toLowerCase();
+    return (premiosPendientesIdsApi?.construirEventoGanadorIdCanonico?.({
+      sorteoId: (detalle?.sorteoId || activeSorteoId || '').toString(),
+      formaIdx: Number(detalle?.idx) || 0,
+      cartonClaveGanador: (detalle?.cartonClaveGanador || '').toString(),
+      cartonId: (detalle?.cartonId || '').toString()
+    }) || '').toLowerCase();
   }
 
   function cerrarSeccionCelebracionGanador(botonEl=null){
@@ -10456,11 +10460,14 @@
         return {
           premioId: doc.id,
           clavePendiente: (item?.clavePendiente || doc.id || '').toString(),
+          eventoGanadorId: (item?.eventoGanadorId || '').toString(),
           idx: Number(item?.idx) || 0,
           nombre: (item?.nombre || '').toString(),
           creditos: Math.max(0, Number(item?.creditos) || 0),
           cartonesGratis: Math.max(0, Number(item?.cartonesGratis) || 0),
           cartonLabel: (item?.cartonLabel || '').toString(),
+          cartonClaveGanador: (item?.cartonClaveGanador || '').toString(),
+          cartonId: (item?.cartonId || '').toString(),
           color: (item?.color || '').toString(),
           sorteoId: (item?.sorteoId || '').toString(),
           estado
@@ -10488,8 +10495,11 @@
   async function acreditarPremioAhora(detalle, botonEl=null){
     if(acreditandoPremioAhora || !db || !usuarioActual) return;
     const billeteraId = (usuarioActual?.email || usuarioActual?.uid || '').toString();
-    const premioId = (detalle?.premioId || detalle?.clavePendiente || construirClavePremioPendiente(detalle) || '').toString().trim().toLowerCase();
-    if(!billeteraId || !premioId) return;
+    const premioIdsCandidatos = premiosPendientesIdsApi?.construirClavesCandidatasPremioPendiente?.({
+      ...detalle,
+      sorteoId: (detalle?.sorteoId || activeSorteoId || '').toString()
+    }) || [];
+    if(!billeteraId || !premioIdsCandidatos.length) return;
     acreditandoPremioAhora = true;
     if(botonEl){
       botonEl.disabled = true;
@@ -10497,7 +10507,22 @@
     }
     try{
       const billeteraRef = db.collection('Billetera').doc(billeteraId);
-      const premioRef = billeteraRef.collection('premiosPendientesDirectos').doc(premioId);
+      const premiosCollectionRef = billeteraRef.collection('premiosPendientesDirectos');
+      let premioRef = null;
+      let premioIdUsado = '';
+      for(const candidato of premioIdsCandidatos){
+        const referencia = premiosCollectionRef.doc(candidato);
+        const snap = await referencia.get();
+        if(snap.exists){
+          premioRef = referencia;
+          premioIdUsado = candidato;
+          break;
+        }
+      }
+      if(!premioRef){
+        premioRef = premiosCollectionRef.doc(premioIdsCandidatos[0]);
+        premioIdUsado = premioIdsCandidatos[0];
+      }
       let acreditado = false;
       let premioYaNoDisponible = false;
       let premioYaAcreditado = false;
@@ -10551,7 +10576,8 @@
       }else if(premioYaNoDisponible && botonEl){
         console.warn('Premio pendiente no encontrado para acreditar', {
           billeteraId,
-          premioId,
+          premioId: premioIdUsado,
+          premioIdsCandidatos,
           sorteoId: (detalle?.sorteoId || activeSorteoId || '').toString(),
           idx: Number(detalle?.idx) || 0,
           cartonLabel: (detalle?.cartonLabel || '').toString()
@@ -10746,7 +10772,9 @@
               creditos: obtenerCreditosPorGanador(forma, totalGanadores),
               cartonesGratis: obtenerCartonesGratisPorGanador(forma, totalGanadores),
               color: obtenerColorParaForma(idx),
-              cartonLabel: formaItem?.cartonNum ? `Cartón #${formaItem.cartonNum}` : ''
+              cartonLabel: formaItem?.cartonNum ? `Cartón #${formaItem.cartonNum}` : '',
+              cartonClaveGanador: (formaItem?.cartonClaveGanador || '').toString(),
+              cartonId: (formaItem?.cartonId || '').toString()
             });
           });
         }else{
@@ -10756,6 +10784,8 @@
             creditos: 0,
             cartonesGratis: 0,
             cartonLabel: '',
+            cartonClaveGanador: '',
+            cartonId: '',
             perdido: true
           });
         }
@@ -10799,7 +10829,8 @@
         const color=obtenerColorParaForma(idx);
         const cartonLabel=formatearInfoCarton(carton);
         const cartonClaveGanador=construirClaveCartonGanador(carton);
-        detalles.push({idx, nombre, creditos, cartonesGratis, color, cartonLabel, cartonClaveGanador});
+        const cartonId=(carton?.id || '').toString();
+        detalles.push({idx, nombre, creditos, cartonesGratis, color, cartonLabel, cartonClaveGanador, cartonId});
       });
       formasCelebradasPorCarton.set(carton.id, registro);
     });

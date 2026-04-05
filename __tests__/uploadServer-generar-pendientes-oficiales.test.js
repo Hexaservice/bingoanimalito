@@ -137,7 +137,9 @@ describe('generatePendingDirectPrizesFromOfficialResults', () => {
     expect(first.duplicados).toBe(0);
     const created = Array.from(premios.values())[0];
     expect(created.estado).toBe('pendiente');
-    expect(created.eventoGanadorId).toBe('SRT-OF-1__f1__carton-doc-7');
+    expect(created.eventoGanadorId).toBe('SRT-OF-1__f1__usr:ganador@example.com::num:7');
+    expect(created.cartonClaveGanador).toBe('usr:ganador@example.com::num:7');
+    expect(created.cartonId).toBe('carton-doc-7');
 
     const second = await generatePendingDirectPrizesFromOfficialResults({
       db,
