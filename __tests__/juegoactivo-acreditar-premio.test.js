@@ -107,74 +107,27 @@ describe('juegoactivo.html - acreditarPremioAhora cuando no hay premio pendiente
   });
 });
 
-describe('juegoactivo.html - registrarPremiosPendientes idempotente', () => {
-  test('no vuelve a crear ni sobreescribe premios que ya existen', async () => {
+describe('juegoactivo.html - registrarPremiosPendientes deshabilitado en cliente', () => {
+  test('no crea premios pendientes directos', async () => {
     const html = fs.readFileSync('public/juegoactivo.html', 'utf8');
     const fnRegistrar = extraerFuncion(html, 'registrarPremiosPendientes');
 
-    const premioRefExistente = { id: 'srt-1::1::cartón 1' };
-    const premioRefNuevo = { id: 'srt-1::2::cartón 2' };
-    const docMap = new Map([
-      [premioRefExistente, { exists: true }],
-      [premioRefNuevo, { exists: false }]
-    ]);
-
     const setMock = jest.fn();
-    const commitMock = jest.fn(async () => {});
-    const batchMock = {
-      set: setMock,
-      commit: commitMock
-    };
+    const commitMock = jest.fn();
 
     const context = {
-      activeSorteoId: 'SRT-1',
-      locksGanadoresListos: true,
-      precargarLocksGanadoresRemotos: jest.fn(async () => new Map()),
-      construirClavePremioPendiente: (detalle) => `${(detalle?.sorteoId || 'SRT-1').toLowerCase()}::${Number(detalle?.idx) || 0}::${(detalle?.cartonLabel || '').toString().trim().toLowerCase()}`,
-      ganadoresBloqueadosPorForma: new Map([
-        [1, { paso: 0, cartonClaves: ['usr:default::num:1'] }],
-        [2, { paso: 0, cartonClaves: ['usr:default::num:2'] }]
-      ]),
-      cierresPremiosPorForma: new Map(),
       db: {
-        collection: () => ({
-          doc: () => ({
-            collection: () => ({
-              doc: (id) => {
-                if (id.includes('::1::')) return premioRefExistente;
-                return premioRefNuevo;
-              }
-            })
-          })
-        }),
-        batch: () => batchMock
-      },
-      usuarioActual: { email: 'jugador@test.com' },
-      firebase: { firestore: { FieldValue: { serverTimestamp: () => 'TS' } } }
+        batch: () => ({ set: setMock, commit: commitMock })
+      }
     };
-
-    premioRefExistente.get = jest.fn(async () => docMap.get(premioRefExistente));
-    premioRefNuevo.get = jest.fn(async () => docMap.get(premioRefNuevo));
 
     vm.createContext(context);
     vm.runInContext(fnRegistrar, context);
 
-    await context.registrarPremiosPendientes([
-      { idx: 1, nombre: 'Forma 1', creditos: 100, cartonLabel: 'Cartón 1', cartonClaveGanador: 'usr:default::num:1', sorteoId: 'SRT-1' },
-      { idx: 2, nombre: 'Forma 2', creditos: 200, cartonLabel: 'Cartón 2', cartonClaveGanador: 'usr:default::num:2', sorteoId: 'SRT-1' }
-    ]);
+    await context.registrarPremiosPendientes([{ idx: 1, nombre: 'Forma 1' }]);
 
-    expect(premioRefExistente.get).toHaveBeenCalled();
-    expect(premioRefNuevo.get).toHaveBeenCalled();
-    expect(setMock).toHaveBeenCalledTimes(1);
-    expect(setMock).toHaveBeenCalledWith(
-      premioRefNuevo,
-      expect.objectContaining({
-        premioId: 'srt-1::2::cartón 2',
-        estado: 'pendiente'
-      })
-    );
-    expect(commitMock).toHaveBeenCalledTimes(1);
+    expect(setMock).not.toHaveBeenCalled();
+    expect(commitMock).not.toHaveBeenCalled();
   });
 });
 
@@ -242,127 +195,5 @@ describe('juegoactivo.html - acreditarPremioAhora cuando premio ya está acredit
     expect(cerrarModalCelebracionSiSinPendientes).not.toHaveBeenCalled();
     expect(alertMock).not.toHaveBeenCalled();
     expect(warnMock).not.toHaveBeenCalled();
-  });
-});
-
-describe('juegoactivo.html - registrarPremiosPendientes evita premios tardíos al cambiar lock de forma', () => {
-  test('si la forma ya fue cerrada con otro set, no crea nuevos premiosPendientesDirectos', async () => {
-    const html = fs.readFileSync('public/juegoactivo.html', 'utf8');
-    const fnRegistrar = extraerFuncion(html, 'registrarPremiosPendientes');
-
-    const docs = new Map();
-    const setMock = jest.fn((ref, data) => {
-      docs.set(ref.id, { exists: true, data });
-    });
-    const commitMock = jest.fn(async () => {});
-    const batchMock = { set: setMock, commit: commitMock };
-
-    const billeteraCollection = {
-      doc: (id) => ({
-        id,
-        get: jest.fn(async () => docs.get(id) || { exists: false }),
-      })
-    };
-    const billeteraRef = {
-      collection: () => billeteraCollection
-    };
-
-    const context = {
-      activeSorteoId: 'SRT-LOCK',
-      locksGanadoresListos: true,
-      precargarLocksGanadoresRemotos: jest.fn(async () => new Map()),
-      usuarioActual: { email: 'jugador@test.com' },
-      construirClavePremioPendiente: (detalle) => `${(detalle?.sorteoId || 'SRT-LOCK').toLowerCase()}::${Number(detalle?.idx) || 0}::${(detalle?.cartonLabel || '').toString().trim().toLowerCase()}`,
-      ganadoresBloqueadosPorForma: new Map([[1, { paso: 3, cartonClaves: ['usr:ana::num:11'] }]]),
-      cierresPremiosPorForma: new Map(),
-      db: {
-        collection: () => ({ doc: () => billeteraRef }),
-        batch: () => batchMock
-      },
-      firebase: { firestore: { FieldValue: { serverTimestamp: () => 'TS' } } }
-    };
-
-    vm.createContext(context);
-    vm.runInContext(fnRegistrar, context);
-
-    await context.registrarPremiosPendientes([
-      {
-        idx: 1,
-        nombre: 'Línea',
-        creditos: 100,
-        cartonLabel: 'Cartón 11',
-        cartonClaveGanador: 'usr:ana::num:11',
-        sorteoId: 'SRT-LOCK'
-      }
-    ]);
-
-    expect(setMock).toHaveBeenCalledTimes(1);
-    expect(commitMock).toHaveBeenCalledTimes(1);
-
-    context.ganadoresBloqueadosPorForma = new Map([[1, { paso: 3, cartonClaves: ['usr:ana::num:11', 'usr:ana::num:22'] }]]);
-
-    await context.registrarPremiosPendientes([
-      {
-        idx: 1,
-        nombre: 'Línea',
-        creditos: 100,
-        cartonLabel: 'Cartón 22',
-        cartonClaveGanador: 'usr:ana::num:22',
-        sorteoId: 'SRT-LOCK'
-      }
-    ]);
-
-    expect(setMock).toHaveBeenCalledTimes(1);
-    expect(commitMock).toHaveBeenCalledTimes(1);
-  });
-});
-
-describe('juegoactivo.html - usuario entra tarde/recarga con lock remoto de forma', () => {
-  test('si la forma ya cerró, no acredita premio para cartón tardío fuera del lock', async () => {
-    const html = fs.readFileSync('public/juegoactivo.html', 'utf8');
-    const fnRegistrar = extraerFuncion(html, 'registrarPremiosPendientes');
-
-    const setMock = jest.fn();
-    const commitMock = jest.fn(async () => {});
-    const batchMock = { set: setMock, commit: commitMock };
-    const docs = new Map();
-    const billeteraCollection = {
-      doc: (id) => ({
-        id,
-        get: jest.fn(async () => docs.get(id) || { exists: false })
-      })
-    };
-    const billeteraRef = { collection: () => billeteraCollection };
-    const context = {
-      activeSorteoId: 'SRT-LATE',
-      locksGanadoresListos: true,
-      precargarLocksGanadoresRemotos: jest.fn(async () => new Map()),
-      usuarioActual: { email: 'jugador@test.com' },
-      construirClavePremioPendiente: (detalle) => `${(detalle?.sorteoId || 'SRT-LATE').toLowerCase()}::${Number(detalle?.idx) || 0}::${(detalle?.cartonLabel || '').toString().trim().toLowerCase()}`,
-      ganadoresBloqueadosPorForma: new Map([[1, { paso: 3, cartonClaves: ['usr:ana::num:11'] }]]),
-      cierresPremiosPorForma: new Map(),
-      db: {
-        collection: () => ({ doc: () => billeteraRef }),
-        batch: () => batchMock
-      },
-      firebase: { firestore: { FieldValue: { serverTimestamp: () => 'TS' } } }
-    };
-
-    vm.createContext(context);
-    vm.runInContext(fnRegistrar, context);
-
-    await context.registrarPremiosPendientes([
-      {
-        idx: 1,
-        nombre: 'Línea',
-        creditos: 100,
-        cartonLabel: 'Cartón 22',
-        cartonClaveGanador: 'usr:ana::num:22',
-        sorteoId: 'SRT-LATE'
-      }
-    ]);
-
-    expect(setMock).not.toHaveBeenCalled();
-    expect(commitMock).not.toHaveBeenCalled();
   });
 });

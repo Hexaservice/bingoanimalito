@@ -551,6 +551,171 @@ function extractEventoGanadorIdComponents(eventoGanadorId) {
   };
 }
 
+function normalizeCartonWinnerKey(cartonData = {}) {
+  const userId = normalizeString(cartonData?.userId || cartonData?.usuarioId, 160).toLowerCase();
+  const cartonNum = Number(
+    cartonData?.cartonNum
+    ?? cartonData?.Ncarton
+    ?? cartonData?.numero
+    ?? cartonData?.numeroCarton
+  );
+  if (userId && Number.isFinite(cartonNum)) {
+    return `usr:${userId}::num:${cartonNum}`;
+  }
+  const cartonId = normalizeString(cartonData?.id, 200);
+  if (cartonId) return `id:${cartonId}`;
+  return '';
+}
+
+function buildOfficialPendingPrizeId(eventoGanadorId) {
+  const normalized = normalizeString(eventoGanadorId, 320).toLowerCase();
+  const digest = crypto.createHash('sha256').update(normalized).digest('hex').slice(0, 40);
+  return `ppd_${digest}`;
+}
+
+function computeWinnerPrizeAmounts(forma = {}, totalGanadores = 1) {
+  const rawCredito = Number(forma?.valorPremio ?? forma?.premio ?? forma?.monto ?? forma?.creditos ?? 0);
+  const creditosBase = Number.isFinite(rawCredito) ? Math.max(0, rawCredito) : 0;
+  const divisibles = Boolean(forma?.premioCompartido || forma?.dividirPremio || forma?.divisible);
+  const total = Math.max(1, Number(totalGanadores) || 1);
+  const creditos = divisibles ? (creditosBase / total) : creditosBase;
+  const cartonesGratis = Math.max(
+    0,
+    Number(forma?.cartonesGratisPorGanador ?? forma?.cartonesGratis ?? 0) || 0
+  );
+  return {
+    creditos: Number(creditos.toFixed(6)),
+    cartonesGratis: Number(cartonesGratis.toFixed(6))
+  };
+}
+
+async function generatePendingDirectPrizesFromOfficialResults({
+  db,
+  sorteoId,
+  generadoPor = 'sistema:premios-oficiales'
+}) {
+  const normalizedSorteoId = normalizeString(sorteoId, 120);
+  if (!normalizedSorteoId) {
+    throw new Error('sorteoId es obligatorio');
+  }
+
+  const sorteoRef = db.collection('sorteos').doc(normalizedSorteoId);
+  const sorteoSnap = await sorteoRef.get();
+  if (!sorteoSnap.exists) {
+    throw new Error(`No existe el sorteo ${normalizedSorteoId}`);
+  }
+
+  const sorteoData = sorteoSnap.data() || {};
+  const lockRaw = sorteoData?.ganadoresBloqueadosPorForma;
+  const formas = Array.isArray(sorteoData?.formas) ? sorteoData.formas : [];
+  if (!lockRaw || typeof lockRaw !== 'object') {
+    return { sorteoId: normalizedSorteoId, evaluados: 0, creados: 0, duplicados: 0 };
+  }
+
+  const cartonesSnap = await db
+    .collection('CartonJugado')
+    .where('sorteoId', '==', normalizedSorteoId)
+    .get();
+  const cartonByWinnerKey = new Map();
+  cartonesSnap.forEach((doc) => {
+    const data = doc.data() || {};
+    const key = normalizeCartonWinnerKey({ ...data, id: doc.id });
+    if (key && !cartonByWinnerKey.has(key)) {
+      cartonByWinnerKey.set(key, { id: doc.id, data });
+    }
+  });
+
+  let evaluados = 0;
+  let creados = 0;
+  let duplicados = 0;
+
+  for (const [idxRaw, lockValue] of Object.entries(lockRaw)) {
+    const formaIdx = Number(idxRaw);
+    if (!Number.isFinite(formaIdx)) continue;
+    const cartonClaves = Array.isArray(lockValue?.cartonClaves)
+      ? lockValue.cartonClaves.map((item) => normalizeString(item, 220)).filter(Boolean)
+      : [];
+    if (!cartonClaves.length) continue;
+
+    const forma = formas.find((item) => Number(item?.idx) === formaIdx) || {};
+    const { creditos, cartonesGratis } = computeWinnerPrizeAmounts(forma, cartonClaves.length);
+
+    for (const cartonClave of cartonClaves) {
+      evaluados += 1;
+      const carton = cartonByWinnerKey.get(cartonClave);
+      if (!carton) continue;
+
+      const winnerIdentity = await resolveWinnerIdentity({
+        normalizedEmail: normalizeString(carton.data?.email || carton.data?.gmail, 160).toLowerCase(),
+        normalizedUserId: normalizeString(carton.data?.userId || carton.data?.usuarioId, 160),
+        cartonData: carton.data,
+        loadUserById: async (id) => {
+          if (!id) return null;
+          const userSnap = await db.collection('users').doc(id).get();
+          if (!userSnap.exists) return null;
+          return { id: userSnap.id, data: userSnap.data() || {} };
+        },
+        loadUserByUid: async (uid) => {
+          if (!uid) return null;
+          const usersSnap = await db.collection('users').where('uid', '==', uid).limit(1).get();
+          if (usersSnap.empty) return null;
+          const userDoc = usersSnap.docs[0];
+          return { id: userDoc.id, data: userDoc.data() || {} };
+        }
+      });
+      const billeteraId = normalizeString(winnerIdentity?.canonicalEmail, 160).toLowerCase();
+      if (!billeteraId) continue;
+
+      const eventoGanadorId = `${normalizedSorteoId}__f${formaIdx}__${normalizeString(carton.id, 180)}`;
+      const premioId = buildOfficialPendingPrizeId(eventoGanadorId);
+      const billeteraRef = db.collection('Billetera').doc(billeteraId);
+      const premioRef = billeteraRef.collection('premiosPendientesDirectos').doc(premioId);
+
+      const [premioSnap, duplicatedByEventSnap] = await Promise.all([
+        premioRef.get(),
+        billeteraRef
+          .collection('premiosPendientesDirectos')
+          .where('eventoGanadorId', '==', eventoGanadorId)
+          .limit(1)
+          .get()
+      ]);
+      if (premioSnap.exists || !duplicatedByEventSnap.empty) {
+        duplicados += 1;
+        continue;
+      }
+
+      await premioRef.set({
+        premioId,
+        clavePendiente: premioId,
+        eventoGanadorId,
+        idx: formaIdx,
+        nombre: normalizeString(forma?.nombre, 160) || `Forma ${formaIdx}`,
+        creditos,
+        cartonesGratis,
+        cartonLabel: normalizeString(
+          carton.data?.cartonLabel || carton.data?.etiqueta || `${carton.data?.userId || ''} #${carton.data?.cartonNum ?? ''}`,
+          180
+        ),
+        color: normalizeString(forma?.color, 40),
+        sorteoId: normalizedSorteoId,
+        estado: 'pendiente',
+        origen: 'backend:resultados-oficiales',
+        creadoEn: admin.firestore.FieldValue.serverTimestamp(),
+        generadoPor: normalizeString(generadoPor, 160),
+        ganadorLockCerradoEn: lockValue?.cerradoEn || null
+      }, { merge: false });
+      creados += 1;
+    }
+  }
+
+  return {
+    sorteoId: normalizedSorteoId,
+    evaluados,
+    creados,
+    duplicados
+  };
+}
+
 
 function getAcreditacionExecutionMode({ source, origen, manualApproval, userRole }) {
   const normalizedSource = normalizeString(source, 120).toLowerCase();
@@ -964,6 +1129,31 @@ async function acreditarPremioEventoHandler(req, res) {
 
 app.post('/acreditarPremioEvento', verificarOperadorPrivilegiado, acreditarPremioEventoHandler);
 
+app.post('/admin/generar-premios-pendientes-directos-oficiales', verificarToken, async (req, res) => {
+  const sorteoId = normalizeString(req.body?.sorteoId, 120);
+  if (!sorteoId) {
+    return res.status(400).json({ error: 'sorteoId es obligatorio' });
+  }
+
+  try {
+    const summary = await generatePendingDirectPrizesFromOfficialResults({
+      db: admin.firestore(),
+      sorteoId,
+      generadoPor: normalizeString(req.user?.email, 200) || 'sistema:premios-oficiales'
+    });
+    return res.json({
+      status: 'ok',
+      ...summary
+    });
+  } catch (error) {
+    console.error('[generar-premios-pendientes-directos-oficiales] fallo', error);
+    return res.status(500).json({
+      error: 'Error generando premios pendientes directos oficiales',
+      message: error?.message || String(error)
+    });
+  }
+});
+
 app.post('/admin/reconciliar-premios-pendientes-directos', verificarToken, async (req, res) => {
   const sorteoId = normalizeString(req.body?.sorteoId, 120);
   const pageSize = Math.max(10, Math.min(250, Number(req.body?.pageSize) || 100));
@@ -1331,6 +1521,10 @@ module.exports = {
   reconcilePendingPrizesBySorteo,
   buildPremioDocId,
   extractEventoGanadorIdComponents,
+  normalizeCartonWinnerKey,
+  buildOfficialPendingPrizeId,
+  computeWinnerPrizeAmounts,
+  generatePendingDirectPrizesFromOfficialResults,
   resolveWinnerIdentity,
   getAcreditacionExecutionMode,
   acreditarPremioEventoHandler,
