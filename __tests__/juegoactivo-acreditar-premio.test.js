@@ -129,6 +129,11 @@ describe('juegoactivo.html - registrarPremiosPendientes idempotente', () => {
     const context = {
       activeSorteoId: 'SRT-1',
       construirClavePremioPendiente: (detalle) => `${(detalle?.sorteoId || 'SRT-1').toLowerCase()}::${Number(detalle?.idx) || 0}::${(detalle?.cartonLabel || '').toString().trim().toLowerCase()}`,
+      ganadoresBloqueadosPorForma: new Map([
+        [1, { paso: 0, cartonClaves: ['usr:default::num:1'] }],
+        [2, { paso: 0, cartonClaves: ['usr:default::num:2'] }]
+      ]),
+      cierresPremiosPorForma: new Map(),
       db: {
         collection: () => ({
           doc: () => ({
@@ -153,8 +158,8 @@ describe('juegoactivo.html - registrarPremiosPendientes idempotente', () => {
     vm.runInContext(fnRegistrar, context);
 
     await context.registrarPremiosPendientes([
-      { idx: 1, nombre: 'Forma 1', creditos: 100, cartonLabel: 'Cartón 1', sorteoId: 'SRT-1' },
-      { idx: 2, nombre: 'Forma 2', creditos: 200, cartonLabel: 'Cartón 2', sorteoId: 'SRT-1' }
+      { idx: 1, nombre: 'Forma 1', creditos: 100, cartonLabel: 'Cartón 1', cartonClaveGanador: 'usr:default::num:1', sorteoId: 'SRT-1' },
+      { idx: 2, nombre: 'Forma 2', creditos: 200, cartonLabel: 'Cartón 2', cartonClaveGanador: 'usr:default::num:2', sorteoId: 'SRT-1' }
     ]);
 
     expect(premioRefExistente.get).toHaveBeenCalled();
@@ -235,5 +240,75 @@ describe('juegoactivo.html - acreditarPremioAhora cuando premio ya está acredit
     expect(cerrarModalCelebracionSiSinPendientes).not.toHaveBeenCalled();
     expect(alertMock).not.toHaveBeenCalled();
     expect(warnMock).not.toHaveBeenCalled();
+  });
+});
+
+describe('juegoactivo.html - registrarPremiosPendientes evita premios tardíos al cambiar lock de forma', () => {
+  test('si la forma ya fue cerrada con otro set, no crea nuevos premiosPendientesDirectos', async () => {
+    const html = fs.readFileSync('public/juegoactivo.html', 'utf8');
+    const fnRegistrar = extraerFuncion(html, 'registrarPremiosPendientes');
+
+    const docs = new Map();
+    const setMock = jest.fn((ref, data) => {
+      docs.set(ref.id, { exists: true, data });
+    });
+    const commitMock = jest.fn(async () => {});
+    const batchMock = { set: setMock, commit: commitMock };
+
+    const billeteraCollection = {
+      doc: (id) => ({
+        id,
+        get: jest.fn(async () => docs.get(id) || { exists: false }),
+      })
+    };
+    const billeteraRef = {
+      collection: () => billeteraCollection
+    };
+
+    const context = {
+      activeSorteoId: 'SRT-LOCK',
+      usuarioActual: { email: 'jugador@test.com' },
+      construirClavePremioPendiente: (detalle) => `${(detalle?.sorteoId || 'SRT-LOCK').toLowerCase()}::${Number(detalle?.idx) || 0}::${(detalle?.cartonLabel || '').toString().trim().toLowerCase()}`,
+      ganadoresBloqueadosPorForma: new Map([[1, { paso: 3, cartonClaves: ['usr:ana::num:11'] }]]),
+      cierresPremiosPorForma: new Map(),
+      db: {
+        collection: () => ({ doc: () => billeteraRef }),
+        batch: () => batchMock
+      },
+      firebase: { firestore: { FieldValue: { serverTimestamp: () => 'TS' } } }
+    };
+
+    vm.createContext(context);
+    vm.runInContext(fnRegistrar, context);
+
+    await context.registrarPremiosPendientes([
+      {
+        idx: 1,
+        nombre: 'Línea',
+        creditos: 100,
+        cartonLabel: 'Cartón 11',
+        cartonClaveGanador: 'usr:ana::num:11',
+        sorteoId: 'SRT-LOCK'
+      }
+    ]);
+
+    expect(setMock).toHaveBeenCalledTimes(1);
+    expect(commitMock).toHaveBeenCalledTimes(1);
+
+    context.ganadoresBloqueadosPorForma = new Map([[1, { paso: 3, cartonClaves: ['usr:ana::num:11', 'usr:ana::num:22'] }]]);
+
+    await context.registrarPremiosPendientes([
+      {
+        idx: 1,
+        nombre: 'Línea',
+        creditos: 100,
+        cartonLabel: 'Cartón 22',
+        cartonClaveGanador: 'usr:ana::num:22',
+        sorteoId: 'SRT-LOCK'
+      }
+    ]);
+
+    expect(setMock).toHaveBeenCalledTimes(1);
+    expect(commitMock).toHaveBeenCalledTimes(1);
   });
 });
