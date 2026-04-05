@@ -6151,25 +6151,6 @@
   function obtenerLinkLiveStream(){
     if(liveStreamLinkPromesa) return liveStreamLinkPromesa;
     liveStreamLinkPromesa = (async ()=>{
-      try {
-        await initFirebase();
-      }catch(err){
-        console.error('No se pudo inicializar Firebase para el live stream', err);
-        liveStreamLinkCargado = true;
-        return liveStreamLinkValor;
-      }
-      try {
-        const doc = await db.collection('Variablesglobales').doc('Parametros').get();
-        if(doc.exists){
-          const data = doc.data() || {};
-          const enlace = (data.linkLiveTiktok ?? data.linklivetiktok ?? data.link_live_tiktok ?? '').toString().trim();
-          if(enlace){
-            liveStreamLinkValor = enlace;
-          }
-        }
-      }catch(err){
-        console.error('Error obteniendo el enlace de la transmisión en vivo', err);
-      }
       liveStreamLinkCargado = true;
       return liveStreamLinkValor;
     })();
