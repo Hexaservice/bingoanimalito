@@ -341,6 +341,12 @@ function normalizePendingPrizeState(value) {
   return normalizeString(value, 40).toLowerCase();
 }
 
+function getLegacyDirectPrizeRefFromPendingRef(premioRef) {
+  const billeteraRef = premioRef?.parent?.parent;
+  if (!billeteraRef) return null;
+  return billeteraRef.collection('premiosPagosdirectos').doc(premioRef.id);
+}
+
 function buildReconciledPrizeTransactionId(premioId) {
   const normalized = normalizeString(premioId, 320).toLowerCase();
   const digest = crypto.createHash('sha256').update(normalized).digest('hex').slice(0, 32);
@@ -385,6 +391,7 @@ async function reconcileSinglePendingPrize({
       .collection('transacciones')
       .where('premioId', '==', premioId)
       .limit(1);
+    const legacyPremioRef = getLegacyDirectPrizeRefFromPendingRef(premioDoc.ref);
 
     const [walletSnap, transaccionIdSnap, transaccionPorPremioSnap] = await Promise.all([
       tx.get(premioDoc.ref.parent.parent),
@@ -409,6 +416,20 @@ async function reconcileSinglePendingPrize({
           },
           { merge: true }
         );
+        if (legacyPremioRef) {
+          tx.set(
+            legacyPremioRef,
+            {
+              estado: 'acreditado',
+              acreditadoEn: premioData.acreditadoEn || admin.firestore.FieldValue.serverTimestamp(),
+              acreditadoPor: premioData.acreditadoPor || acreditadoPor,
+              origen: premioData.origen || origen,
+              reconciliadoEn: admin.firestore.FieldValue.serverTimestamp(),
+              reconciliadoPor: acreditadoPor
+            },
+            { merge: true }
+          );
+        }
       }
       return { status: 'omitido', reason: 'ya_acreditado', premioId };
     }
@@ -446,6 +467,20 @@ async function reconcileSinglePendingPrize({
       },
       { merge: true }
     );
+    if (legacyPremioRef) {
+      tx.set(
+        legacyPremioRef,
+        {
+          estado: 'acreditado',
+          acreditadoEn: admin.firestore.FieldValue.serverTimestamp(),
+          acreditadoPor,
+          origen,
+          reconciliadoEn: admin.firestore.FieldValue.serverTimestamp(),
+          reconciliadoPor: acreditadoPor
+        },
+        { merge: true }
+      );
+    }
 
     tx.set(
       transaccionRef,
@@ -726,6 +761,7 @@ async function generatePendingDirectPrizesFromOfficialResults({
       const premioId = buildOfficialPendingPrizeId(eventoGanadorId);
       const billeteraRef = db.collection('Billetera').doc(billeteraId);
       const premioRef = billeteraRef.collection('premiosPendientesDirectos').doc(premioId);
+      const premioLegacyRef = billeteraRef.collection('premiosPagosdirectos').doc(premioId);
 
       const [premioSnap, duplicatedByEventSnap] = await Promise.all([
         premioRef.get(),
@@ -750,7 +786,7 @@ async function generatePendingDirectPrizesFromOfficialResults({
         continue;
       }
 
-      await premioRef.set({
+      const payloadPremioPendiente = {
         premioId,
         clavePendiente: premioId,
         eventoGanadorId,
@@ -771,7 +807,11 @@ async function generatePendingDirectPrizesFromOfficialResults({
         creadoEn: admin.firestore.FieldValue.serverTimestamp(),
         generadoPor: normalizeString(generadoPor, 160),
         ganadorLockCerradoEn: lockValue?.cerradoEn || null
-      }, { merge: false });
+      };
+      await Promise.all([
+        premioRef.set(payloadPremioPendiente, { merge: false }),
+        premioLegacyRef.set(payloadPremioPendiente, { merge: true })
+      ]);
       creados += 1;
       console.info('[premios-directos-oficiales][control]', {
         sorteoId: normalizedSorteoId,
