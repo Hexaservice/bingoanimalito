@@ -3641,7 +3641,22 @@
           `Los pagos quedan en estado PENDIENTE hasta ser procesados/aprobados en Centro de Pagos.`
         );
       } else {
-        alert('El sorteo se marcó como PDF listo. La generación de premios/pagos se realiza manualmente desde Centro de Pagos.');
+        let resumenPremiosDirectos = { creados: 0, duplicados: 0, evaluados: 0 };
+        try {
+          const resultadoPremiosDirectos = await generarPremiosPendientesDirectosOficiales(sorteoId);
+          resumenPremiosDirectos = resultadoPremiosDirectos?.resumen || resumenPremiosDirectos;
+        } catch (errorPremiosDirectos) {
+          console.warn('[pdfresultados] No se pudo generar premios directos oficiales al confirmar PDF listo', {
+            sorteoId,
+            errorCode: (errorPremiosDirectos?.code || '').toString().trim(),
+            errorMessage: (errorPremiosDirectos?.message || '').toString().trim()
+          });
+        }
+        alert(
+          `El sorteo se marcó como PDF listo.\n`+
+          `Premios directos oficiales: creados ${resumenPremiosDirectos.creados}, duplicados ${resumenPremiosDirectos.duplicados}, evaluados ${resumenPremiosDirectos.evaluados}.\n`+
+          `La orquestación de pagos administrativos continúa según configuración de compatibilidad.`
+        );
       }
       window.location.href = 'cantarsorteos.html';
     } catch (err) {
