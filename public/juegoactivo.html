@@ -10447,9 +10447,17 @@
     return;
   }
 
+  function obtenerBilleteraIdActual(){
+    const email = (usuarioActual?.email || '').toString().trim().toLowerCase();
+    if(email) return email;
+    return (usuarioActual?.uid || '').toString().trim();
+  }
+
   async function mostrarPremiosPendientesDelSorteoActual(){
     if(!db || !usuarioActual || !activeSorteoId) return;
-    const billeteraId = (usuarioActual?.email || usuarioActual?.uid || '').toString();
+    const billeteraId = (typeof obtenerBilleteraIdActual === 'function')
+      ? obtenerBilleteraIdActual()
+      : (((usuarioActual?.email || '').toString().trim().toLowerCase()) || (usuarioActual?.uid || '').toString().trim());
     if(!billeteraId) return;
     try{
       const pendientesRef = db.collection('Billetera')
@@ -10498,12 +10506,15 @@
 
   async function acreditarPremioAhora(detalle, botonEl=null){
     if(acreditandoPremioAhora || !db || !usuarioActual) return;
-    const billeteraId = (usuarioActual?.email || usuarioActual?.uid || '').toString();
+    const billeteraId = (typeof obtenerBilleteraIdActual === 'function')
+      ? obtenerBilleteraIdActual()
+      : (((usuarioActual?.email || '').toString().trim().toLowerCase()) || (usuarioActual?.uid || '').toString().trim());
+    const sorteoIdDetalle = (detalle?.sorteoId || activeSorteoId || '').toString();
     const premioIdsCandidatos = premiosPendientesIdsApi?.construirClavesCandidatasPremioPendiente?.({
       ...detalle,
-      sorteoId: (detalle?.sorteoId || activeSorteoId || '').toString()
+      sorteoId: sorteoIdDetalle
     }) || [];
-    if(!billeteraId || !premioIdsCandidatos.length) return;
+    if(!billeteraId) return;
     acreditandoPremioAhora = true;
     if(botonEl){
       botonEl.disabled = true;
@@ -10524,17 +10535,46 @@
         }
       }
       if(!premioRef){
-        premioRef = premiosCollectionRef.doc(premioIdsCandidatos[0]);
-        premioIdUsado = premioIdsCandidatos[0];
+        const eventoGanadorId = (detalle?.eventoGanadorId || '').toString().trim();
+        if(eventoGanadorId){
+          const eventoSnap = await premiosCollectionRef
+            .where('eventoGanadorId','==',eventoGanadorId)
+            .limit(1)
+            .get();
+          if(!eventoSnap.empty){
+            premioRef = eventoSnap.docs[0].ref;
+            premioIdUsado = eventoSnap.docs[0].id;
+          }
+        }
+      }
+      if(!premioRef){
+        const cartonClave = (detalle?.cartonClaveGanador || '').toString().trim().toLowerCase();
+        const idx = Number(detalle?.idx);
+        if(sorteoIdDetalle && cartonClave && Number.isFinite(idx)){
+          const claveSnap = await premiosCollectionRef
+            .where('sorteoId','==',sorteoIdDetalle)
+            .where('idx','==',idx)
+            .where('cartonClaveGanador','==',cartonClave)
+            .limit(1)
+            .get();
+          if(!claveSnap.empty){
+            premioRef = claveSnap.docs[0].ref;
+            premioIdUsado = claveSnap.docs[0].id;
+          }
+        }
       }
       let acreditado = false;
       let premioYaNoDisponible = false;
       let premioYaAcreditado = false;
-      await db.runTransaction(async tx=>{
-        const [premioSnap, billeteraSnap] = await Promise.all([
-          tx.get(premioRef),
-          tx.get(billeteraRef)
-        ]);
+      if(!premioRef){
+        premioYaNoDisponible = true;
+      }
+      if(premioRef){
+        await db.runTransaction(async tx=>{
+          const [premioSnap, billeteraSnap] = await Promise.all([
+            tx.get(premioRef),
+            tx.get(billeteraRef)
+          ]);
         if(!premioSnap.exists){
           premioYaNoDisponible = true;
           return;
@@ -10563,8 +10603,9 @@
           acreditadoPor: billeteraId,
           origen: 'juegoactivo:acreditar-ahora'
         }, { merge: true });
-        acreditado = true;
-      });
+          acreditado = true;
+        });
+      }
       if(acreditado){
         botonEl?.closest('.celebracion-linea')?.remove();
         cerrarModalCelebracionSiSinPendientes();
