@@ -2190,6 +2190,7 @@
   let cartonesSorteo = new Map();
   let cartonesGanadoresPorForma = new Map();
   let ganadoresBloqueadosPorForma = new Map();
+  const CAMPO_LOCK_GANADORES_FORMA = 'ganadoresBloqueadosPorForma';
   let cantosOrdenados = [];
   let cantosIndiceMap = new Map();
   let cantosResultadoMap = new Map();
@@ -4394,6 +4395,96 @@
     return claves.map(clave=>index.get(clave)).filter(Boolean);
   }
 
+  function normalizarLockGanadoresDesdeFuente(origen){
+    const locks = new Map();
+    if(!origen || typeof origen !== 'object') return locks;
+    Object.entries(origen).forEach(([idxRaw, valor])=>{
+      const idx = Number(idxRaw);
+      if(!Number.isFinite(idx) || !valor || typeof valor !== 'object') return;
+      const paso = Number(valor?.paso);
+      const cartonClaves = Array.isArray(valor?.cartonClaves)
+        ? valor.cartonClaves.map(item=>(item ?? '').toString().trim()).filter(Boolean)
+        : [];
+      if(!cartonClaves.length) return;
+      locks.set(idx, {
+        paso: Number.isFinite(paso) ? paso : null,
+        cartonClaves,
+        cerradoEn: valor?.cerradoEn ?? null
+      });
+    });
+    return locks;
+  }
+
+  function serializarGanadoresBloqueadosPorForma(mapa = ganadoresBloqueadosPorForma){
+    const payload = {};
+    if(!(mapa instanceof Map)) return payload;
+    mapa.forEach((registro, idxRaw)=>{
+      const idx = Number(idxRaw);
+      const paso = Number(registro?.paso);
+      const cartonClaves = Array.isArray(registro?.cartonClaves)
+        ? registro.cartonClaves.map(item=>(item ?? '').toString().trim()).filter(Boolean)
+        : [];
+      if(!Number.isFinite(idx) || !cartonClaves.length) return;
+      payload[String(idx)] = {
+        paso: Number.isFinite(paso) ? paso : null,
+        cartonClaves,
+        cerradoEn: registro?.cerradoEn ?? null
+      };
+    });
+    return payload;
+  }
+
+  async function cargarLocksGanadoresRemotos(sorteoId = currentSorteoId){
+    if(!db || !sorteoId) return;
+    try{
+      const doc = await db.collection('sorteos').doc(sorteoId).get();
+      if(!doc.exists){
+        ganadoresBloqueadosPorForma = new Map();
+        return;
+      }
+      const data = doc.data() || {};
+      ganadoresBloqueadosPorForma = normalizarLockGanadoresDesdeFuente(data?.[CAMPO_LOCK_GANADORES_FORMA]);
+    }catch(err){
+      console.warn('No se pudieron cargar locks remotos de ganadores por forma.', err);
+      ganadoresBloqueadosPorForma = new Map();
+    }
+  }
+
+  function guardarLockGanadoresFormaTransaccional(idx, registro){
+    if(!db || !currentSorteoId) return;
+    const idxNumero = Number(idx);
+    const paso = Number(registro?.paso);
+    const cartonClaves = Array.isArray(registro?.cartonClaves)
+      ? registro.cartonClaves.map(item=>(item ?? '').toString().trim()).filter(Boolean)
+      : [];
+    if(!Number.isFinite(idxNumero) || !cartonClaves.length) return;
+    const sorteoRef = db.collection('sorteos').doc(currentSorteoId);
+    db.runTransaction(async tx=>{
+      const snap = await tx.get(sorteoRef);
+      if(!snap.exists) return;
+      const data = snap.data() || {};
+      const locksActuales = normalizarLockGanadoresDesdeFuente(data?.[CAMPO_LOCK_GANADORES_FORMA]);
+      const existente = locksActuales.get(idxNumero);
+      if(existente && Array.isArray(existente.cartonClaves) && existente.cartonClaves.length){
+        return;
+      }
+      locksActuales.set(idxNumero, {
+        paso: Number.isFinite(paso) ? paso : null,
+        cartonClaves,
+        cerradoEn: firebase.firestore.FieldValue.serverTimestamp()
+      });
+      tx.update(sorteoRef, {
+        [CAMPO_LOCK_GANADORES_FORMA]: serializarGanadoresBloqueadosPorForma(locksActuales)
+      });
+    }).catch(error=>{
+      console.warn('No fue posible persistir lock de ganadores por forma.', {
+        sorteoId: currentSorteoId,
+        idx: idxNumero,
+        error
+      });
+    });
+  }
+
   function calcularGanadores(){
     cartonesGanadoresPorForma = new Map();
     formasPorCarton = new Map();
@@ -4444,10 +4535,12 @@
         ganadoresFinales = resolverCartonesGanadoresBloqueados(registroBloqueado.cartonClaves);
         pasoFinal = Number.isFinite(Number(registroBloqueado.paso)) ? Number(registroBloqueado.paso) : mejorPaso;
       }else if(ganadores.length && Number.isFinite(mejorPaso)){
-        ganadoresBloqueadosPorForma.set(idx, {
+        const lockForma = {
           paso: mejorPaso,
           cartonClaves: ganadores.map(item=>construirClaveCartonGanador(item)).filter(Boolean)
-        });
+        };
+        ganadoresBloqueadosPorForma.set(idx, lockForma);
+        guardarLockGanadoresFormaTransaccional(idx, lockForma);
       }
       cartonesGanadoresPorForma.set(idx, { forma, cartones: ganadoresFinales, paso: pasoFinal });
       ganadoresFinales.forEach(carton=>{
@@ -6488,6 +6581,7 @@
     } else {
       aplicarDatosCantos([]);
     }
+    await cargarLocksGanadoresRemotos(id);
     try {
       await cargarLoteriasSorteoActual();
     } catch (err) {
