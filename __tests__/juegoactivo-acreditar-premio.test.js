@@ -128,6 +128,8 @@ describe('juegoactivo.html - registrarPremiosPendientes idempotente', () => {
 
     const context = {
       activeSorteoId: 'SRT-1',
+      locksGanadoresListos: true,
+      precargarLocksGanadoresRemotos: jest.fn(async () => new Map()),
       construirClavePremioPendiente: (detalle) => `${(detalle?.sorteoId || 'SRT-1').toLowerCase()}::${Number(detalle?.idx) || 0}::${(detalle?.cartonLabel || '').toString().trim().toLowerCase()}`,
       ganadoresBloqueadosPorForma: new Map([
         [1, { paso: 0, cartonClaves: ['usr:default::num:1'] }],
@@ -267,6 +269,8 @@ describe('juegoactivo.html - registrarPremiosPendientes evita premios tardíos a
 
     const context = {
       activeSorteoId: 'SRT-LOCK',
+      locksGanadoresListos: true,
+      precargarLocksGanadoresRemotos: jest.fn(async () => new Map()),
       usuarioActual: { email: 'jugador@test.com' },
       construirClavePremioPendiente: (detalle) => `${(detalle?.sorteoId || 'SRT-LOCK').toLowerCase()}::${Number(detalle?.idx) || 0}::${(detalle?.cartonLabel || '').toString().trim().toLowerCase()}`,
       ganadoresBloqueadosPorForma: new Map([[1, { paso: 3, cartonClaves: ['usr:ana::num:11'] }]]),
@@ -310,5 +314,55 @@ describe('juegoactivo.html - registrarPremiosPendientes evita premios tardíos a
 
     expect(setMock).toHaveBeenCalledTimes(1);
     expect(commitMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('juegoactivo.html - usuario entra tarde/recarga con lock remoto de forma', () => {
+  test('si la forma ya cerró, no acredita premio para cartón tardío fuera del lock', async () => {
+    const html = fs.readFileSync('public/juegoactivo.html', 'utf8');
+    const fnRegistrar = extraerFuncion(html, 'registrarPremiosPendientes');
+
+    const setMock = jest.fn();
+    const commitMock = jest.fn(async () => {});
+    const batchMock = { set: setMock, commit: commitMock };
+    const docs = new Map();
+    const billeteraCollection = {
+      doc: (id) => ({
+        id,
+        get: jest.fn(async () => docs.get(id) || { exists: false })
+      })
+    };
+    const billeteraRef = { collection: () => billeteraCollection };
+    const context = {
+      activeSorteoId: 'SRT-LATE',
+      locksGanadoresListos: true,
+      precargarLocksGanadoresRemotos: jest.fn(async () => new Map()),
+      usuarioActual: { email: 'jugador@test.com' },
+      construirClavePremioPendiente: (detalle) => `${(detalle?.sorteoId || 'SRT-LATE').toLowerCase()}::${Number(detalle?.idx) || 0}::${(detalle?.cartonLabel || '').toString().trim().toLowerCase()}`,
+      ganadoresBloqueadosPorForma: new Map([[1, { paso: 3, cartonClaves: ['usr:ana::num:11'] }]]),
+      cierresPremiosPorForma: new Map(),
+      db: {
+        collection: () => ({ doc: () => billeteraRef }),
+        batch: () => batchMock
+      },
+      firebase: { firestore: { FieldValue: { serverTimestamp: () => 'TS' } } }
+    };
+
+    vm.createContext(context);
+    vm.runInContext(fnRegistrar, context);
+
+    await context.registrarPremiosPendientes([
+      {
+        idx: 1,
+        nombre: 'Línea',
+        creditos: 100,
+        cartonLabel: 'Cartón 22',
+        cartonClaveGanador: 'usr:ana::num:22',
+        sorteoId: 'SRT-LATE'
+      }
+    ]);
+
+    expect(setMock).not.toHaveBeenCalled();
+    expect(commitMock).not.toHaveBeenCalled();
   });
 });
