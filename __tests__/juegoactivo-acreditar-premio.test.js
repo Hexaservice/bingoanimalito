@@ -234,6 +234,8 @@ describe('juegoactivo.html - acreditarPremioAhora con busqueda por eventoGanador
       }
     };
 
+    const txSetMock = jest.fn();
+
     const context = {
       activeSorteoId: 'SRT-1',
       acreditandoPremioAhora: false,
@@ -258,7 +260,7 @@ describe('juegoactivo.html - acreditarPremioAhora con busqueda por eventoGanador
                 data: () => ({ creditos: 10, CartonesGratis: 1 })
               };
             },
-            set: jest.fn()
+            set: txSetMock
           };
           const result = await cb(tx);
           return result;
@@ -286,5 +288,14 @@ describe('juegoactivo.html - acreditarPremioAhora con busqueda por eventoGanador
     expect(context.alert).not.toHaveBeenCalled();
     expect(context.cerrarModalCelebracionSiSinPendientes).toHaveBeenCalled();
     expect(whereEventoLimit).toHaveBeenCalledWith(1);
+    expect(txSetMock).toHaveBeenCalledWith(
+      expect.objectContaining({ __tipo: 'billeteraRef' }),
+      expect.objectContaining({
+        creditos: 74,
+        CartonesGratis: 3,
+        cartonesGratis: 3
+      }),
+      { merge: true }
+    );
   });
 });
