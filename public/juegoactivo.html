@@ -4659,6 +4659,7 @@
   <script src="js/cantosResultadosClave.js"></script>
   <script src="js/sorteoDataAdapters.js"></script>
   <script src="js/premiosPendientesIds.js"></script>
+  <script src="js/billeteraIdentity.js"></script>
   <script>
   ensureAuth();
   initFechaHora('fecha-hora');
@@ -4678,6 +4679,7 @@
 
   const { obtenerLoteriasAsignadas, normalizarMiniaturaLoteria, formatearNumeroAnimalVisual, normalizarClaveResultado } = window.SorteoDataAdapters;
   const premiosPendientesIdsApi = window.PremiosPendientesIds || {};
+  const billeteraIdentityApi = window.BilleteraIdentity || {};
 
   initBingoAudioControl({
     containerId: 'audio-control-game',
@@ -10450,26 +10452,57 @@
     return;
   }
 
-  function obtenerBilleteraIdActual(){
+  function obtenerBilleterasIdCandidatasActual(){
+    const identityApi = (typeof billeteraIdentityApi !== 'undefined' && billeteraIdentityApi)
+      ? billeteraIdentityApi
+      : {};
+    const identity = identityApi?.buildBilleteraIdentity?.({
+      email: usuarioActual?.email,
+      uid: usuarioActual?.uid,
+      extraCandidates: [
+        usuarioActual?.gmail,
+        usuarioActual?.IDbilletera,
+        usuarioActual?.id
+      ]
+    }) || null;
+    if(Array.isArray(identity?.billeteraCandidates) && identity.billeteraCandidates.length){
+      return identity.billeteraCandidates;
+    }
     const email = (usuarioActual?.email || '').toString().trim().toLowerCase();
-    if(email) return email;
-    return (usuarioActual?.uid || '').toString().trim();
+    const uid = (usuarioActual?.uid || '').toString().trim();
+    return Array.from(new Set([email, uid].filter(Boolean)));
+  }
+
+  function obtenerBilleteraIdActual(){
+    const candidatos = (typeof obtenerBilleterasIdCandidatasActual === 'function')
+      ? obtenerBilleterasIdCandidatasActual()
+      : [];
+    return (Array.isArray(candidatos) && candidatos.length)
+      ? (candidatos[0] || '').toString().trim()
+      : '';
   }
 
   async function mostrarPremiosPendientesDelSorteoActual(){
     if(!db || !usuarioActual || !activeSorteoId) return;
-    const billeteraId = (typeof obtenerBilleteraIdActual === 'function')
-      ? obtenerBilleteraIdActual()
-      : (((usuarioActual?.email || '').toString().trim().toLowerCase()) || (usuarioActual?.uid || '').toString().trim());
-    if(!billeteraId) return;
+    const billeteraIds = (typeof obtenerBilleterasIdCandidatasActual === 'function')
+      ? obtenerBilleterasIdCandidatasActual()
+      : Array.from(new Set([
+        (usuarioActual?.email || '').toString().trim().toLowerCase(),
+        (usuarioActual?.uid || '').toString().trim()
+      ].filter(Boolean)));
+    if(!Array.isArray(billeteraIds) || !billeteraIds.length) return;
     try{
-      const pendientesRef = db.collection('Billetera')
-        .doc(billeteraId)
-        .collection('premiosPendientesDirectos');
-      const snap = await pendientesRef
-        .where('sorteoId', '==', (activeSorteoId || '').toString())
-        .get();
-      const lista = snap.docs.map(doc=>{
+      const consultas = billeteraIds.map(async (billeteraId)=>{
+        const pendientesRef = db.collection('Billetera')
+          .doc(billeteraId)
+          .collection('premiosPendientesDirectos');
+        const snap = await pendientesRef
+          .where('sorteoId', '==', (activeSorteoId || '').toString())
+          .get();
+        return snap.docs.map(doc=>({ billeteraIdOrigen: billeteraId, doc }));
+      });
+      const resultados = await Promise.all(consultas);
+      const lista = resultados.flat().map(({ billeteraIdOrigen, doc })=>{
         const item = doc.data() || {};
         const estado = (item?.estado || 'pendiente').toString();
         return {
@@ -10486,6 +10519,7 @@
           color: (item?.color || '').toString(),
           sorteoId: (item?.sorteoId || '').toString(),
           estado,
+          billeteraIdOrigen,
           documentoPendienteReal: estado.trim().toLowerCase() === 'pendiente'
         };
       }).filter(item=>{
@@ -10510,9 +10544,18 @@
 
   async function acreditarPremioAhora(detalle, botonEl=null){
     if(acreditandoPremioAhora || !db || !usuarioActual) return;
-    const billeteraId = (typeof obtenerBilleteraIdActual === 'function')
-      ? obtenerBilleteraIdActual()
-      : (((usuarioActual?.email || '').toString().trim().toLowerCase()) || (usuarioActual?.uid || '').toString().trim());
+    const billeteraIdsBase = (typeof obtenerBilleterasIdCandidatasActual === 'function')
+      ? obtenerBilleterasIdCandidatasActual()
+      : Array.from(new Set([
+        (usuarioActual?.email || '').toString().trim().toLowerCase(),
+        (usuarioActual?.uid || '').toString().trim()
+      ].filter(Boolean)));
+    const billeteraIdPreferida = (detalle?.billeteraIdOrigen || '').toString().trim();
+    const billeteraIds = Array.from(new Set([
+      billeteraIdPreferida,
+      ...billeteraIdsBase
+    ].filter(Boolean)));
+    const billeteraId = billeteraIds[0] || '';
     const sorteoIdDetalle = (detalle?.sorteoId || activeSorteoId || '').toString();
     const premioIdsCandidatos = premiosPendientesIdsApi?.construirClavesCandidatasPremioPendiente?.({
       ...detalle,
@@ -10525,29 +10568,43 @@
       botonEl.textContent = 'Acreditando...';
     }
     try{
-      const billeteraRef = db.collection('Billetera').doc(billeteraId);
-      const premiosCollectionRef = billeteraRef.collection('premiosPendientesDirectos');
       let premioRef = null;
       let premioIdUsado = '';
-      for(const candidato of premioIdsCandidatos){
-        const referencia = premiosCollectionRef.doc(candidato);
-        const snap = await referencia.get();
-        if(snap.exists){
-          premioRef = referencia;
-          premioIdUsado = candidato;
-          break;
+      let billeteraIdPremio = billeteraId;
+      let billeteraRefObjetivo = db.collection('Billetera').doc(billeteraIdPremio);
+
+      for(const billeteraCandidata of billeteraIds){
+        const premiosCollectionRef = db.collection('Billetera').doc(billeteraCandidata).collection('premiosPendientesDirectos');
+        for(const candidato of premioIdsCandidatos){
+          const referencia = premiosCollectionRef.doc(candidato);
+          const snap = await referencia.get();
+          if(snap.exists){
+            premioRef = referencia;
+            premioIdUsado = candidato;
+            billeteraIdPremio = billeteraCandidata;
+            billeteraRefObjetivo = db.collection('Billetera').doc(billeteraIdPremio);
+            break;
+          }
         }
+        if(premioRef) break;
       }
+
       if(!premioRef){
         const eventoGanadorId = (detalle?.eventoGanadorId || '').toString().trim();
         if(eventoGanadorId){
-          const eventoSnap = await premiosCollectionRef
-            .where('eventoGanadorId','==',eventoGanadorId)
-            .limit(1)
-            .get();
-          if(!eventoSnap.empty){
-            premioRef = eventoSnap.docs[0].ref;
-            premioIdUsado = eventoSnap.docs[0].id;
+          for(const billeteraCandidata of billeteraIds){
+            const premiosCollectionRef = db.collection('Billetera').doc(billeteraCandidata).collection('premiosPendientesDirectos');
+            const eventoSnap = await premiosCollectionRef
+              .where('eventoGanadorId','==',eventoGanadorId)
+              .limit(1)
+              .get();
+            if(!eventoSnap.empty){
+              premioRef = eventoSnap.docs[0].ref;
+              premioIdUsado = eventoSnap.docs[0].id;
+              billeteraIdPremio = billeteraCandidata;
+              billeteraRefObjetivo = db.collection('Billetera').doc(billeteraIdPremio);
+              break;
+            }
           }
         }
       }
@@ -10555,15 +10612,21 @@
         const cartonClave = (detalle?.cartonClaveGanador || '').toString().trim().toLowerCase();
         const idx = Number(detalle?.idx);
         if(sorteoIdDetalle && cartonClave && Number.isFinite(idx)){
-          const claveSnap = await premiosCollectionRef
-            .where('sorteoId','==',sorteoIdDetalle)
-            .where('idx','==',idx)
-            .where('cartonClaveGanador','==',cartonClave)
-            .limit(1)
-            .get();
-          if(!claveSnap.empty){
-            premioRef = claveSnap.docs[0].ref;
-            premioIdUsado = claveSnap.docs[0].id;
+          for(const billeteraCandidata of billeteraIds){
+            const premiosCollectionRef = db.collection('Billetera').doc(billeteraCandidata).collection('premiosPendientesDirectos');
+            const claveSnap = await premiosCollectionRef
+              .where('sorteoId','==',sorteoIdDetalle)
+              .where('idx','==',idx)
+              .where('cartonClaveGanador','==',cartonClave)
+              .limit(1)
+              .get();
+            if(!claveSnap.empty){
+              premioRef = claveSnap.docs[0].ref;
+              premioIdUsado = claveSnap.docs[0].id;
+              billeteraIdPremio = billeteraCandidata;
+              billeteraRefObjetivo = db.collection('Billetera').doc(billeteraIdPremio);
+              break;
+            }
           }
         }
       }
@@ -10577,7 +10640,7 @@
         await db.runTransaction(async tx=>{
           const [premioSnap, billeteraSnap] = await Promise.all([
             tx.get(premioRef),
-            tx.get(billeteraRef)
+            tx.get(billeteraRefObjetivo)
           ]);
         if(!premioSnap.exists){
           premioYaNoDisponible = true;
@@ -10597,7 +10660,7 @@
         const gratisActual = Number(data.CartonesGratis ?? data.cartonesGratis) || 0;
         const creditosPremio = Math.max(0, Number(premioData?.creditos) || 0);
         const cartonesPremio = Math.max(0, Number(premioData?.cartonesGratis) || 0);
-        tx.set(billeteraRef,{
+        tx.set(billeteraRefObjetivo,{
           creditos: creditosActual + creditosPremio,
           CartonesGratis: gratisActual + cartonesPremio
         },{ merge:true });
@@ -10625,11 +10688,14 @@
       }else if(premioYaNoDisponible && botonEl){
         console.warn('Premio pendiente no encontrado para acreditar', {
           billeteraId,
+          billeteraIdsCandidatas: billeteraIds,
+          billeteraIdPremio,
           premioId: premioIdUsado,
           premioIdsCandidatos,
           sorteoId: (detalle?.sorteoId || activeSorteoId || '').toString(),
           idx: Number(detalle?.idx) || 0,
-          cartonLabel: (detalle?.cartonLabel || '').toString()
+          cartonLabel: (detalle?.cartonLabel || '').toString(),
+          eventoGanadorId: (detalle?.eventoGanadorId || '').toString()
         });
         botonEl.disabled = false;
         botonEl.textContent = 'Acreditar Ahora';

@@ -12,6 +12,11 @@ const admin = require('firebase-admin');
 const EstadosPagoPremio = require('./public/js/estadoPagoPremio.js');
 const { isSorteoEligibleForAutoPrize } = require('./public/js/sorteoAutoPrizeEligibility.js');
 const { construirEventoGanadorIdCanonico } = require('./lib/premiosPendientesIds');
+const {
+  buildBilleteraIdentity,
+  normalizeIdentityValue,
+  looksLikeEmailIdentity
+} = require('./public/js/billeteraIdentity.js');
 
 const requiredEnv = ['GOOGLE_APPLICATION_CREDENTIALS', 'FIREBASE_STORAGE_BUCKET'];
 
@@ -679,10 +684,12 @@ async function generatePendingDirectPrizesFromOfficialResults({
       const billeteraCandidates = Array.isArray(winnerIdentity?.billeteraCandidates)
         ? winnerIdentity.billeteraCandidates
         : [];
-      const billeteraId = (
-        normalizeString(winnerIdentity?.canonicalEmail, 160).toLowerCase() ||
-        normalizeString(billeteraCandidates[0], 160)
-      );
+      const billeteraIdentity = buildBilleteraIdentity({
+        email: winnerIdentity?.canonicalEmail,
+        uid: winnerIdentity?.internalCandidates?.[0],
+        extraCandidates: billeteraCandidates
+      });
+      const billeteraId = normalizeIdentityValue(billeteraIdentity.billeteraId, 160);
       if (!billeteraId) {
         console.info('[premios-directos-oficiales][control]', {
           sorteoId: normalizedSorteoId,
@@ -691,7 +698,8 @@ async function generatePendingDirectPrizesFromOfficialResults({
           duplicados,
           billeteraId: null,
           eventoGanadorId: null,
-          estado: 'omitido_billetera_no_resuelta'
+          estado: 'omitido_billetera_no_resuelta',
+          billeteraCandidates
         });
         continue;
       }
@@ -710,7 +718,8 @@ async function generatePendingDirectPrizesFromOfficialResults({
           duplicados,
           billeteraId,
           eventoGanadorId: null,
-          estado: 'omitido_evento_ganador_invalido'
+          estado: 'omitido_evento_ganador_invalido',
+          billeteraCandidates: billeteraIdentity.billeteraCandidates
         });
         continue;
       }
@@ -735,7 +744,8 @@ async function generatePendingDirectPrizesFromOfficialResults({
           duplicados,
           billeteraId,
           eventoGanadorId,
-          estado: 'duplicado'
+          estado: 'duplicado',
+          billeteraCandidates: billeteraIdentity.billeteraCandidates
         });
         continue;
       }
@@ -770,7 +780,8 @@ async function generatePendingDirectPrizesFromOfficialResults({
         duplicados,
         billeteraId,
         eventoGanadorId,
-        estado: 'creado'
+        estado: 'creado',
+        billeteraCandidates: billeteraIdentity.billeteraCandidates
       });
     }
   }
@@ -826,17 +837,13 @@ function normalizePremioTransactionState(value) {
 
 function getBilleteraCandidates({ userEmail, cartonData, payloadUserId }) {
   const values = [
-    normalizeString(userEmail, 160).toLowerCase(),
-    normalizeString(payloadUserId, 160).toLowerCase(),
-    normalizeString(cartonData?.email, 160).toLowerCase(),
-    normalizeString(cartonData?.gmail, 160).toLowerCase(),
-    normalizeString(cartonData?.IDbilletera, 160)
+    normalizeIdentityValue(userEmail, 160).toLowerCase(),
+    normalizeIdentityValue(payloadUserId, 160),
+    normalizeIdentityValue(cartonData?.email, 160).toLowerCase(),
+    normalizeIdentityValue(cartonData?.gmail, 160).toLowerCase(),
+    normalizeIdentityValue(cartonData?.IDbilletera, 160)
   ].filter(Boolean);
   return Array.from(new Set(values));
-}
-
-function looksLikeEmail(value) {
-  return typeof value === 'string' && /@/.test(value.trim());
 }
 
 async function resolveWinnerIdentity({
@@ -846,51 +853,51 @@ async function resolveWinnerIdentity({
   loadUserById,
   loadUserByUid
 }) {
-  const cartonUserId = normalizeString(cartonData?.userId || cartonData?.usuarioId, 160);
+  const cartonUserId = normalizeIdentityValue(cartonData?.userId || cartonData?.usuarioId, 160);
   const emailCandidates = [
-    normalizeString(normalizedEmail, 160).toLowerCase(),
-    normalizeString(cartonData?.email, 160).toLowerCase(),
-    normalizeString(cartonData?.gmail, 160).toLowerCase(),
-    looksLikeEmail(cartonData?.IDbilletera) ? normalizeString(cartonData?.IDbilletera, 160).toLowerCase() : ''
+    normalizeIdentityValue(normalizedEmail, 160).toLowerCase(),
+    normalizeIdentityValue(cartonData?.email, 160).toLowerCase(),
+    normalizeIdentityValue(cartonData?.gmail, 160).toLowerCase(),
+    looksLikeEmailIdentity(cartonData?.IDbilletera) ? normalizeIdentityValue(cartonData?.IDbilletera, 160).toLowerCase() : ''
   ].filter(Boolean);
   const internalCandidates = [
-    normalizeString(normalizedUserId, 160),
+    normalizeIdentityValue(normalizedUserId, 160),
     cartonUserId,
-    looksLikeEmail(cartonData?.IDbilletera) ? '' : normalizeString(cartonData?.IDbilletera, 160)
+    looksLikeEmailIdentity(cartonData?.IDbilletera) ? '' : normalizeIdentityValue(cartonData?.IDbilletera, 160)
   ].filter(Boolean);
 
-  const identities = [normalizeString(normalizedUserId, 160), cartonUserId].filter(Boolean);
+  const identities = [normalizeIdentityValue(normalizedUserId, 160), cartonUserId].filter(Boolean);
   for (const identity of identities) {
-    if (looksLikeEmail(identity)) {
-      emailCandidates.push(normalizeString(identity, 160).toLowerCase());
+    if (looksLikeEmailIdentity(identity)) {
+      emailCandidates.push(normalizeIdentityValue(identity, 160).toLowerCase());
       continue;
     }
 
     const directUser = await loadUserById(identity);
     if (directUser) {
-      const emailByData = normalizeString(directUser.data?.email || directUser.data?.gmail, 160).toLowerCase();
+      const emailByData = normalizeIdentityValue(directUser.data?.email || directUser.data?.gmail, 160).toLowerCase();
       if (emailByData) emailCandidates.push(emailByData);
-      if (looksLikeEmail(directUser.id)) {
+      if (looksLikeEmailIdentity(directUser.id)) {
         emailCandidates.push(directUser.id.toLowerCase());
       } else if (directUser.id) {
-        internalCandidates.push(normalizeString(directUser.id, 160));
+        internalCandidates.push(normalizeIdentityValue(directUser.id, 160));
       }
       if (directUser.data?.uid) {
-        internalCandidates.push(normalizeString(directUser.data.uid, 160));
+        internalCandidates.push(normalizeIdentityValue(directUser.data.uid, 160));
       }
     }
 
     const uidUser = await loadUserByUid(identity);
     if (uidUser) {
-      const emailByData = normalizeString(uidUser.data?.email || uidUser.data?.gmail, 160).toLowerCase();
+      const emailByData = normalizeIdentityValue(uidUser.data?.email || uidUser.data?.gmail, 160).toLowerCase();
       if (emailByData) emailCandidates.push(emailByData);
-      if (looksLikeEmail(uidUser.id)) {
+      if (looksLikeEmailIdentity(uidUser.id)) {
         emailCandidates.push(uidUser.id.toLowerCase());
       } else if (uidUser.id) {
-        internalCandidates.push(normalizeString(uidUser.id, 160));
+        internalCandidates.push(normalizeIdentityValue(uidUser.id, 160));
       }
       if (uidUser.data?.uid) {
-        internalCandidates.push(normalizeString(uidUser.data.uid, 160));
+        internalCandidates.push(normalizeIdentityValue(uidUser.data.uid, 160));
       }
     }
   }
@@ -898,16 +905,20 @@ async function resolveWinnerIdentity({
   const uniqueEmails = Array.from(new Set(emailCandidates.filter(Boolean)));
   const uniqueInternals = Array.from(new Set(internalCandidates.filter(Boolean)));
   const emailVisible = uniqueEmails[0] || '';
-  const billeteraCandidates = Array.from(new Set([
-    emailVisible,
-    ...getBilleteraCandidates({ userEmail: normalizedEmail, payloadUserId: normalizedUserId, cartonData }),
-    ...uniqueInternals
-  ].filter(Boolean)));
+  const billeteraIdentity = buildBilleteraIdentity({
+    email: emailVisible || normalizedEmail,
+    uid: normalizedUserId || cartonUserId,
+    extraCandidates: [
+      ...getBilleteraCandidates({ userEmail: normalizedEmail, payloadUserId: normalizedUserId, cartonData }),
+      ...uniqueInternals
+    ]
+  });
 
   return {
     emailVisible,
-    canonicalEmail: emailVisible,
-    billeteraCandidates,
+    canonicalEmail: billeteraIdentity.canonicalEmail || emailVisible,
+    billeteraCandidates: billeteraIdentity.billeteraCandidates,
+    billeteraId: billeteraIdentity.billeteraId,
     internalCandidates: uniqueInternals
   };
 }
