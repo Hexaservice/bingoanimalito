@@ -6939,13 +6939,21 @@
       };
     }
 
+    const uid = (currentUser.uid || '').toString().trim();
+    const emailLower = (currentUser.email || '').toString().trim().toLowerCase();
+    const rolesPermitidos = new Set(['Superadmin', 'Administrador', 'Colaborador']);
+    const fuentesConsultadas = [];
+    const detallesFuentes = [];
+
+    let tokenResult = null;
     try{
-      await currentUser.getIdToken(true);
+      tokenResult = await currentUser.getIdTokenResult(true);
     }catch(errorToken){
       console.warn('[cantarsorteos][finalizar][bloqueado]', {
         motivo: 'token_refresh_failed',
         sorteoId: currentSorteoId || '',
-        email: (currentUser.email || '').toString().trim().toLowerCase(),
+        uid: uid || null,
+        email: emailLower || null,
         errorCode: (errorToken?.code || '').toString().trim(),
         errorMessage: (errorToken?.message || '').toString().trim()
       });
@@ -6956,29 +6964,108 @@
       };
     }
 
-    const emailLower = (currentUser.email || '').toString().trim().toLowerCase();
-    if(!emailLower){
-      return {
-        permitido: false,
-        mensaje: 'No se pudo identificar el correo de la cuenta actual para validar permisos.',
-        motivo: 'email_invalido'
-      };
+    let rawRole = null;
+    let roleSource = null;
+
+    fuentesConsultadas.push('custom_claims');
+    const claims = tokenResult?.claims || {};
+    const rawRoleClaim = claims.role ?? claims.rol ?? null;
+    const roleClaim = normalizarRolOperativo(rawRoleClaim);
+    detallesFuentes.push({
+      fuente: 'custom_claims',
+      roleRaw: rawRoleClaim ?? null,
+      roleNormalized: roleClaim ?? null
+    });
+    if(roleClaim){
+      rawRole = rawRoleClaim;
+      roleSource = 'custom_claims';
     }
 
-    const rolesPermitidos = new Set(['Superadmin', 'Administrador', 'Colaborador']);
-    const userRef = db.collection('users').doc(emailLower);
-    const userDoc = await userRef.get();
-    const rawRole = userDoc.exists ? userDoc.data()?.role : null;
+    if(!roleSource && emailLower){
+      try{
+        fuentesConsultadas.push('users_email');
+        const userByEmailRef = db.collection('users').doc(emailLower);
+        const userByEmailDoc = await userByEmailRef.get();
+        const rawRoleEmail = userByEmailDoc.exists ? userByEmailDoc.data()?.role : null;
+        const roleEmail = normalizarRolOperativo(rawRoleEmail);
+        detallesFuentes.push({
+          fuente: 'users_email',
+          key: emailLower,
+          docExists: userByEmailDoc.exists,
+          roleRaw: rawRoleEmail ?? null,
+          roleNormalized: roleEmail ?? null
+        });
+        if(roleEmail){
+          rawRole = rawRoleEmail;
+          roleSource = 'users_email';
+        }
+      }catch(errorEmailDoc){
+        detallesFuentes.push({
+          fuente: 'users_email',
+          key: emailLower,
+          errorCode: (errorEmailDoc?.code || '').toString().trim() || null,
+          errorMessage: (errorEmailDoc?.message || '').toString().trim() || null
+        });
+      }
+    }
+
+    if(!roleSource && uid){
+      try{
+        fuentesConsultadas.push('users_uid');
+        const userByUidRef = db.collection('users').doc(uid);
+        const userByUidDoc = await userByUidRef.get();
+        const rawRoleUid = userByUidDoc.exists ? userByUidDoc.data()?.role : null;
+        const roleUid = normalizarRolOperativo(rawRoleUid);
+        detallesFuentes.push({
+          fuente: 'users_uid',
+          key: uid,
+          docExists: userByUidDoc.exists,
+          roleRaw: rawRoleUid ?? null,
+          roleNormalized: roleUid ?? null
+        });
+        if(roleUid){
+          rawRole = rawRoleUid;
+          roleSource = 'users_uid';
+        }
+      }catch(errorUidDoc){
+        detallesFuentes.push({
+          fuente: 'users_uid',
+          key: uid,
+          errorCode: (errorUidDoc?.code || '').toString().trim() || null,
+          errorMessage: (errorUidDoc?.message || '').toString().trim() || null
+        });
+      }
+    }
+
     const role = normalizarRolOperativo(rawRole);
+    if(!role){
+      console.warn('[cantarsorteos][finalizar][bloqueado]', {
+        motivo: 'rol_no_encontrado',
+        sorteoId: currentSorteoId || '',
+        uid: uid || null,
+        email: emailLower || null,
+        fuentesConsultadas,
+        detallesFuentes
+      });
+      return {
+        permitido: false,
+        mensaje: 'No fue posible determinar tu rol operativo para finalizar el sorteo. Verifica tu usuario en el panel de administración.',
+        motivo: 'rol_no_encontrado'
+      };
+    }
 
     if(!rolesPermitidos.has(role)){
       console.warn('[cantarsorteos][finalizar][bloqueado]', {
         motivo: 'rol_no_permitido',
         sorteoId: currentSorteoId || '',
-        email: emailLower,
+        uid: uid || null,
+        email: emailLower || null,
+        roleSource: roleSource || null,
         roleRaw: rawRole ?? null,
         roleNormalized: role ?? null,
-        rolesPermitidos: Array.from(rolesPermitidos)
+        rolesPermitidos: Array.from(rolesPermitidos),
+        fuentesConsultadas,
+        detallesFuentes
       });
       return {
         permitido: false,
@@ -6987,7 +7074,7 @@
       };
     }
 
-    return { permitido: true, emailLower, role };
+    return { permitido: true, uid, emailLower, role, roleSource };
   }
 
   function obtenerLoteriasConResultadosPendientes(){
