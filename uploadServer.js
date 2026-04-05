@@ -577,12 +577,22 @@ function buildOfficialPendingPrizeId(eventoGanadorId) {
 function computeWinnerPrizeAmounts(forma = {}, totalGanadores = 1) {
   const rawCredito = Number(forma?.valorPremio ?? forma?.premio ?? forma?.monto ?? forma?.creditos ?? 0);
   const creditosBase = Number.isFinite(rawCredito) ? Math.max(0, rawCredito) : 0;
-  const divisibles = Boolean(forma?.premioCompartido || forma?.dividirPremio || forma?.divisible);
   const total = Math.max(1, Number(totalGanadores) || 1);
-  const creditos = divisibles ? (creditosBase / total) : creditosBase;
+  const creditos = creditosBase / total;
+  const cartonesBaseRaw = Number(forma?.cartonesGratis ?? 0);
+  const cartonesPorGanadorRaw = Number(forma?.cartonesGratisPorGanador);
+  const cartonesBase = Number.isFinite(cartonesBaseRaw) ? Math.max(0, cartonesBaseRaw) : 0;
+  const cartonesPorGanador = Number.isFinite(cartonesPorGanadorRaw)
+    ? Math.max(0, cartonesPorGanadorRaw)
+    : null;
+  // Convención oficial:
+  // - cartonesGratisPorGanador: valor explícito por ganador (no se divide).
+  // - cartonesGratis: total de la forma, se divide entre ganadores igual que créditos.
   const cartonesGratis = Math.max(
     0,
-    Number(forma?.cartonesGratisPorGanador ?? forma?.cartonesGratis ?? 0) || 0
+    cartonesPorGanador !== null
+      ? cartonesPorGanador
+      : (cartonesBase / total)
   );
   return {
     creditos: Number(creditos.toFixed(6)),

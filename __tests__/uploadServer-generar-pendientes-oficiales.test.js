@@ -23,18 +23,12 @@ function makeSnapDocs(items) {
   };
 }
 
-function createDbDouble() {
-  const premios = new Map();
-  const sorteoData = {
-    id: 'SRT-OF-1',
-    data: {
-      formas: [{ idx: 1, nombre: 'Linea', valorPremio: 120 }],
-      ganadoresBloqueadosPorForma: {
-        '1': { cartonClaves: ['usr:ganador@example.com::num:7'], cerradoEn: '2026-04-01T00:00:00Z' }
-      }
-    }
-  };
-  const cartones = [
+function createDbDouble({
+  formas = [{ idx: 1, nombre: 'Linea', valorPremio: 120 }],
+  lockPorForma = {
+    '1': { cartonClaves: ['usr:ganador@example.com::num:7'], cerradoEn: '2026-04-01T00:00:00Z' }
+  },
+  cartones = [
     {
       id: 'carton-doc-7',
       data: {
@@ -44,7 +38,16 @@ function createDbDouble() {
         email: 'ganador@example.com'
       }
     }
-  ];
+  ]
+} = {}) {
+  const premios = new Map();
+  const sorteoData = {
+    id: 'SRT-OF-1',
+    data: {
+      formas,
+      ganadoresBloqueadosPorForma: lockPorForma
+    }
+  };
 
   function premioCollection(billeteraId) {
     return {
@@ -157,5 +160,113 @@ describe('generatePendingDirectPrizesFromOfficialResults', () => {
     const idB = buildOfficialPendingPrizeId('SRT-OF-1__f2__carton-11');
     expect(idA).toBe(idB);
     expect(idA.startsWith('ppd_')).toBe(true);
+  });
+
+  test('divide créditos y cartones (si son totales de forma) entre 2+ ganadores con precisión de 6 decimales', async () => {
+    const { db, premios } = createDbDouble({
+      formas: [{
+        idx: 1,
+        nombre: 'Linea',
+        valorPremio: 100,
+        cartonesGratis: 5
+      }],
+      lockPorForma: {
+        '1': {
+          cartonClaves: [
+            'usr:ganador@example.com::num:7',
+            'usr:ganador2@example.com::num:8'
+          ],
+          cerradoEn: '2026-04-01T00:00:00Z'
+        }
+      },
+      cartones: [
+        {
+          id: 'carton-doc-7',
+          data: {
+            sorteoId: 'SRT-OF-1',
+            userId: 'ganador@example.com',
+            cartonNum: 7,
+            email: 'ganador@example.com'
+          }
+        },
+        {
+          id: 'carton-doc-8',
+          data: {
+            sorteoId: 'SRT-OF-1',
+            userId: 'ganador2@example.com',
+            cartonNum: 8,
+            email: 'ganador2@example.com'
+          }
+        }
+      ]
+    });
+
+    const result = await generatePendingDirectPrizesFromOfficialResults({
+      db,
+      sorteoId: 'SRT-OF-1',
+      generadoPor: 'admin@test.com'
+    });
+
+    expect(result.creados).toBe(2);
+    const premiosCreados = Array.from(premios.values());
+    expect(premiosCreados).toHaveLength(2);
+    premiosCreados.forEach((premio) => {
+      expect(premio.creditos).toBe(50);
+      expect(premio.cartonesGratis).toBe(2.5);
+    });
+  });
+
+  test('respeta cartonesGratisPorGanador como valor fijo por ganador', async () => {
+    const { db, premios } = createDbDouble({
+      formas: [{
+        idx: 1,
+        nombre: 'Diagonal',
+        valorPremio: 10,
+        cartonesGratis: 5,
+        cartonesGratisPorGanador: 1.75
+      }],
+      lockPorForma: {
+        '1': {
+          cartonClaves: [
+            'usr:ganador@example.com::num:7',
+            'usr:ganador2@example.com::num:8'
+          ],
+          cerradoEn: '2026-04-01T00:00:00Z'
+        }
+      },
+      cartones: [
+        {
+          id: 'carton-doc-7',
+          data: {
+            sorteoId: 'SRT-OF-1',
+            userId: 'ganador@example.com',
+            cartonNum: 7,
+            email: 'ganador@example.com'
+          }
+        },
+        {
+          id: 'carton-doc-8',
+          data: {
+            sorteoId: 'SRT-OF-1',
+            userId: 'ganador2@example.com',
+            cartonNum: 8,
+            email: 'ganador2@example.com'
+          }
+        }
+      ]
+    });
+
+    await generatePendingDirectPrizesFromOfficialResults({
+      db,
+      sorteoId: 'SRT-OF-1',
+      generadoPor: 'admin@test.com'
+    });
+
+    const premiosCreados = Array.from(premios.values());
+    expect(premiosCreados).toHaveLength(2);
+    premiosCreados.forEach((premio) => {
+      expect(premio.creditos).toBe(5);
+      expect(premio.cartonesGratis).toBe(1.75);
+    });
   });
 });

@@ -146,6 +146,22 @@ Excepción controlada en `Billetera/{email}`:
 
 En resumen: con lock activo, el cliente no recupera permisos generales de escritura; solo se habilita esta acreditación puntual y validada por reglas.
 
+## Convención oficial de reparto por ganador (backend + frontend)
+
+Para evitar diferencias entre cálculo de servidor y visualización en cliente, la regla vigente es:
+
+- **Créditos por ganador**: siempre `creditosBase / max(1, totalGanadores)`.
+- **Cartones gratis por ganador**:
+  - Si existe `cartonesGratisPorGanador`, ese valor es **fijo por ganador** (no se divide).
+  - Si no existe, `cartonesGratis` se interpreta como **total de la forma** y se divide entre ganadores con `cartonesGratis / max(1, totalGanadores)`.
+- **Redondeo**: se normaliza a **6 decimales** (ejemplo: `Number(valor.toFixed(6))`) en backend y frontend para mantener resultados idénticos.
+
+### Nota de compatibilidad histórica / migración
+
+- Formas históricas que dependían de flags tipo `premioCompartido`, `dividirPremio` o `divisible` ahora siguen la regla única de división para créditos.
+- Si un sorteo histórico requiere conservar un valor fijo de cartones por ganador, definir explícitamente `cartonesGratisPorGanador` en la forma.
+- No se requiere migración de documentos de premios ya generados/acreditados; la regla aplica a nuevos cálculos de premios pendientes.
+
 ## Catálogo oficial de imágenes de loterías
 
 La fuente oficial de imágenes permitidas para loterías está en:

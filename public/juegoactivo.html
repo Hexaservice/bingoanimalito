@@ -9909,11 +9909,8 @@
     if(!ganadoresNumero){
       ganadoresNumero=obtenerTotalGanadoresForma(forma);
     }
-    if(!ganadoresNumero || ganadoresNumero<=1){
-      return totalForma;
-    }
-    const dividido=Math.floor(totalForma/ganadoresNumero);
-    return dividido>0?dividido:totalForma;
+    const totalSeguro=Math.max(1, Number(ganadoresNumero) || 1);
+    return Number((totalForma/totalSeguro).toFixed(6));
   }
 
   function normalizarCartonesGratisValor(valor){
@@ -9984,10 +9981,22 @@
   }
 
   function obtenerCartonesGratisPorGanador(forma,totalGanadores){
-    const totalCartones=obtenerCartonesGratisForma(forma);
-    if(totalCartones<=0) return 0;
+    const cartonesPorGanadorRaw=Number(forma?.cartonesGratisPorGanador);
+    const totalCartonesRaw=Number(
+      forma?.cartonesGratis
+      ?? forma?.cartonesgratis
+      ?? forma?.cartones_gratis
+      ?? forma?.premioCartonesGratis
+      ?? forma?.premioCartonesgratis
+      ?? forma?.cartones
+      ?? 0
+    );
     if(esModoManualActivo()){
-      return totalCartones;
+      if(Number.isFinite(cartonesPorGanadorRaw)){
+        return Number(Math.max(0, cartonesPorGanadorRaw).toFixed(6));
+      }
+      const totalManual=Number.isFinite(totalCartonesRaw) ? Math.max(0, totalCartonesRaw) : 0;
+      return Number(totalManual.toFixed(6));
     }
     let ganadoresNumero=Number(totalGanadores);
     if(!Number.isFinite(ganadoresNumero)){
@@ -9995,17 +10004,12 @@
     }else{
       ganadoresNumero=Math.floor(ganadoresNumero);
     }
-    if(ganadoresNumero<=0){
-      return 0;
+    const totalSeguro=Math.max(1,ganadoresNumero);
+    if(Number.isFinite(cartonesPorGanadorRaw)){
+      return Number(Math.max(0, cartonesPorGanadorRaw).toFixed(6));
     }
-    if(ganadoresNumero===1){
-      return totalCartones;
-    }
-    if(totalCartones<ganadoresNumero){
-      return totalCartones;
-    }
-    const dividido=Math.floor(totalCartones/ganadoresNumero);
-    return dividido>0?dividido:totalCartones;
+    const totalCartones=Number.isFinite(totalCartonesRaw) ? Math.max(0,totalCartonesRaw) : 0;
+    return Number((totalCartones/totalSeguro).toFixed(6));
   }
 
   function obtenerCartonesGratisTotalEntregados(forma,totalGanadores){

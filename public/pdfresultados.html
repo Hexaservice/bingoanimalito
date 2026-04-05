@@ -2295,6 +2295,19 @@
     return 0;
   }
 
+  function obtenerCreditosPorGanador(forma,totalGanadores){
+    const totalForma = obtenerCreditosForma(forma);
+    if(totalForma <= 0) return 0;
+    let ganadoresNumero = Number(totalGanadores);
+    if(!Number.isFinite(ganadoresNumero)){
+      ganadoresNumero = 1;
+    }else{
+      ganadoresNumero = Math.floor(ganadoresNumero);
+    }
+    const totalSeguro = Math.max(1, ganadoresNumero);
+    return Number((totalForma / totalSeguro).toFixed(6));
+  }
+
   function obtenerCartonesGratisForma(forma){
     if(!forma) return 0;
     const candidatos = [
@@ -2315,25 +2328,28 @@
   }
 
   function obtenerCartonesGratisPorGanador(forma,totalGanadores){
-    const totalCartones = obtenerCartonesGratisForma(forma);
-    if(totalCartones <= 0) return 0;
+    const cartonesPorGanadorRaw = Number(forma?.cartonesGratisPorGanador);
+    const totalCartonesRaw = Number(
+      forma?.cartonesGratis
+      ?? forma?.cartonesgratis
+      ?? forma?.cartones_gratis
+      ?? forma?.premioCartonesGratis
+      ?? forma?.premioCartonesgratis
+      ?? forma?.cartones
+      ?? 0
+    );
     let ganadoresNumero = Number(totalGanadores);
     if(!Number.isFinite(ganadoresNumero)){
       ganadoresNumero = 1;
     }else{
       ganadoresNumero = Math.floor(ganadoresNumero);
     }
-    if(ganadoresNumero <= 0){
-      return 0;
+    const totalSeguro = Math.max(1, ganadoresNumero);
+    if(Number.isFinite(cartonesPorGanadorRaw)){
+      return Number(Math.max(0, cartonesPorGanadorRaw).toFixed(6));
     }
-    if(ganadoresNumero === 1){
-      return totalCartones;
-    }
-    if(totalCartones < ganadoresNumero){
-      return totalCartones;
-    }
-    const dividido = Math.floor(totalCartones / ganadoresNumero);
-    return dividido > 0 ? dividido : totalCartones;
+    const totalCartones = Number.isFinite(totalCartonesRaw) ? Math.max(0, totalCartonesRaw) : 0;
+    return Number((totalCartones / totalSeguro).toFixed(6));
   }
 
   function obtenerCartonesGratisTotalesEntregados(forma,totalGanadores){
@@ -2952,7 +2968,7 @@
       const ganadores = Array.isArray(registro.cartones) ? registro.cartones : [];
       const cantidadGanadores = ganadores.length;
       const premioTotal = obtenerCreditosForma(forma);
-      const premioIndividual = cantidadGanadores > 0 ? Math.floor(premioTotal / cantidadGanadores) : 0;
+      const premioIndividual = obtenerCreditosPorGanador(forma, cantidadGanadores);
       const totalCartonesGratis = obtenerCartonesGratisTotalesEntregados(forma, cantidadGanadores);
       const cartonesGratisPorGanador = obtenerCartonesGratisPorGanador(forma, cantidadGanadores);
 
