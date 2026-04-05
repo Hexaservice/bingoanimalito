@@ -10664,9 +10664,11 @@
         const gratisActual = Number(data.CartonesGratis ?? data.cartonesGratis) || 0;
         const creditosPremio = Math.max(0, Number(premioData?.creditos) || 0);
         const cartonesPremio = Math.max(0, Number(premioData?.cartonesGratis) || 0);
+        const totalCartonesGratis = gratisActual + cartonesPremio;
         tx.set(billeteraRefObjetivo,{
           creditos: creditosActual + creditosPremio,
-          CartonesGratis: gratisActual + cartonesPremio
+          CartonesGratis: totalCartonesGratis,
+          cartonesGratis: totalCartonesGratis
         },{ merge:true });
         tx.set(premioRef, {
           estado: 'acreditado',
