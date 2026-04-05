@@ -49,10 +49,13 @@ describe('juegoactivo.html - acreditarPremioAhora cuando no hay premio pendiente
     const context = {
       activeSorteoId: 'SRT-1',
       acreditandoPremioAhora: false,
+      premiosPendientesIdsApi: {
+        construirClavesCandidatasPremioPendiente: (detalle) => [String(detalle?.clavePendiente || '').toLowerCase()].filter(Boolean)
+      },
       db: {
         collection: () => ({
           doc: () => ({
-            collection: () => ({ doc: () => ({ __tipo: 'premioRef' }) }),
+            collection: () => ({ doc: () => ({ __tipo: 'premioRef', get: async () => ({ exists: false }) }) }),
             __tipo: 'billeteraRef'
           })
         }),
@@ -147,10 +150,13 @@ describe('juegoactivo.html - acreditarPremioAhora cuando premio ya está acredit
     const context = {
       activeSorteoId: 'SRT-1',
       acreditandoPremioAhora: false,
+      premiosPendientesIdsApi: {
+        construirClavesCandidatasPremioPendiente: (detalle) => [String(detalle?.clavePendiente || '').toLowerCase()].filter(Boolean)
+      },
       db: {
         collection: () => ({
           doc: () => ({
-            collection: () => ({ doc: () => ({ __tipo: 'premioRef' }) }),
+            collection: () => ({ doc: () => ({ __tipo: 'premioRef', get: async () => ({ exists: true }) }) }),
             __tipo: 'billeteraRef'
           })
         }),

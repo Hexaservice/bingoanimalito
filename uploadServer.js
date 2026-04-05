@@ -11,6 +11,7 @@ const fs = require('fs/promises');
 const admin = require('firebase-admin');
 const EstadosPagoPremio = require('./public/js/estadoPagoPremio.js');
 const { isSorteoEligibleForAutoPrize } = require('./public/js/sorteoAutoPrizeEligibility.js');
+const { construirEventoGanadorIdCanonico } = require('./lib/premiosPendientesIds');
 
 const requiredEnv = ['GOOGLE_APPLICATION_CREDENTIALS', 'FIREBASE_STORAGE_BUCKET'];
 
@@ -666,7 +667,13 @@ async function generatePendingDirectPrizesFromOfficialResults({
       const billeteraId = normalizeString(winnerIdentity?.canonicalEmail, 160).toLowerCase();
       if (!billeteraId) continue;
 
-      const eventoGanadorId = `${normalizedSorteoId}__f${formaIdx}__${normalizeString(carton.id, 180)}`;
+      const eventoGanadorId = construirEventoGanadorIdCanonico({
+        sorteoId: normalizedSorteoId,
+        formaIdx,
+        cartonClaveGanador: cartonClave,
+        cartonId: normalizeString(carton.id, 180)
+      });
+      if (!eventoGanadorId) continue;
       const premioId = buildOfficialPendingPrizeId(eventoGanadorId);
       const billeteraRef = db.collection('Billetera').doc(billeteraId);
       const premioRef = billeteraRef.collection('premiosPendientesDirectos').doc(premioId);
@@ -692,6 +699,8 @@ async function generatePendingDirectPrizesFromOfficialResults({
         nombre: normalizeString(forma?.nombre, 160) || `Forma ${formaIdx}`,
         creditos,
         cartonesGratis,
+        cartonClaveGanador: normalizeString(cartonClave, 220).toLowerCase(),
+        cartonId: normalizeString(carton.id, 180),
         cartonLabel: normalizeString(
           carton.data?.cartonLabel || carton.data?.etiqueta || `${carton.data?.userId || ''} #${carton.data?.cartonNum ?? ''}`,
           180
