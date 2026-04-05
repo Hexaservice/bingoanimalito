@@ -712,6 +712,7 @@
     const pagosColaboradoresEdicion = new Map();
     const usuariosInfoCache = new Map();
     const sorteosNombreCache = new Map();
+    const reconciliacionPremiosCache = new Map();
 
     let unsubscribePremios = null;
     let unsubscribePremiosArchivo = null;
@@ -757,6 +758,52 @@
       const selector = document.getElementById('cp-sorteo-selector');
       const idSelector = (selector?.value || '').trim();
       return idSelector || sorteoIdDesdeQuery;
+    }
+
+    function resolverApiAdminBaseCentroPagos(){
+      if(typeof window.getAdminApiBase === 'function'){
+        const base = (window.getAdminApiBase() || '').toString().trim();
+        if(base) return base.replace(/\/+$/,'');
+      }
+      const uploadEndpoint = (window.UPLOAD_ENDPOINT || '').toString().trim();
+      if(uploadEndpoint){
+        return uploadEndpoint.replace(/\/upload\/?$/i, '').replace(/\/+$/,'');
+      }
+      return (window.location?.origin || '').replace(/\/+$/,'');
+    }
+
+    async function reconciliarPremiosPendientesDirectosSorteo(sorteoId){
+      const sorteoSeguro = (sorteoId || '').toString().trim();
+      if(!sorteoSeguro) return null;
+      const cacheKey = `sorteo:${sorteoSeguro}`;
+      const registroCache = reconciliacionPremiosCache.get(cacheKey);
+      if(registroCache && (Date.now() - registroCache.ts) < 60000){
+        return registroCache.respuesta || null;
+      }
+      const usuario = authInstance().currentUser;
+      if(!usuario){
+        throw new Error('No hay usuario autenticado para reconciliar premios pendientes.');
+      }
+      const apiBase = resolverApiAdminBaseCentroPagos();
+      if(!apiBase){
+        throw new Error('No se pudo resolver la URL base del API administrativo.');
+      }
+      const token = await usuario.getIdToken(true);
+      const resp = await fetch(`${apiBase}/admin/reconciliar-premios-pendientes-directos`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ sorteoId: sorteoSeguro, pageSize: 100 })
+      });
+      if(!resp.ok){
+        const errorText = await resp.text().catch(()=>`HTTP ${resp.status}`);
+        throw new Error(`No se pudo reconciliar premios pendientes (${resp.status}): ${errorText}`);
+      }
+      const data = await resp.json();
+      reconciliacionPremiosCache.set(cacheKey, { ts: Date.now(), respuesta: data });
+      return data;
     }
 
     async function cpResolverDataSorteo(sorteoId){
@@ -1974,7 +2021,15 @@
           return acum + pendientes + errores;
         }, 0);
         const hayPagosPendientes = pagosSnap.docs.some(doc=>esEstadoPendiente(doc.data()?.estado));
-        const indicadorCompletado = pendientesTecnicosPremios === 0 && !hayPagosPendientes;
+        let indicadorCompletado = pendientesTecnicosPremios === 0 && !hayPagosPendientes;
+        if(indicadorCompletado){
+          try {
+            await reconciliarPremiosPendientesDirectosSorteo(sorteoId);
+          } catch (reconcileError) {
+            console.warn('No se pudo reconciliar premios pendientes directos antes de cerrar pagos', sorteoId, reconcileError);
+            indicadorCompletado = false;
+          }
+        }
         const payload = {
           pagosCentroAprobados: indicadorCompletado,
           pagosCentroActualizadosEn: firebase.firestore.FieldValue.serverTimestamp()

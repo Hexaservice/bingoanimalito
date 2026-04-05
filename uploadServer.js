@@ -331,6 +331,200 @@ function normalizeNumber(value) {
   return Number.isFinite(number) ? number : 0;
 }
 
+function normalizePendingPrizeState(value) {
+  return normalizeString(value, 40).toLowerCase();
+}
+
+function buildReconciledPrizeTransactionId(premioId) {
+  const normalized = normalizeString(premioId, 320).toLowerCase();
+  const digest = crypto.createHash('sha256').update(normalized).digest('hex').slice(0, 32);
+  return `premio_reconciliado_${digest}`;
+}
+
+async function reconcileSinglePendingPrize({
+  db,
+  premioDoc,
+  sorteoId,
+  acreditadoPor,
+  origen
+}) {
+  const premioId = normalizeString(premioDoc.id, 320).toLowerCase();
+  if (!premioId) {
+    return { status: 'omitido', reason: 'premio_id_invalido' };
+  }
+
+  const transaccionId = buildReconciledPrizeTransactionId(premioId);
+  const transaccionRef = db.collection('transacciones').doc(transaccionId);
+
+  return db.runTransaction(async (tx) => {
+    const premioSnap = await tx.get(premioDoc.ref);
+    if (!premioSnap.exists) {
+      return { status: 'omitido', reason: 'premio_no_existe', premioId };
+    }
+
+    const premioData = premioSnap.data() || {};
+    const sorteoPremio = normalizeString(premioData.sorteoId, 120);
+    if (!sorteoPremio || sorteoPremio !== sorteoId) {
+      return { status: 'omitido', reason: 'sorteo_distinto', premioId };
+    }
+
+    const estadoActual = normalizePendingPrizeState(premioData.estado || 'pendiente');
+    const creditos = Math.max(0, normalizeNumber(premioData.creditos));
+    const cartones = Math.max(
+      0,
+      normalizeNumber(premioData.cartonesGratis ?? premioData.cartones)
+    );
+
+    const transaccionPorPremioQuery = db
+      .collection('transacciones')
+      .where('premioId', '==', premioId)
+      .limit(1);
+
+    const [walletSnap, transaccionIdSnap, transaccionPorPremioSnap] = await Promise.all([
+      tx.get(premioDoc.ref.parent.parent),
+      tx.get(transaccionRef),
+      tx.get(transaccionPorPremioQuery)
+    ]);
+
+    const transaccionExistente = transaccionIdSnap.exists || !transaccionPorPremioSnap.empty;
+    const yaAcreditado = estadoActual === 'acreditado';
+
+    if (yaAcreditado || transaccionExistente) {
+      if (!yaAcreditado) {
+        tx.set(
+          premioDoc.ref,
+          {
+            estado: 'acreditado',
+            acreditadoEn: premioData.acreditadoEn || admin.firestore.FieldValue.serverTimestamp(),
+            acreditadoPor: premioData.acreditadoPor || acreditadoPor,
+            origen: premioData.origen || origen,
+            reconciliadoEn: admin.firestore.FieldValue.serverTimestamp(),
+            reconciliadoPor: acreditadoPor
+          },
+          { merge: true }
+        );
+      }
+      return { status: 'omitido', reason: 'ya_acreditado', premioId };
+    }
+
+    if (estadoActual !== 'pendiente') {
+      return { status: 'omitido', reason: 'estado_no_pendiente', premioId };
+    }
+
+    const billeteraRef = premioDoc.ref.parent.parent;
+    const billeteraData = walletSnap.exists ? walletSnap.data() || {} : {};
+    const saldoActual = normalizeNumber(billeteraData.creditos);
+    const cartonesActuales = normalizeNumber(
+      billeteraData.CartonesGratis ?? billeteraData.cartonesGratis
+    );
+
+    tx.set(
+      billeteraRef,
+      {
+        creditos: saldoActual + creditos,
+        CartonesGratis: cartonesActuales + cartones,
+        actualizadoEn: admin.firestore.FieldValue.serverTimestamp()
+      },
+      { merge: true }
+    );
+
+    tx.set(
+      premioDoc.ref,
+      {
+        estado: 'acreditado',
+        acreditadoEn: admin.firestore.FieldValue.serverTimestamp(),
+        acreditadoPor,
+        origen,
+        reconciliadoEn: admin.firestore.FieldValue.serverTimestamp(),
+        reconciliadoPor: acreditadoPor
+      },
+      { merge: true }
+    );
+
+    tx.set(
+      transaccionRef,
+      {
+        tipotrans: 'premio',
+        origen: 'premios_pendientes_reconciliados',
+        estado: 'APROBADO',
+        premioId,
+        sorteoId,
+        IDbilletera: billeteraRef.id,
+        Monto: creditos,
+        cartonesGratis: cartones,
+        referencia: 'PREMIO_RECONCILIADO',
+        usuariogestor: acreditadoPor,
+        rolusuario: 'sistema',
+        creadoEn: admin.firestore.FieldValue.serverTimestamp(),
+        actualizadoEn: admin.firestore.FieldValue.serverTimestamp()
+      },
+      { merge: false }
+    );
+
+    return { status: 'acreditado', premioId, creditos, cartones };
+  });
+}
+
+async function reconcilePendingPrizesBySorteo({
+  db,
+  sorteoId,
+  acreditadoPor = 'sistema:reconciliacion',
+  origen = 'premios_pendientes_reconciliados',
+  pageSize = 100
+}) {
+  const normalizedSorteoId = normalizeString(sorteoId, 120);
+  if (!normalizedSorteoId) {
+    throw new Error('sorteoId es obligatorio para reconciliar premios pendientes directos');
+  }
+
+  const summary = {
+    sorteoId: normalizedSorteoId,
+    revisados: 0,
+    acreditados: 0,
+    omitidos: 0,
+    errores: 0
+  };
+
+  let lastDoc = null;
+  while (true) {
+    let query = db
+      .collectionGroup('premiosPendientesDirectos')
+      .where('sorteoId', '==', normalizedSorteoId)
+      .orderBy('__name__')
+      .limit(pageSize);
+    if (lastDoc) query = query.startAfter(lastDoc);
+    const snap = await query.get();
+    if (snap.empty) break;
+
+    for (const doc of snap.docs) {
+      summary.revisados += 1;
+      try {
+        const result = await reconcileSinglePendingPrize({
+          db,
+          premioDoc: doc,
+          sorteoId: normalizedSorteoId,
+          acreditadoPor,
+          origen
+        });
+        if (result?.status === 'acreditado') summary.acreditados += 1;
+        else summary.omitidos += 1;
+      } catch (error) {
+        summary.errores += 1;
+        console.error('[reconciliar-premios-pendientes-directos] error procesando premio', {
+          premioId: doc.id,
+          sorteoId: normalizedSorteoId,
+          error: error?.message || error
+        });
+      }
+    }
+
+    lastDoc = snap.docs[snap.docs.length - 1];
+    if (snap.size < pageSize) break;
+  }
+
+  return summary;
+}
+
 function buildPremioDocId({ sorteoId, formaIdx, cartonId, prefijo = '' }) {
   const sanitize = (value) => normalizeString(String(value || ''), 120).replace(/[^\w-]/g, '_');
   const baseId = `${sanitize(sorteoId)}__f${sanitize(formaIdx)}__${sanitize(cartonId)}`;
@@ -770,6 +964,36 @@ async function acreditarPremioEventoHandler(req, res) {
 
 app.post('/acreditarPremioEvento', verificarOperadorPrivilegiado, acreditarPremioEventoHandler);
 
+app.post('/admin/reconciliar-premios-pendientes-directos', verificarToken, async (req, res) => {
+  const sorteoId = normalizeString(req.body?.sorteoId, 120);
+  const pageSize = Math.max(10, Math.min(250, Number(req.body?.pageSize) || 100));
+
+  if (!sorteoId) {
+    return res.status(400).json({ error: 'sorteoId es obligatorio' });
+  }
+
+  try {
+    const resultado = await reconcilePendingPrizesBySorteo({
+      db: admin.firestore(),
+      sorteoId,
+      pageSize,
+      acreditadoPor: normalizeString(req.user?.email, 200) || 'sistema:reconciliacion',
+      origen: 'premios_pendientes_reconciliados'
+    });
+
+    return res.json({
+      status: 'ok',
+      ...resultado
+    });
+  } catch (error) {
+    console.error('[reconciliar-premios-pendientes-directos] fallo de endpoint', error);
+    return res.status(500).json({
+      error: 'Error reconciliando premios pendientes directos',
+      message: error?.message || String(error)
+    });
+  }
+});
+
 function toPublicImageUrl(req, relativePath) {
   const normalizedPath = normalizeString(relativePath, 260).replace(/^\/+/, '');
   if (!normalizedPath) return '';
@@ -1101,6 +1325,10 @@ module.exports = {
   countDocumentById,
   getPurgeCounts,
   isSorteoEligibleForAutoPrize,
+  normalizePendingPrizeState,
+  buildReconciledPrizeTransactionId,
+  reconcileSinglePendingPrize,
+  reconcilePendingPrizesBySorteo,
   buildPremioDocId,
   extractEventoGanadorIdComponents,
   resolveWinnerIdentity,
