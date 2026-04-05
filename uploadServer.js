@@ -1147,9 +1147,133 @@ app.post('/admin/purge-sorteo', verificarToken, async (req, res) => {
 });
 
 async function acreditarPremioEventoHandler(req, res) {
-  return res.status(410).json({
-    error: 'La acreditación instantánea de premios fue deshabilitada. Gestiona los pagos desde Centro de Pagos.'
-  });
+  const premioId = normalizeString(req.body?.premioId, 320).toLowerCase();
+  const eventoGanadorId = normalizeString(req.body?.eventoGanadorId, 320);
+  const billeteraId = normalizeString(
+    req.body?.billeteraId
+    || req.body?.email
+    || req.body?.IDbilletera
+    || req.body?.userId,
+    160
+  ).toLowerCase();
+
+  if (!premioId && !eventoGanadorId) {
+    return res.status(400).json({
+      error: 'Debes enviar premioId o eventoGanadorId para acreditar el premio pendiente directo.'
+    });
+  }
+
+  const db = admin.firestore();
+
+  try {
+    const premioDocRef = (() => {
+      const normalizedPremioId = premioId || buildOfficialPendingPrizeId(eventoGanadorId);
+      if (billeteraId && normalizedPremioId) {
+        return db
+          .collection('Billetera')
+          .doc(billeteraId)
+          .collection('premiosPendientesDirectos')
+          .doc(normalizedPremioId);
+      }
+      return null;
+    })();
+
+    let premioDoc = null;
+    if (premioDocRef) {
+      const premioSnap = await premioDocRef.get();
+      if (premioSnap.exists) premioDoc = premioSnap;
+    }
+
+    if (!premioDoc && eventoGanadorId) {
+      const premioByEventoSnap = await db
+        .collectionGroup('premiosPendientesDirectos')
+        .where('eventoGanadorId', '==', eventoGanadorId)
+        .limit(2)
+        .get();
+      if (premioByEventoSnap.size > 1) {
+        return res.status(409).json({
+          error: 'Se encontraron múltiples premios pendientes para el evento indicado.',
+          eventoGanadorId
+        });
+      }
+      if (!premioByEventoSnap.empty) {
+        premioDoc = premioByEventoSnap.docs[0];
+      }
+    }
+
+    if (!premioDoc && premioId) {
+      const premioByIdSnap = await db
+        .collectionGroup('premiosPendientesDirectos')
+        .where('premioId', '==', premioId)
+        .limit(2)
+        .get();
+      if (premioByIdSnap.size > 1) {
+        return res.status(409).json({
+          error: 'Se encontraron múltiples premios pendientes con el premioId indicado.',
+          premioId
+        });
+      }
+      if (!premioByIdSnap.empty) {
+        premioDoc = premioByIdSnap.docs[0];
+      }
+    }
+
+    if (!premioDoc || !premioDoc.exists) {
+      return res.status(404).json({
+        error: 'No se encontró el premio pendiente directo solicitado.',
+        premioId: premioId || null,
+        eventoGanadorId: eventoGanadorId || null
+      });
+    }
+
+    const premioData = premioDoc.data() || {};
+    const sorteoId = normalizeString(req.body?.sorteoId, 120) || normalizeString(premioData.sorteoId, 120);
+    if (!sorteoId) {
+      return res.status(400).json({
+        error: 'No se pudo determinar el sorteoId del premio pendiente a acreditar.'
+      });
+    }
+
+    const acreditadoPor = normalizeString(req.user?.email, 200) || 'sistema:acreditar-premio-evento';
+    const result = await reconcileSinglePendingPrize({
+      db,
+      premioDoc,
+      sorteoId,
+      acreditadoPor,
+      origen: 'backend/acreditarPremioEvento'
+    });
+
+    if (result?.status === 'acreditado') {
+      return res.json({
+        status: 'ok',
+        resultado: 'acreditado',
+        idempotente: false,
+        premioId: result.premioId,
+        creditos: result.creditos,
+        cartones: result.cartones
+      });
+    }
+
+    if (result?.reason === 'ya_acreditado') {
+      return res.json({
+        status: 'ok',
+        resultado: 'ya_acreditado',
+        idempotente: true,
+        premioId: result.premioId || normalizeString(premioDoc.id, 320).toLowerCase()
+      });
+    }
+
+    return res.status(409).json({
+      error: 'No se pudo acreditar el premio pendiente directo en el estado actual.',
+      detalle: result || null
+    });
+  } catch (error) {
+    console.error('[acreditar-premio-evento] fallo', error);
+    return res.status(500).json({
+      error: 'Error acreditando premio pendiente directo',
+      message: error.message
+    });
+  }
 }
 
 app.post('/acreditarPremioEvento', verificarOperadorPrivilegiado, acreditarPremioEventoHandler);

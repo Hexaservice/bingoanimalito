@@ -24,18 +24,104 @@ function makeRes() {
   };
 }
 
-describe('endpoint /acreditarPremioEvento deshabilitado', () => {
-  test('siempre responde 410 para desactivar acreditación instantánea', async () => {
+describe('endpoint /acreditarPremioEvento', () => {
+  test('valida que llegue premioId o eventoGanadorId', async () => {
     const { acreditarPremioEventoHandler } = require('../uploadServer.js');
 
     const req = {
-      body: {
+      body: {},
+      headers: {},
+      user: { email: 'admin@example.com', role: 'Administrador' }
+    };
+    const res = makeRes();
+
+    await acreditarPremioEventoHandler(req, res);
+
+    expect(res.statusCode).toBe(400);
+    expect(res.body).toEqual({
+      error: 'Debes enviar premioId o eventoGanadorId para acreditar el premio pendiente directo.'
+    });
+  });
+
+  test('responde éxito idempotente cuando el premio ya estaba acreditado', async () => {
+    jest.resetModules();
+    const admin = require('firebase-admin');
+    const { acreditarPremioEventoHandler } = require('../uploadServer.js');
+
+    const premioId = 'ppd_123';
+    const billeteraId = 'ganador@example.com';
+    const premioRef = {
+      id: premioId,
+      parent: {
+        parent: {
+          id: billeteraId
+        }
+      }
+    };
+    const premioSnap = {
+      exists: true,
+      id: premioId,
+      ref: premioRef,
+      data: () => ({
+        premioId,
         sorteoId: 'sorteo-1',
-        formaIdx: 2,
-        cartonId: 'carton-1',
-        eventoGanadorId: 'sorteo-1__f2__carton-1',
-        monto: 100,
-        email: 'ganador@example.com'
+        estado: 'acreditado',
+        creditos: 10,
+        cartonesGratis: 1
+      })
+    };
+    premioRef.get = jest.fn().mockResolvedValue(premioSnap);
+
+    const queryByPremio = {
+      get: jest.fn().mockResolvedValue({ empty: true })
+    };
+    const tx = {
+      get: jest.fn(async (target) => {
+        if (target === premioRef) return premioSnap;
+        if (target === premioRef.parent.parent) return { exists: true, data: () => ({ creditos: 200, CartonesGratis: 4 }) };
+        if (target && target.__kind === 'transaccion-ref') return { exists: false };
+        if (target === queryByPremio) return { empty: true };
+        return { exists: false, empty: true };
+      }),
+      set: jest.fn()
+    };
+
+    const db = {
+      collection: jest.fn((name) => {
+        if (name === 'Billetera') {
+          return {
+            doc: jest.fn(() => ({
+              collection: jest.fn(() => ({
+                doc: jest.fn(() => premioRef)
+              }))
+            }))
+          };
+        }
+        if (name === 'transacciones') {
+          return {
+            doc: jest.fn(() => ({ __kind: 'transaccion-ref' })),
+            where: jest.fn(() => ({
+              limit: jest.fn(() => queryByPremio)
+            }))
+          };
+        }
+        return {};
+      }),
+      collectionGroup: jest.fn(() => ({
+        where: jest.fn().mockReturnThis(),
+        limit: jest.fn().mockReturnThis(),
+        get: jest.fn().mockResolvedValue({ empty: true, docs: [], size: 0 })
+      })),
+      runTransaction: jest.fn(async (fn) => fn(tx))
+    };
+
+    admin.firestore.mockReturnValue(db);
+
+    const req = {
+      body: {
+        premioId,
+        billeteraId,
+        sorteoId: 'sorteo-1'
       },
       headers: {},
       user: { email: 'admin@example.com', role: 'Administrador' }
@@ -44,9 +130,12 @@ describe('endpoint /acreditarPremioEvento deshabilitado', () => {
 
     await acreditarPremioEventoHandler(req, res);
 
-    expect(res.statusCode).toBe(410);
+    expect(res.statusCode).toBe(200);
     expect(res.body).toEqual({
-      error: 'La acreditación instantánea de premios fue deshabilitada. Gestiona los pagos desde Centro de Pagos.'
+      status: 'ok',
+      resultado: 'ya_acreditado',
+      idempotente: true,
+      premioId
     });
   });
 });
