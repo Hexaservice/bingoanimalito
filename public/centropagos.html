@@ -378,6 +378,86 @@
       opacity: 0.7;
       cursor: not-allowed;
     }
+    #cp-resumen-montos {
+      max-width: 1280px;
+      margin: 0 auto 8px;
+      padding: 8px;
+      border-radius: 12px;
+      background: rgba(255,255,255,0.86);
+      border: 1px solid rgba(13,71,161,0.25);
+      box-sizing: border-box;
+      font-family: Calibri, Arial, sans-serif;
+      text-align: left;
+    }
+    .cp-kpis-globales {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 8px;
+    }
+    .cp-kpi {
+      border-radius: 10px;
+      background: rgba(255,255,255,0.95);
+      padding: 7px 8px;
+      border: 1px solid rgba(0,0,0,0.08);
+    }
+    .cp-kpi-label {
+      font-size: clamp(0.68rem, 2.6vw, 0.85rem);
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+      font-weight: 700;
+      line-height: 1.2;
+    }
+    .cp-kpi-valor {
+      margin-top: 2px;
+      font-size: clamp(0.95rem, 3.9vw, 1.35rem);
+      font-weight: 800;
+      line-height: 1.1;
+    }
+    .cp-kpi--repartir .cp-kpi-label,
+    .cp-kpi--repartir .cp-kpi-valor { color: #0d47a1; }
+    .cp-kpi--acreditado .cp-kpi-label,
+    .cp-kpi--acreditado .cp-kpi-valor { color: #ef6c00; }
+    .cp-kpi--por-acreditar .cp-kpi-label,
+    .cp-kpi--por-acreditar .cp-kpi-valor { color: #6a1b9a; }
+    .cp-forma-grid {
+      margin-top: 8px;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 8px;
+    }
+    .cp-forma-card {
+      border-radius: 10px;
+      padding: 7px 8px;
+      background: rgba(255,255,255,0.96);
+      border: 1px solid rgba(0,0,0,0.08);
+      border-left: 6px solid var(--forma-color, #546e7a);
+    }
+    .cp-forma-titulo {
+      font-weight: 800;
+      font-size: clamp(0.76rem, 2.8vw, 0.95rem);
+      margin-bottom: 4px;
+      color: #263238;
+      text-transform: uppercase;
+      line-height: 1.2;
+      word-break: break-word;
+    }
+    .cp-forma-item {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      font-size: clamp(0.7rem, 2.6vw, 0.88rem);
+      line-height: 1.25;
+      color: #37474f;
+    }
+    .cp-forma-item span:last-child {
+      font-weight: 700;
+    }
+    .cp-resumen-vacio {
+      color: #607d8b;
+      font-size: 0.86rem;
+      text-align: center;
+      padding: 6px 4px 2px;
+    }
     .filtros th:first-child { text-align: center; }
     .check-header {
       display: inline-flex;
@@ -498,6 +578,21 @@
       table { font-size: 0.6rem; width: 100%; margin: 2px 0; }
       .acciones { margin: 2px 0; }
       .section-header { margin-bottom: 2px; }
+      #cp-resumen-montos {
+        margin: 0 0 6px;
+        padding: 6px;
+      }
+      .cp-kpis-globales {
+        gap: 6px;
+      }
+      .cp-kpi {
+        padding: 6px 6px;
+      }
+      .cp-forma-grid {
+        margin-top: 6px;
+        grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+        gap: 6px;
+      }
       #premios-content,
       #pagos-content { max-height: 70vh; overflow: auto; }
       #volver-btn { width: 40px; }
@@ -528,6 +623,7 @@
     </select>
     <button id="cp-generar-solicitudes" class="btn-pagos-pendientes" type="button">GENERAR PAGOS</button>
   </div>
+  <div id="cp-resumen-montos" aria-live="polite"></div>
   <section class="section" id="premios-section">
     <div class="section-header">
       <h3>PREMIOS JUGADORES</h3>
@@ -2166,6 +2262,7 @@
         sorteoId: (data.sorteoId || '').toString(),
         sorteoNombre: (data.sorteoNombre || '').toString(),
         formaIdx: Number(data.formaIdx ?? data.forma ?? NaN),
+        formasGanadoras: Array.isArray(data.formasGanadoras) ? data.formasGanadoras : [],
         cartonId: (data.cartonId || data.carton || '').toString(),
         segundoLugar: Boolean(data.segundoLugar),
         acreditacionesPendientes: normalizarConteoTecnico(data.AcreditacionesPendientes ?? data.acreditacionesPendientes),
@@ -2443,11 +2540,111 @@
       });
     }
 
+    function cpResolverNombreForma(registro = {}){
+      const idx = Number(registro.formaIdx);
+      const formas = Array.isArray(registro.formasGanadoras) ? registro.formasGanadoras : [];
+      const porIndice = Number.isInteger(idx) && idx >= 0 && idx < formas.length ? formas[idx] : null;
+      const etiqueta = (porIndice || '').toString().trim();
+      if(etiqueta) return etiqueta;
+      if(Number.isInteger(idx) && idx >= 0) return `Forma ${idx + 1}`;
+      return 'Forma sin índice';
+    }
+
+    function cpCalcularResumenMontos(sorteoId){
+      const idObjetivo = (sorteoId || cpObtenerSorteoIdObjetivo() || '').toString().trim();
+      if(!idObjetivo){
+        return {
+          totalPremiosRepartir: 0,
+          montoAcreditado: 0,
+          montoPorAcreditar: 0,
+          porForma: []
+        };
+      }
+      const acumuladoPorForma = new Map();
+      let totalPremiosRepartir = 0;
+      let montoAcreditado = 0;
+      const premiosSorteo = premiosActivos.filter(item=>(item.sorteoId || '').trim() === idObjetivo);
+      premiosSorteo.forEach(registro=>{
+        const creditos = Number(registro.creditos) || 0;
+        const estadoNormalizado = normalizarEstado(registro.estado);
+        const acreditado = window.EstadosPagoPremio.estaFinalizado(estadoNormalizado) ? creditos : 0;
+        totalPremiosRepartir += creditos;
+        montoAcreditado += acreditado;
+        const claveForma = Number.isInteger(registro.formaIdx) ? `idx:${registro.formaIdx}` : `sin_idx:${cpResolverNombreForma(registro)}`;
+        const nombreForma = cpResolverNombreForma(registro);
+        if(!acumuladoPorForma.has(claveForma)){
+          acumuladoPorForma.set(claveForma, {
+            formaIdx: Number.isInteger(registro.formaIdx) ? registro.formaIdx : Number.MAX_SAFE_INTEGER,
+            nombreForma,
+            totalForma: 0,
+            acreditadoForma: 0
+          });
+        }
+        const itemForma = acumuladoPorForma.get(claveForma);
+        itemForma.totalForma += creditos;
+        itemForma.acreditadoForma += acreditado;
+      });
+      const montoPorAcreditar = Math.max(totalPremiosRepartir - montoAcreditado, 0);
+      const porForma = Array.from(acumuladoPorForma.values())
+        .map(item=>({
+          ...item,
+          porAcreditarForma: Math.max(item.totalForma - item.acreditadoForma, 0)
+        }))
+        .sort((a,b)=>a.formaIdx - b.formaIdx || a.nombreForma.localeCompare(b.nombreForma, 'es', { sensitivity: 'base' }));
+      return {
+        totalPremiosRepartir,
+        montoAcreditado,
+        montoPorAcreditar,
+        porForma
+      };
+    }
+
+    function cpRenderResumenMontos(sorteoId){
+      const contenedor = document.getElementById('cp-resumen-montos');
+      if(!contenedor) return;
+      const idObjetivo = (sorteoId || cpObtenerSorteoIdObjetivo() || '').toString().trim();
+      if(!idObjetivo){
+        contenedor.innerHTML = '<div class="cp-resumen-vacio">Selecciona un sorteo para ver el resumen de montos.</div>';
+        return;
+      }
+      const resumen = cpCalcularResumenMontos(idObjetivo);
+      const coloresForma = ['#00897b','#d81b60','#3949ab','#fb8c00','#7cb342','#8e24aa','#00acc1','#5d4037','#c62828'];
+      const formasHtml = resumen.porForma.length
+        ? resumen.porForma.map((item, indice)=>{
+          const color = coloresForma[indice % coloresForma.length];
+          return `<article class="cp-forma-card" style="--forma-color:${color}">
+            <div class="cp-forma-titulo">${escapeHtml(item.nombreForma)}</div>
+            <div class="cp-forma-item"><span>Total forma</span><span>${formatNumber.format(item.totalForma)}</span></div>
+            <div class="cp-forma-item"><span>Acreditado forma</span><span>${formatNumber.format(item.acreditadoForma)}</span></div>
+            <div class="cp-forma-item"><span>Por acreditar forma</span><span>${formatNumber.format(item.porAcreditarForma)}</span></div>
+          </article>`;
+        }).join('')
+        : '<div class="cp-resumen-vacio">No hay premios del sorteo seleccionado para desglosar por forma.</div>';
+      contenedor.innerHTML = `
+        <div class="cp-kpis-globales">
+          <article class="cp-kpi cp-kpi--repartir">
+            <div class="cp-kpi-label">totalPremiosRepartir</div>
+            <div class="cp-kpi-valor">${formatNumber.format(resumen.totalPremiosRepartir)}</div>
+          </article>
+          <article class="cp-kpi cp-kpi--acreditado">
+            <div class="cp-kpi-label">montoAcreditado</div>
+            <div class="cp-kpi-valor">${formatNumber.format(resumen.montoAcreditado)}</div>
+          </article>
+          <article class="cp-kpi cp-kpi--por-acreditar">
+            <div class="cp-kpi-label">montoPorAcreditar</div>
+            <div class="cp-kpi-valor">${formatNumber.format(resumen.montoPorAcreditar)}</div>
+          </article>
+        </div>
+        <div class="cp-forma-grid">${formasHtml}</div>
+      `;
+    }
+
     function renderPremios(){
       const lista = mostrarPremiosArchivo ? aplicarFiltrosPremios(premiosArchivados) : aplicarFiltrosPremios(premiosActivos);
       renderTabla(lista, 'tabla-premios', { mostrarArchivo: mostrarPremiosArchivo, tipo: 'premios' });
       actualizarBadge('premios', premiosActivos.filter(item=>item.estado === 'PENDIENTE').length);
       actualizarEstadoBotones();
+      cpRenderResumenMontos();
       reconciliarIndicadorPagos().catch(err=>console.warn('No se pudo actualizar el indicador tras renderizar premios', err));
     }
 
@@ -3012,10 +3209,16 @@
     }
     function configurarBotones(){
       const selectorSorteo = document.getElementById('cp-sorteo-selector');
+      if(selectorSorteo){
+        selectorSorteo.addEventListener('change', ()=>{
+          cpRenderResumenMontos(selectorSorteo.value);
+        });
+      }
       const botonGenerarSolicitudes = document.getElementById('cp-generar-solicitudes');
       if(botonGenerarSolicitudes){
         botonGenerarSolicitudes.addEventListener('click', async()=>{
           await cpGenerarSolicitudesManual();
+          cpRenderResumenMontos(cpObtenerSorteoIdObjetivo());
         });
       }
 
@@ -3031,6 +3234,7 @@
           const seleccion = obtenerSeleccion('tabla-premios');
           if(!seleccion.length){ alert('Selecciona al menos un registro.'); return; }
           await procesarPremiosJugadores(seleccion);
+          cpRenderResumenMontos(cpObtenerSorteoIdObjetivo());
         });
       }
       const premiosArchivarBtn = document.getElementById('premios-archivar');
@@ -3039,17 +3243,20 @@
           const seleccion = obtenerSeleccion('tabla-premios');
           if(!seleccion.length){ alert('Selecciona al menos un registro.'); return; }
           await archivarRegistros(seleccion, 'premios');
+          cpRenderResumenMontos(cpObtenerSorteoIdObjetivo());
         });
       }
       document.getElementById('pagos-aprobar').addEventListener('click', async()=>{
         const seleccion = obtenerSeleccion('tabla-pagos');
         if(!seleccion.length){ alert('Selecciona al menos un registro.'); return; }
         await aprobarPagos(seleccion);
+        cpRenderResumenMontos(cpObtenerSorteoIdObjetivo());
       });
       document.getElementById('pagos-archivar').addEventListener('click', async()=>{
         const seleccion = obtenerSeleccion('tabla-pagos');
         if(!seleccion.length){ alert('Selecciona al menos un registro.'); return; }
         await archivarRegistros(seleccion, 'pagos');
+        cpRenderResumenMontos(cpObtenerSorteoIdObjetivo());
       });
       document.getElementById('premios-archivo').addEventListener('click', ()=>{
         mostrarPremiosArchivo = !mostrarPremiosArchivo;
@@ -3367,6 +3574,7 @@
         return;
       }
       await cpCargarSelectorSorteos();
+      cpRenderResumenMontos(cpObtenerSorteoIdObjetivo());
       suscribirColecciones();
     }
 
