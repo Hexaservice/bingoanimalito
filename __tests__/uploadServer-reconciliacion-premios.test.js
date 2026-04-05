@@ -67,4 +67,73 @@ describe('reconciliación de premios pendientes directos', () => {
       errores: 0
     });
   });
+
+  test('reconcileSinglePendingPrize actualiza también la colección legacy premiosPagosdirectos', async () => {
+    const { reconcileSinglePendingPrize } = require('../uploadServer.js');
+
+    const premioRef = {
+      id: 'ppd_abc123',
+      parent: {
+        parent: {
+          id: 'ganador@example.com',
+          collection: jest.fn((name) => ({
+            doc: (id) => ({ __kind: `${name}-doc`, id })
+          }))
+        }
+      }
+    };
+    const premioDoc = {
+      id: 'ppd_abc123',
+      ref: premioRef
+    };
+
+    const premioSnap = {
+      exists: true,
+      data: () => ({
+        sorteoId: 'SRT-9',
+        estado: 'pendiente',
+        creditos: 25,
+        cartonesGratis: 2
+      })
+    };
+
+    const queryByPremio = { __kind: 'query-by-premio' };
+    const tx = {
+      get: jest.fn(async (target) => {
+        if (target === premioRef) return premioSnap;
+        if (target === premioRef.parent.parent) return { exists: true, data: () => ({ creditos: 100, CartonesGratis: 3 }) };
+        if (target && target.__kind === 'transaccion-ref') return { exists: false };
+        if (target === queryByPremio) return { empty: true, docs: [] };
+        return { exists: false, empty: true, docs: [] };
+      }),
+      set: jest.fn()
+    };
+
+    const db = {
+      collection: jest.fn((name) => {
+        if (name === 'transacciones') {
+          return {
+            doc: jest.fn(() => ({ __kind: 'transaccion-ref' })),
+            where: jest.fn(() => ({
+              limit: jest.fn(() => queryByPremio)
+            }))
+          };
+        }
+        return {};
+      }),
+      runTransaction: jest.fn(async (cb) => cb(tx))
+    };
+
+    const result = await reconcileSinglePendingPrize({
+      db,
+      premioDoc,
+      sorteoId: 'SRT-9',
+      acreditadoPor: 'admin@test.com',
+      origen: 'manual'
+    });
+
+    expect(result.status).toBe('acreditado');
+    const targets = tx.set.mock.calls.map(([target]) => target?.__kind || target?.id || '');
+    expect(targets).toContain('premiosPagosdirectos-doc');
+  });
 });
