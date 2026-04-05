@@ -10433,87 +10433,10 @@
     primerBotonAcreditar?.focus({preventScroll:true});
   }
 
-  async function registrarPremiosPendientes(detalles){
-    if(!db || !usuarioActual || !Array.isArray(detalles) || !detalles.length) return;
-    if(!locksGanadoresListos){
-      await precargarLocksGanadoresRemotos(activeSorteoId);
-    }
-    const mapaBloqueadosValido = Boolean(ganadoresBloqueadosPorForma)
-      && typeof ganadoresBloqueadosPorForma.get === 'function'
-      && typeof ganadoresBloqueadosPorForma.forEach === 'function';
-    const billeteraId = (usuarioActual?.email || usuarioActual?.uid || '').toString();
-    if(!billeteraId) return;
-    const billeteraRef = db.collection('Billetera').doc(billeteraId);
-    const premiosNormalizados = [];
-    const huellaCartonesPorForma = new Map();
-    if(mapaBloqueadosValido){
-      ganadoresBloqueadosPorForma.forEach((registro, idxRaw)=>{
-        const idx = Number(idxRaw);
-        const claves = Array.isArray(registro?.cartonClaves) ? registro.cartonClaves.filter(Boolean) : [];
-        if(!Number.isFinite(idx) || !claves.length) return;
-        huellaCartonesPorForma.set(idx, claves.slice().sort().join('|'));
-      });
-    }
-    detalles.forEach(detalle=>{
-      const premioId = (detalle?.premioId || construirClavePremioPendiente(detalle) || '').toString().trim().toLowerCase();
-      if(!premioId) return;
-      const idx = Number(detalle?.idx);
-      const claveCarton = (detalle?.cartonClaveGanador || '').toString().trim();
-      const registroBloqueado = mapaBloqueadosValido ? ganadoresBloqueadosPorForma.get(idx) : null;
-      const clavesBloqueadas = Array.isArray(registroBloqueado?.cartonClaves)
-        ? registroBloqueado.cartonClaves.filter(Boolean)
-        : [];
-      if(!clavesBloqueadas.length || !claveCarton || !clavesBloqueadas.includes(claveCarton)){
-        return;
-      }
-      const huellaVigente = huellaCartonesPorForma.get(idx) || '';
-      const huellaCerrada = (cierresPremiosPorForma.get(idx) || '').toString();
-      if(huellaCerrada && huellaVigente && huellaCerrada !== huellaVigente){
-        return;
-      }
-      premiosNormalizados.push({
-        premioId,
-        idx,
-        huellaVigente,
-        detalle,
-        premioRef: billeteraRef.collection('premiosPendientesDirectos').doc(premioId)
-      });
-    });
-    if(!premiosNormalizados.length) return;
-
-    const existentes = await Promise.all(
-      premiosNormalizados.map(item=>item.premioRef.get().catch(()=>null))
-    );
-    const lote = db.batch();
-    let totalNuevos = 0;
-    premiosNormalizados.forEach((item, index)=>{
-      const snap = existentes[index];
-      if(snap?.exists) return;
-      const detalle = item.detalle;
-      lote.set(item.premioRef, {
-        premioId: item.premioId,
-        clavePendiente: item.premioId,
-        idx: Number(detalle?.idx) || 0,
-        nombre: (detalle?.nombre || '').toString(),
-        creditos: Math.max(0, Number(detalle?.creditos) || 0),
-        cartonesGratis: Math.max(0, Number(detalle?.cartonesGratis) || 0),
-        cartonLabel: (detalle?.cartonLabel || '').toString(),
-        color: (detalle?.color || '').toString(),
-        sorteoId: (detalle?.sorteoId || activeSorteoId || '').toString(),
-        estado: 'pendiente',
-        origen: 'juegoactivo:registro-directo',
-        creadoEn: firebase.firestore.FieldValue.serverTimestamp()
-      });
-      totalNuevos += 1;
-    });
-    if(totalNuevos){
-      await lote.commit();
-      premiosNormalizados.forEach(item=>{
-        if(Number.isFinite(item.idx) && item.huellaVigente){
-          cierresPremiosPorForma.set(item.idx, item.huellaVigente);
-        }
-      });
-    }
+  async function registrarPremiosPendientes(){
+    // Flujo deshabilitado: juegoactivo solo consume premios pendientes directos
+    // generados por backend a partir de resultados oficiales del sorteo.
+    return;
   }
 
   async function mostrarPremiosPendientesDelSorteoActual(){
@@ -10882,9 +10805,6 @@
     });
     if(detalles.length){
       const detallesConSorteo = detalles.map(item=>({ ...item, sorteoId: activeSorteoId || '' }));
-      if(!esSimulacion){
-        registrarPremiosPendientes(detallesConSorteo).catch(err=>console.warn('No se pudo registrar premio pendiente',err));
-      }
       mostrarModalCelebracionGanador(detallesConSorteo, esSimulacion);
       if(!esSimulacion){
         playGameAudioEvent(AUDIO_EVENTS.WINNER, { priority: 3, force: true });

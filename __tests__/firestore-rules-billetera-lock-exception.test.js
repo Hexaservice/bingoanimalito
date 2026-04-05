@@ -16,7 +16,7 @@ describe('firestore.rules - billetera y subcolección premiosPendientesDirectos'
   test('subcolección valida permisos mínimos y mutación de acreditación', () => {
     expect(rules).toContain('match /premiosPendientesDirectos/{premioId}');
     expect(rules).toContain('allow create: if isSystemRequest()');
-    expect(rules).toContain('hasPendingPrizeCreateShape()');
+    expect(rules).not.toContain("(isOwner(email) && hasPendingPrizeCreateShape() && request.resource.data.premioId == premioId)");
     expect(rules).toContain('hasPendingPrizeAccreditationMutationShape()');
     expect(rules).toContain("diff.changedKeys().hasOnly(['estado', 'acreditadoEn', 'acreditadoPor', 'origen'])");
   });

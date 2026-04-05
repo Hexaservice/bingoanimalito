@@ -167,8 +167,7 @@ service cloud.firestore {
 
       match /premiosPendientesDirectos/{premioId} {
         allow read: if isAdmin() || isOwner(email);
-        allow create: if isSystemRequest()
-          || (isOwner(email) && hasPendingPrizeCreateShape() && request.resource.data.premioId == premioId);
+        allow create: if isSystemRequest();
         allow update: if isSystemRequest()
           || (isOwner(email) && hasPendingPrizeAccreditationMutationShape());
         allow delete: if isSystemRequest() || isAdmin();
