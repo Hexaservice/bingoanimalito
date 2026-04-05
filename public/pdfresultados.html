@@ -1522,6 +1522,148 @@
     return reemplazado.replace(/_{2,}/g, '_').replace(/^_+|_+$/g, '') || 'registro';
   }
 
+  function resolverApiAdminBasePdfResultados(){
+    if(typeof window.getAdminApiBase === 'function'){
+      const base = (window.getAdminApiBase() || '').toString().trim();
+      if(base) return base.replace(/\/+$/, '');
+    }
+    const uploadEndpoint = (window.UPLOAD_ENDPOINT || '').toString().trim();
+    if(uploadEndpoint){
+      return uploadEndpoint.replace(/\/upload\/?$/i, '').replace(/\/+$/, '');
+    }
+    return (window.location?.origin || '').replace(/\/+$/, '');
+  }
+
+  function registrarTelemetriaPdfResultados(nombreEvento, payload = {}){
+    if(typeof window.trackEvent === 'function'){
+      window.trackEvent(nombreEvento, payload);
+    } else {
+      console.info(`[telemetria] ${nombreEvento}`, payload);
+    }
+  }
+
+  function normalizarRolOperativoPdf(role){
+    if(typeof normalizeRole === 'function'){
+      return normalizeRole(role);
+    }
+    if(typeof role !== 'string') return null;
+    const limpio = role.trim().toLowerCase();
+    if(!limpio) return null;
+    if(limpio === 'superadmin' || limpio === 'super administrador' || limpio === 'super-administrador') return 'Superadmin';
+    if(limpio === 'administrador' || limpio === 'admin') return 'Administrador';
+    if(limpio === 'colaborador') return 'Colaborador';
+    return role.trim();
+  }
+
+  async function validarPermisoOperativoGenerarPremios(){
+    const user = auth?.currentUser || null;
+    if(!user){
+      return { permitido: false, mensaje: 'No hay sesión activa para generar premios.' };
+    }
+    const rolesPermitidos = new Set(['Superadmin', 'Administrador', 'Colaborador']);
+    const emailLower = normalizarEmail(user.email || '');
+    const uid = (user.uid || '').toString().trim();
+
+    let tokenResult = null;
+    try{
+      tokenResult = await user.getIdTokenResult(true);
+    }catch(_errorToken){
+      return { permitido: false, mensaje: 'No se pudo refrescar la sesión de seguridad.' };
+    }
+    const rawRoleClaim = tokenResult?.claims?.role ?? tokenResult?.claims?.rol ?? null;
+    const roleClaim = normalizarRolOperativoPdf(rawRoleClaim);
+    if(roleClaim && rolesPermitidos.has(roleClaim)){
+      return { permitido: true, role: roleClaim, source: 'custom_claims' };
+    }
+
+    const evaluarRole = (valor)=>rolesPermitidos.has(normalizarRolOperativoPdf(valor));
+    try {
+      if(emailLower){
+        const docEmail = await db.collection('users').doc(emailLower).get();
+        if(docEmail.exists && evaluarRole(docEmail.data()?.role)){
+          return { permitido: true, role: normalizarRolOperativoPdf(docEmail.data()?.role), source: 'users_email' };
+        }
+      }
+      if(uid){
+        const docUid = await db.collection('users').doc(uid).get();
+        if(docUid.exists && evaluarRole(docUid.data()?.role)){
+          return { permitido: true, role: normalizarRolOperativoPdf(docUid.data()?.role), source: 'users_uid' };
+        }
+      }
+    } catch (errPermisos) {
+      console.warn('[pdfresultados][premios][permisos] No se pudo validar rol en users', errPermisos);
+    }
+    return { permitido: false, mensaje: 'No tienes permisos para generar premios directos oficiales.' };
+  }
+
+  function extraerResumenPremiosDirectosOficiales(data = {}){
+    const origen = (data?.resumen && typeof data.resumen === 'object')
+      ? data.resumen
+      : (data?.resultado && typeof data.resultado === 'object' ? data.resultado : data);
+    const numeroSeguro = (valor)=>{
+      const numero = Number(valor);
+      return Number.isFinite(numero) && numero >= 0 ? numero : 0;
+    };
+    return {
+      creados: numeroSeguro(origen?.creados ?? origen?.totalCreados ?? origen?.insertados),
+      duplicados: numeroSeguro(origen?.duplicados ?? origen?.totalDuplicados ?? origen?.existentes),
+      evaluados: numeroSeguro(origen?.evaluados ?? origen?.totalEvaluados ?? origen?.procesados)
+    };
+  }
+
+  async function generarPremiosPendientesDirectosOficiales(sorteoIdObjetivo){
+    const sorteoSeguro = (sorteoIdObjetivo || '').toString().trim();
+    if(!sorteoSeguro){
+      return { ok: false, omitido: true, motivo: 'sorteo_id_vacio', resumen: { creados: 0, duplicados: 0, evaluados: 0 } };
+    }
+    await ensureFirebaseReady();
+    const validacionPermiso = await validarPermisoOperativoGenerarPremios();
+    if(!validacionPermiso?.permitido){
+      const errorPermiso = new Error(validacionPermiso?.mensaje || 'No autorizado para generar premios directos oficiales.');
+      errorPermiso.code = 'permission-denied';
+      throw errorPermiso;
+    }
+    const apiBase = resolverApiAdminBasePdfResultados();
+    if(!apiBase){
+      throw new Error('No se pudo resolver la URL base del API administrativo.');
+    }
+    const token = await auth.currentUser.getIdToken(true);
+    let statusCode = 0;
+    try {
+      const response = await fetch(`${apiBase}/admin/generar-premios-pendientes-directos-oficiales`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ sorteoId: sorteoSeguro })
+      });
+      statusCode = Number(response.status) || 0;
+      const data = await response.json().catch(()=>({}));
+      if(!response.ok && response.status !== 409){
+        const detalle = (data?.message || data?.error || '').toString().trim();
+        throw new Error(detalle || `HTTP ${response.status}`);
+      }
+      const resumen = extraerResumenPremiosDirectosOficiales(data);
+      const idempotente = statusCode === 409 || resumen.duplicados > 0 || Boolean(data?.idempotente || data?.yaExistianPremios);
+      registrarTelemetriaPdfResultados('pdfresultados_generar_premios_directos_oficiales_exito', {
+        sorteoId: sorteoSeguro,
+        statusCode,
+        ...resumen,
+        idempotente
+      });
+      return { ok: true, idempotente, statusCode, resumen, data };
+    } catch (error) {
+      registrarTelemetriaPdfResultados('pdfresultados_generar_premios_directos_oficiales_error', {
+        sorteoId: sorteoSeguro,
+        statusCode,
+        errorCode: (error?.code || '').toString().trim() || null,
+        errorMessage: (error?.message || '').toString().trim() || null
+      });
+      throw error;
+    }
+  }
+
   function obtenerCandidatosBilleteraId(...valores){
     const vistos = new Set();
     const candidatos = [];
@@ -2045,13 +2187,26 @@
         ganadores: 0,
         administrativos: 0,
         colaboradores: 0,
+        premiosPendientesDirectosOficiales: { creados: 0, duplicados: 0, evaluados: 0 },
         pagosAdministrativosAutomaticos: 0,
         corteYaEjecutado: true
       };
     }
+    let resumenPremiosDirectos = { creados: 0, duplicados: 0, evaluados: 0 };
+    try{
+      const resultadoPremiosDirectos = await generarPremiosPendientesDirectosOficiales(sorteoId);
+      resumenPremiosDirectos = resultadoPremiosDirectos?.resumen || resumenPremiosDirectos;
+    } catch (errorPremiosDirectos) {
+      console.warn('[pdfresultados] No se pudo ejecutar la generación de premios directos oficiales durante la orquestación', {
+        sorteoId,
+        errorCode: (errorPremiosDirectos?.code || '').toString().trim(),
+        errorMessage: (errorPremiosDirectos?.message || '').toString().trim()
+      });
+    }
     const resumen = await generarSolicitudesCentroPagos();
     return {
       ...resumen,
+      premiosPendientesDirectosOficiales: resumenPremiosDirectos,
       corteYaEjecutado: false
     };
   }
@@ -3460,9 +3615,11 @@
         const mensajeCorte = resultadoOrquestacion.corteYaEjecutado
           ? 'El corte de premios ya estaba ejecutado, no se reprocesaron solicitudes.'
           : `Premios consolidados: ${resultadoOrquestacion.ganadores}.`;
+        const resumenPremiosDirectos = resultadoOrquestacion?.premiosPendientesDirectosOficiales || { creados: 0, duplicados: 0, evaluados: 0 };
         alert(
           `El sorteo se marcó como PDF listo y se ejecutó la orquestación de pagos.\n`+
           `${mensajeCorte}\n`+
+          `Premios directos oficiales: creados ${resumenPremiosDirectos.creados}, duplicados ${resumenPremiosDirectos.duplicados}, evaluados ${resumenPremiosDirectos.evaluados}.\n`+
           `Solicitudes administrativas creadas: ${resultadoOrquestacion.administrativos}.\n`+
           `Solicitudes de colaboradores creadas: ${resultadoOrquestacion.colaboradores}.\n`+
           `Los pagos quedan en estado PENDIENTE hasta ser procesados/aprobados en Centro de Pagos.`
