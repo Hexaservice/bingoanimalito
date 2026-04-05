@@ -4974,6 +4974,7 @@
   let cartonesSorteo = new Map();
   let cartonesGanadoresPorForma = new Map();
   let ganadoresBloqueadosPorForma = new Map();
+  let cierresPremiosPorForma = new Map();
   let formasPorCarton = new Map();
   let activeSorteo = null;
   let activeSorteoId = null;
@@ -10427,15 +10428,43 @@
 
   async function registrarPremiosPendientes(detalles){
     if(!db || !usuarioActual || !Array.isArray(detalles) || !detalles.length) return;
+    const mapaBloqueadosValido = Boolean(ganadoresBloqueadosPorForma)
+      && typeof ganadoresBloqueadosPorForma.get === 'function'
+      && typeof ganadoresBloqueadosPorForma.forEach === 'function';
     const billeteraId = (usuarioActual?.email || usuarioActual?.uid || '').toString();
     if(!billeteraId) return;
     const billeteraRef = db.collection('Billetera').doc(billeteraId);
     const premiosNormalizados = [];
+    const huellaCartonesPorForma = new Map();
+    if(mapaBloqueadosValido){
+      ganadoresBloqueadosPorForma.forEach((registro, idxRaw)=>{
+        const idx = Number(idxRaw);
+        const claves = Array.isArray(registro?.cartonClaves) ? registro.cartonClaves.filter(Boolean) : [];
+        if(!Number.isFinite(idx) || !claves.length) return;
+        huellaCartonesPorForma.set(idx, claves.slice().sort().join('|'));
+      });
+    }
     detalles.forEach(detalle=>{
       const premioId = (detalle?.premioId || construirClavePremioPendiente(detalle) || '').toString().trim().toLowerCase();
       if(!premioId) return;
+      const idx = Number(detalle?.idx);
+      const claveCarton = (detalle?.cartonClaveGanador || '').toString().trim();
+      const registroBloqueado = mapaBloqueadosValido ? ganadoresBloqueadosPorForma.get(idx) : null;
+      const clavesBloqueadas = Array.isArray(registroBloqueado?.cartonClaves)
+        ? registroBloqueado.cartonClaves.filter(Boolean)
+        : [];
+      if(!clavesBloqueadas.length || !claveCarton || !clavesBloqueadas.includes(claveCarton)){
+        return;
+      }
+      const huellaVigente = huellaCartonesPorForma.get(idx) || '';
+      const huellaCerrada = (cierresPremiosPorForma.get(idx) || '').toString();
+      if(huellaCerrada && huellaVigente && huellaCerrada !== huellaVigente){
+        return;
+      }
       premiosNormalizados.push({
         premioId,
+        idx,
+        huellaVigente,
         detalle,
         premioRef: billeteraRef.collection('premiosPendientesDirectos').doc(premioId)
       });
@@ -10469,6 +10498,11 @@
     });
     if(totalNuevos){
       await lote.commit();
+      premiosNormalizados.forEach(item=>{
+        if(Number.isFinite(item.idx) && item.huellaVigente){
+          cierresPremiosPorForma.set(item.idx, item.huellaVigente);
+        }
+      });
     }
   }
 
@@ -10831,7 +10865,8 @@
         const nombre=(forma?.nombre||'').toString().trim();
         const color=obtenerColorParaForma(idx);
         const cartonLabel=formatearInfoCarton(carton);
-        detalles.push({idx, nombre, creditos, cartonesGratis, color, cartonLabel});
+        const cartonClaveGanador=construirClaveCartonGanador(carton);
+        detalles.push({idx, nombre, creditos, cartonesGratis, color, cartonLabel, cartonClaveGanador});
       });
       formasCelebradasPorCarton.set(carton.id, registro);
     });
@@ -11472,19 +11507,40 @@
 
   function construirClaveCartonGanador(carton){
     if(!carton) return '';
-    const id=(carton.id||'').toString().trim();
-    if(id) return `id:${id}`;
     const userId=(carton.userId||'').toString().trim().toLowerCase();
     const cartonNum=Number(carton.cartonNum ?? carton.Ncarton ?? carton.numero ?? carton.numeroCarton);
     if(userId && Number.isFinite(cartonNum)){
       return `usr:${userId}::num:${cartonNum}`;
     }
+    const id=(carton.id||'').toString().trim();
+    if(id) return `id:${id}`;
+    const posiciones=Array.isArray(carton.posiciones)?carton.posiciones:[];
+    if(posiciones.length){
+      const huella=posiciones
+        .map(pos=>{
+          const r=Number(pos?.r);
+          const c=Number(pos?.c);
+          const v=(pos?.v ?? '').toString().trim();
+          if(!Number.isInteger(r) || !Number.isInteger(c) || !v) return '';
+          return `${r},${c},${v}`;
+        })
+        .filter(Boolean)
+        .sort()
+        .join('|');
+      if(huella){
+        return `pos:${huella}`;
+      }
+    }
     return '';
   }
 
+  function esMapaValido(valor){
+    return Boolean(valor) && typeof valor.get === 'function' && typeof valor.set === 'function' && typeof valor.forEach === 'function';
+  }
+
   function resolverCartonesGanadoresBloqueados(mapa, claves){
-    if(!(mapa instanceof Map) || !Array.isArray(claves) || !claves.length){
-      return [];
+    if(!esMapaValido(mapa) || !Array.isArray(claves) || !claves.length){
+      return { cartones: [], faltantes: [] };
     }
     const candidatos=Array.from(mapa.values());
     const index=new Map();
@@ -11494,7 +11550,15 @@
         index.set(clave,carton);
       }
     });
-    return claves.map(clave=>index.get(clave)).filter(Boolean);
+    const faltantes=[];
+    const cartones=claves.map(clave=>{
+      const carton=index.get(clave);
+      if(!carton){
+        faltantes.push(clave);
+      }
+      return carton;
+    }).filter(Boolean);
+    return { cartones, faltantes };
   }
 
   function calcularGanadoresEnMapa(mapa, formasExcluidas = new Set(), opciones = {}){
@@ -11504,7 +11568,7 @@
       return {formasPorCarton:formasMapa, cartonesGanadoresPorForma:ganadoresForma};
     }
     const bloquearGanadores=Boolean(opciones?.bloquearGanadoresPorForma);
-    const mapaBloqueados=bloquearGanadores && opciones?.mapaGanadoresBloqueados instanceof Map
+    const mapaBloqueados=bloquearGanadores && esMapaValido(opciones?.mapaGanadoresBloqueados)
       ? opciones.mapaGanadoresBloqueados
       : null;
     const formasBloqueadas = new Set();
@@ -11555,16 +11619,27 @@
       let ganadoresFinales=ganadores;
       let pasoFinal=mejorPaso;
       if(registroBloqueado && Array.isArray(registroBloqueado.cartonClaves) && registroBloqueado.cartonClaves.length){
-        ganadoresFinales=resolverCartonesGanadoresBloqueados(mapa,registroBloqueado.cartonClaves);
+        const resolucionBloqueada=resolverCartonesGanadoresBloqueados(mapa,registroBloqueado.cartonClaves);
+        ganadoresFinales=Array.isArray(resolucionBloqueada?.cartones) ? resolucionBloqueada.cartones : [];
+        if(Array.isArray(resolucionBloqueada?.faltantes) && resolucionBloqueada.faltantes.length){
+          // Mantener el lock original y evitar introducir "ganadores nuevos"
+          // cuando aún no están todos los cartones bloqueados resolubles.
+          ganadoresFinales=ganadoresFinales.filter(Boolean);
+        }
         const pasoBloqueado=Number(registroBloqueado.paso);
         if(Number.isFinite(pasoBloqueado)){
           pasoFinal=pasoBloqueado;
         }
       }else if(mapaBloqueados && ganadores.length && Number.isFinite(mejorPaso)){
+        const cartonClaves=ganadores.map(carton=>construirClaveCartonGanador(carton)).filter(Boolean);
+        if(!cartonClaves.length){
+          ganadoresFinales=[];
+        }else{
         mapaBloqueados.set(indiceForma,{
           paso:mejorPaso,
-          cartonClaves:ganadores.map(carton=>construirClaveCartonGanador(carton)).filter(Boolean)
+          cartonClaves
         });
+        }
       }
       const totalGanadores=ganadoresFinales.length;
       ganadoresForma.set(forma.idx,{forma,cartones:ganadoresFinales,paso:pasoFinal,totalGanadores});
@@ -12242,6 +12317,7 @@
       activeSorteo=null;
       activeSorteoId=null;
       ganadoresBloqueadosPorForma = new Map();
+      cierresPremiosPorForma = new Map();
       cantosColumnasLoteria = [];
       actualizarHeader();
       reiniciarNotificacionesPremios();
@@ -12273,6 +12349,7 @@
     suscribirManualBingo();
     if(cambio){
       ganadoresBloqueadosPorForma = new Map();
+      cierresPremiosPorForma = new Map();
       reiniciarAlertaFormasSinGanadores();
       reiniciarNotificacionesPremios();
       manualConfirmacionLocalPendiente = false;
@@ -12445,6 +12522,7 @@
       activeSorteo={id:info.id,...data};
       activeSorteoId=info.id;
       ganadoresBloqueadosPorForma = new Map();
+      cierresPremiosPorForma = new Map();
       cargarLoteriasActivasSorteo(activeSorteo);
       actualizarHeader();
       suscribirSimulacionSorteo(activeSorteoId);
