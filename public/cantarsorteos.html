@@ -4271,6 +4271,19 @@
     return 0;
   }
 
+  function obtenerCreditosPorGanador(forma,totalGanadores){
+    const totalForma = obtenerCreditosForma(forma);
+    if(totalForma <= 0) return 0;
+    let ganadoresNumero = Number(totalGanadores);
+    if(!Number.isFinite(ganadoresNumero)){
+      ganadoresNumero = 1;
+    }else{
+      ganadoresNumero = Math.floor(ganadoresNumero);
+    }
+    const totalSeguro = Math.max(1, ganadoresNumero);
+    return Number((totalForma / totalSeguro).toFixed(6));
+  }
+
   function actualizarModalPremioForma(forma){
     if(!modalPremioFormaEl || !modalPremioFormaValorEl) return;
     if(!forma){
@@ -4334,25 +4347,28 @@
   }
 
   function obtenerCartonesGratisPorGanador(forma,totalGanadores){
-    const totalCartones = obtenerCartonesGratisForma(forma);
-    if(totalCartones <= 0) return 0;
+    const cartonesPorGanadorRaw = Number(forma?.cartonesGratisPorGanador);
+    const totalCartonesRaw = Number(
+      forma?.cartonesGratis
+      ?? forma?.cartonesgratis
+      ?? forma?.cartones_gratis
+      ?? forma?.premioCartonesGratis
+      ?? forma?.premioCartonesgratis
+      ?? forma?.cartones
+      ?? 0
+    );
     let ganadoresNumero = Number(totalGanadores);
     if(!Number.isFinite(ganadoresNumero)){
       ganadoresNumero = 1;
     }else{
       ganadoresNumero = Math.floor(ganadoresNumero);
     }
-    if(ganadoresNumero <= 0){
-      return 0;
+    const totalSeguro = Math.max(1, ganadoresNumero);
+    if(Number.isFinite(cartonesPorGanadorRaw)){
+      return Number(Math.max(0, cartonesPorGanadorRaw).toFixed(6));
     }
-    if(ganadoresNumero === 1){
-      return totalCartones;
-    }
-    if(totalCartones < ganadoresNumero){
-      return totalCartones;
-    }
-    const dividido = Math.floor(totalCartones / ganadoresNumero);
-    return dividido > 0 ? dividido : totalCartones;
+    const totalCartones = Number.isFinite(totalCartonesRaw) ? Math.max(0, totalCartonesRaw) : 0;
+    return Number((totalCartones / totalSeguro).toFixed(6));
   }
 
   function obtenerCartonesGratisTotalesEntregados(forma,totalGanadores){
@@ -4898,9 +4914,8 @@
       `<span>Tipo: ${normalizarTipoCarton(carton).toUpperCase()}</span>`;
     infoCol.appendChild(infoBox);
     card.appendChild(infoCol);
-    const premio = obtenerCreditosForma(forma);
     const totalGanadores = Math.max(1, (cartonesGanadoresPorForma.get(Number(forma?.idx))?.cartones?.length) || 1);
-    const montoIndividual = premio > 0 ? Math.floor(premio / totalGanadores) : 0;
+    const montoIndividual = obtenerCreditosPorGanador(forma, totalGanadores);
     const cartonesGratisTotales = obtenerCartonesGratisTotalesEntregados(forma, totalGanadores);
     const cartonesGratisPorGanador = obtenerCartonesGratisPorGanador(forma, totalGanadores);
     const premiosCol = document.createElement('div');

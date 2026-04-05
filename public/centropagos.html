@@ -1526,6 +1526,19 @@
       return 0;
     }
 
+    function cpObtenerCreditosPorGanador(ctx, forma, totalGanadores){
+      const totalCreditos = cpObtenerCreditosForma(ctx, forma);
+      if(totalCreditos <= 0) return 0;
+      let ganadoresNumero = Number(totalGanadores);
+      if(!Number.isFinite(ganadoresNumero)){
+        ganadoresNumero = 1;
+      }else{
+        ganadoresNumero = Math.floor(ganadoresNumero);
+      }
+      const totalSeguro = Math.max(1, ganadoresNumero);
+      return Number((totalCreditos / totalSeguro).toFixed(6));
+    }
+
     function cpObtenerCartonesGratisForma(forma){
       if(!forma) return 0;
       const candidatos = [
@@ -1546,25 +1559,28 @@
     }
 
     function cpObtenerCartonesGratisPorGanador(forma,totalGanadores){
-      const totalCartones = cpObtenerCartonesGratisForma(forma);
-      if(totalCartones <= 0) return 0;
+      const cartonesPorGanadorRaw = Number(forma?.cartonesGratisPorGanador);
+      const totalCartonesRaw = Number(
+        forma?.cartonesGratis
+        ?? forma?.cartonesgratis
+        ?? forma?.cartones_gratis
+        ?? forma?.premioCartonesGratis
+        ?? forma?.premioCartonesgratis
+        ?? forma?.cartones
+        ?? 0
+      );
       let ganadoresNumero = Number(totalGanadores);
       if(!Number.isFinite(ganadoresNumero)){
         ganadoresNumero = 1;
       }else{
         ganadoresNumero = Math.floor(ganadoresNumero);
       }
-      if(ganadoresNumero <= 0){
-        return 0;
+      const totalSeguro = Math.max(1, ganadoresNumero);
+      if(Number.isFinite(cartonesPorGanadorRaw)){
+        return Number(Math.max(0, cartonesPorGanadorRaw).toFixed(6));
       }
-      if(ganadoresNumero === 1){
-        return totalCartones;
-      }
-      if(totalCartones < ganadoresNumero){
-        return totalCartones;
-      }
-      const dividido = Math.floor(totalCartones / ganadoresNumero);
-      return dividido > 0 ? dividido : totalCartones;
+      const totalCartones = Number.isFinite(totalCartonesRaw) ? Math.max(0, totalCartonesRaw) : 0;
+      return Number((totalCartones / totalSeguro).toFixed(6));
     }
 
     function cpObtenerCartonesGratisTotalesEntregados(forma,totalGanadores){
@@ -1661,10 +1677,8 @@
         const forma = registro?.forma;
         const ganadores = Array.isArray(registro?.cartones) ? registro.cartones : [];
         if(!forma || !ganadores.length) return;
-        const totalCreditos = cpObtenerCreditosForma(ctx, forma);
         const cantidad = ganadores.length || 1;
-        const totalGratis = cpObtenerCartonesGratisTotalesEntregados(forma, cantidad);
-        const creditosPorGanador = cantidad > 0 ? Math.floor(totalCreditos / cantidad) : 0;
+        const creditosPorGanador = cpObtenerCreditosPorGanador(ctx, forma, cantidad);
         const gratisPorGanador = cpObtenerCartonesGratisPorGanador(forma, cantidad);
         ganadores.forEach(carton=>{
           const claveUsuario = (carton?.userId || carton?.usuarioId || '').toString().trim();
