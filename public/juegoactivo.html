@@ -10418,10 +10418,14 @@
     modalCelebracionListaEl.innerHTML='';
     const sorteoFinalizado = ((activeSorteo?.estado || '').toString().toLowerCase()==='finalizado');
     lista.forEach(detalle=>{
+      const estadoPremio = (detalle?.estado || '').toString().trim().toLowerCase();
+      const premioPendienteDetectado = detalle?.documentoPendienteReal === true
+        || !estadoPremio
+        || estadoPremio === 'pendiente';
       const mostrarAcreditar = !esSimulacion
         && !detalle?.perdido
         && !sorteoFinalizado
-        && detalle?.documentoPendienteReal === true;
+        && premioPendienteDetectado;
       modalCelebracionListaEl.appendChild(crearLineaCelebracionGanador(detalle, { mostrarAcreditar }));
     });
     if(modalCelebracionMensajeEl){
