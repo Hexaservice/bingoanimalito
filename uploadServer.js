@@ -674,7 +674,13 @@ async function generatePendingDirectPrizesFromOfficialResults({
           return { id: userDoc.id, data: userDoc.data() || {} };
         }
       });
-      const billeteraId = normalizeString(winnerIdentity?.canonicalEmail, 160).toLowerCase();
+      const billeteraCandidates = Array.isArray(winnerIdentity?.billeteraCandidates)
+        ? winnerIdentity.billeteraCandidates
+        : [];
+      const billeteraId = (
+        normalizeString(winnerIdentity?.canonicalEmail, 160).toLowerCase() ||
+        normalizeString(billeteraCandidates[0], 160)
+      );
       if (!billeteraId) continue;
 
       const eventoGanadorId = construirEventoGanadorIdCanonico({
