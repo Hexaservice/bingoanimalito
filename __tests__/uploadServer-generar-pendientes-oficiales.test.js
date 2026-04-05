@@ -334,4 +334,36 @@ describe('generatePendingDirectPrizesFromOfficialResults', () => {
       expect(premio.cartonesGratis).toBe(1.75);
     });
   });
+
+  test('crea premio usando billetera por userId cuando no existe email canónico del ganador', async () => {
+    const { db, premios } = createDbDouble({
+      lockPorForma: {
+        '1': { cartonClaves: ['usr:uid_ganador_77::num:7'], cerradoEn: '2026-04-01T00:00:00Z' }
+      },
+      cartones: [
+        {
+          id: 'carton-doc-uid-1',
+          data: {
+            sorteoId: 'SRT-OF-1',
+            userId: 'UID_GANADOR_77',
+            cartonNum: 7,
+            email: '',
+            gmail: '',
+            IDbilletera: 'UID_GANADOR_77'
+          }
+        }
+      ]
+    });
+
+    const result = await generatePendingDirectPrizesFromOfficialResults({
+      db,
+      sorteoId: 'SRT-OF-1',
+      generadoPor: 'admin@test.com'
+    });
+
+    expect(result.creados).toBe(1);
+    expect(premios.size).toBe(1);
+    const [premioPath] = Array.from(premios.keys());
+    expect(premioPath.startsWith('uid_ganador_77/')).toBe(true);
+  });
 });
