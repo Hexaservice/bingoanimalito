@@ -2213,6 +2213,9 @@
   let mostrarComplementariosPendiente = false;
   let evaluandoCantoActual = false;
   const advertenciasGanadorSinEmail = new Set();
+  let sincronizacionPremiosDirectosEnCurso = false;
+  let firmaSincronizacionPremiosDirectos = '';
+  let resumenUltimaSincronizacionPremiosDirectos = null;
   function manejarAceptarConfirmacionCanto(){
     cerrarConfirmacionCanto(true);
   }
@@ -4460,6 +4463,9 @@
       }
       const data = doc.data() || {};
       ganadoresBloqueadosPorForma = normalizarLockGanadoresDesdeFuente(data?.[CAMPO_LOCK_GANADORES_FORMA]);
+      Promise.resolve().then(()=>{
+        sincronizarPremiosPendientesDirectosDesdeLocks({ contexto: 'cargar_locks_remotos' });
+      });
     }catch(err){
       console.warn('No se pudieron cargar locks remotos de ganadores por forma.', err);
       ganadoresBloqueadosPorForma = new Map();
@@ -4569,6 +4575,9 @@
         if(a.paso !== b.paso) return a.paso - b.paso;
         return (Number(a.forma?.idx) || 0) - (Number(b.forma?.idx) || 0);
       });
+    });
+    Promise.resolve().then(()=>{
+      sincronizarPremiosPendientesDirectosDesdeLocks({ contexto: 'calcular_ganadores' });
     });
     evaluarEstadoFormasGanadoras();
     actualizarBotonesFormas();
@@ -7309,6 +7318,61 @@
         errorMessage: (error?.message || '').toString().trim() || null
       });
       throw error;
+    }
+  }
+
+  function construirFirmaGanadoresBloqueados(mapa = ganadoresBloqueadosPorForma){
+    const payload = serializarGanadoresBloqueadosPorForma(mapa);
+    const entradas = Object.entries(payload)
+      .filter(([, valor])=>valor && Array.isArray(valor.cartonClaves) && valor.cartonClaves.length)
+      .map(([idx, valor])=>({
+        idx: Number(idx),
+        paso: Number(valor?.paso),
+        cartonClaves: valor.cartonClaves.map(item=>(item ?? '').toString().trim()).filter(Boolean).sort()
+      }))
+      .sort((a,b)=>a.idx-b.idx);
+    if(!entradas.length) return '';
+    return JSON.stringify(entradas);
+  }
+
+  async function sincronizarPremiosPendientesDirectosDesdeLocks({
+    forzar = false,
+    contexto = 'sin_contexto'
+  } = {}){
+    const estadoActual = obtenerEstadoActualNormalizado();
+    if(estadoActual !== 'jugando' && estadoActual !== 'finalizado') return null;
+    if(!currentSorteoId) return null;
+    const firmaGanadores = construirFirmaGanadoresBloqueados();
+    if(!firmaGanadores) return null;
+    const firmaActual = `${currentSorteoId}::${firmaGanadores}`;
+    if(sincronizacionPremiosDirectosEnCurso) return null;
+    if(!forzar && firmaActual === firmaSincronizacionPremiosDirectos) return resumenUltimaSincronizacionPremiosDirectos;
+
+    sincronizacionPremiosDirectosEnCurso = true;
+    try{
+      const resultado = await generarPremiosPendientesDirectosOficiales(currentSorteoId);
+      firmaSincronizacionPremiosDirectos = firmaActual;
+      resumenUltimaSincronizacionPremiosDirectos = resultado?.resumen || null;
+      const resumen = resultado?.resumen || { creados: 0, duplicados: 0, evaluados: 0 };
+      console.info('[cantarsorteos][premios-directos][sync-ok]', {
+        contexto,
+        sorteoId: currentSorteoId || '',
+        estado: estadoActual,
+        ...resumen,
+        idempotente: Boolean(resultado?.idempotente)
+      });
+      return resultado;
+    }catch(error){
+      console.warn('[cantarsorteos][premios-directos][sync-error]', {
+        contexto,
+        sorteoId: currentSorteoId || '',
+        estado: estadoActual,
+        errorCode: (error?.code || '').toString().trim() || null,
+        errorMessage: (error?.message || '').toString().trim() || null
+      });
+      return null;
+    }finally{
+      sincronizacionPremiosDirectosEnCurso = false;
     }
   }
 
