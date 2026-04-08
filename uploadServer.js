@@ -695,7 +695,11 @@ async function generatePendingDirectPrizesFromOfficialResults({
       const billeteraCandidates = Array.isArray(winnerIdentity?.billeteraCandidates)
         ? winnerIdentity.billeteraCandidates
         : [];
+      const internalCandidates = Array.isArray(winnerIdentity?.internalCandidates)
+        ? winnerIdentity.internalCandidates
+        : [];
       const billeteraId = (
+        normalizeString(internalCandidates[0], 160) ||
         normalizeString(winnerIdentity?.canonicalEmail, 160).toLowerCase() ||
         normalizeString(billeteraCandidates[0], 160)
       );
