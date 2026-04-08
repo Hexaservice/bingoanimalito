@@ -4473,15 +4473,17 @@
   }
 
   function guardarLockGanadoresFormaTransaccional(idx, registro){
-    if(!db || !currentSorteoId) return;
+    if(!db || !currentSorteoId) return Promise.resolve({ omitido: true, razon: 'sin_db_o_sorteo' });
     const idxNumero = Number(idx);
     const paso = Number(registro?.paso);
     const cartonClaves = Array.isArray(registro?.cartonClaves)
       ? registro.cartonClaves.map(item=>(item ?? '').toString().trim()).filter(Boolean)
       : [];
-    if(!Number.isFinite(idxNumero) || !cartonClaves.length) return;
+    if(!Number.isFinite(idxNumero) || !cartonClaves.length){
+      return Promise.resolve({ omitido: true, razon: 'lock_invalido' });
+    }
     const sorteoRef = db.collection('sorteos').doc(currentSorteoId);
-    db.runTransaction(async tx=>{
+    return db.runTransaction(async tx=>{
       const snap = await tx.get(sorteoRef);
       if(!snap.exists) return;
       const data = snap.data() || {};
@@ -4504,12 +4506,14 @@
         idx: idxNumero,
         error
       });
+      throw error;
     });
   }
 
   function calcularGanadores(){
     cartonesGanadoresPorForma = new Map();
     formasPorCarton = new Map();
+    const persistenciasLockPendientes = [];
     if(!formasActivas.length || !cartonesSorteo.size || !cantosOrdenados.length){
       actualizarBotonesFormas();
       evaluarEstadoFormasGanadoras();
@@ -4562,7 +4566,7 @@
           cartonClaves: ganadores.map(item=>construirClaveCartonGanador(item)).filter(Boolean)
         };
         ganadoresBloqueadosPorForma.set(idx, lockForma);
-        guardarLockGanadoresFormaTransaccional(idx, lockForma);
+        persistenciasLockPendientes.push(guardarLockGanadoresFormaTransaccional(idx, lockForma));
       }
       cartonesGanadoresPorForma.set(idx, { forma, cartones: ganadoresFinales, paso: pasoFinal });
       ganadoresFinales.forEach(carton=>{
@@ -4576,7 +4580,19 @@
         return (Number(a.forma?.idx) || 0) - (Number(b.forma?.idx) || 0);
       });
     });
-    Promise.resolve().then(()=>{
+    Promise.resolve().then(async ()=>{
+      if(persistenciasLockPendientes.length){
+        const resultados = await Promise.allSettled(persistenciasLockPendientes);
+        const totalErrores = resultados.filter(item=>item.status === 'rejected').length;
+        if(totalErrores){
+          console.warn('[cantarsorteos][premios-directos][sync-skip-lock-persist-error]', {
+            sorteoId: currentSorteoId || '',
+            totalPendientes: persistenciasLockPendientes.length,
+            totalErrores
+          });
+          return;
+        }
+      }
       sincronizarPremiosPendientesDirectosDesdeLocks({ contexto: 'calcular_ganadores' });
     });
     evaluarEstadoFormasGanadoras();
