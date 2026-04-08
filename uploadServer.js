@@ -674,15 +674,6 @@ async function generatePendingDirectPrizesFromOfficialResults({
           return { id: userDoc.id, data: userDoc.data() || {} };
         }
       });
-      const billeteraCandidates = Array.isArray(winnerIdentity?.billeteraCandidates)
-        ? winnerIdentity.billeteraCandidates
-        : [];
-      const billeteraId = (
-        normalizeString(winnerIdentity?.canonicalEmail, 160).toLowerCase() ||
-        normalizeString(billeteraCandidates[0], 160)
-      );
-      if (!billeteraId) continue;
-
       const eventoGanadorId = construirEventoGanadorIdCanonico({
         sorteoId: normalizedSorteoId,
         formaIdx,
@@ -691,18 +682,29 @@ async function generatePendingDirectPrizesFromOfficialResults({
       });
       if (!eventoGanadorId) continue;
       const premioId = buildOfficialPendingPrizeId(eventoGanadorId);
+      const existingByEventAcrossWalletsSnap = await db
+        .collectionGroup('premiosPendientesDirectos')
+        .where('eventoGanadorId', '==', eventoGanadorId)
+        .limit(1)
+        .get();
+      if (!existingByEventAcrossWalletsSnap.empty) {
+        duplicados += 1;
+        continue;
+      }
+
+      const billeteraCandidates = Array.isArray(winnerIdentity?.billeteraCandidates)
+        ? winnerIdentity.billeteraCandidates
+        : [];
+      const billeteraId = (
+        normalizeString(winnerIdentity?.canonicalEmail, 160).toLowerCase() ||
+        normalizeString(billeteraCandidates[0], 160)
+      );
+      if (!billeteraId) continue;
       const billeteraRef = db.collection('Billetera').doc(billeteraId);
       const premioRef = billeteraRef.collection('premiosPendientesDirectos').doc(premioId);
 
-      const [premioSnap, duplicatedByEventSnap] = await Promise.all([
-        premioRef.get(),
-        billeteraRef
-          .collection('premiosPendientesDirectos')
-          .where('eventoGanadorId', '==', eventoGanadorId)
-          .limit(1)
-          .get()
-      ]);
-      if (premioSnap.exists || !duplicatedByEventSnap.empty) {
+      const premioSnap = await premioRef.get();
+      if (premioSnap.exists) {
         duplicados += 1;
         continue;
       }

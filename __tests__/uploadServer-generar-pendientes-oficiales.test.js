@@ -38,7 +38,10 @@ function createDbDouble({
         email: 'ganador@example.com'
       }
     }
-  ]
+  ],
+  usersById = {
+    'ganador@example.com': { email: 'ganador@example.com' }
+  }
 } = {}) {
   const premios = new Map();
   const sorteoData = {
@@ -96,8 +99,9 @@ function createDbDouble({
         return {
           doc: (id) => ({
             get: async () => {
-              if (id === 'ganador@example.com') {
-                return { exists: true, id, data: () => ({ email: 'ganador@example.com' }) };
+              const userData = usersById[id];
+              if (userData) {
+                return { exists: true, id, data: () => userData };
               }
               return { exists: false, id, data: () => ({}) };
             }
@@ -120,6 +124,34 @@ function createDbDouble({
       }
 
       throw new Error(`Colección no mockeada: ${name}`);
+    },
+    collectionGroup: (name) => {
+      if (name !== 'premiosPendientesDirectos') {
+        throw new Error(`CollectionGroup no mockeado: ${name}`);
+      }
+      return {
+        where: (field, op, value) => ({
+          limit: () => ({
+            get: async () => {
+              const docs = Array.from(premios.entries())
+                .filter(([, data]) => data?.[field] === value)
+                .map(([key, data]) => {
+                  const [billeteraId, premioId] = key.split('/');
+                  return {
+                    id: premioId,
+                    data: () => data,
+                    ref: {
+                      parent: {
+                        parent: { id: billeteraId }
+                      }
+                    }
+                  };
+                });
+              return { empty: docs.length === 0, docs };
+            }
+          })
+        })
+      };
     }
   };
 
@@ -365,5 +397,49 @@ describe('generatePendingDirectPrizesFromOfficialResults', () => {
     expect(premios.size).toBe(1);
     const [premioPath] = Array.from(premios.keys());
     expect(premioPath.startsWith('uid_ganador_77/')).toBe(true);
+  });
+
+  test('evita duplicado cruzado entre billeteras cuando cambia la identidad canónica entre ejecuciones', async () => {
+    const usersById = {};
+    const { db, premios } = createDbDouble({
+      lockPorForma: {
+        '1': { cartonClaves: ['usr:uid_ganador_77::num:7'], cerradoEn: '2026-04-01T00:00:00Z' }
+      },
+      cartones: [
+        {
+          id: 'carton-doc-uid-1',
+          data: {
+            sorteoId: 'SRT-OF-1',
+            userId: 'UID_GANADOR_77',
+            cartonNum: 7,
+            email: '',
+            gmail: '',
+            IDbilletera: 'UID_GANADOR_77'
+          }
+        }
+      ],
+      usersById
+    });
+
+    const firstRun = await generatePendingDirectPrizesFromOfficialResults({
+      db,
+      sorteoId: 'SRT-OF-1',
+      generadoPor: 'admin@test.com'
+    });
+    expect(firstRun.creados).toBe(1);
+    expect(firstRun.duplicados).toBe(0);
+    expect(premios.size).toBe(1);
+
+    usersById.UID_GANADOR_77 = { email: 'ganador@example.com', uid: 'UID_GANADOR_77' };
+
+    const secondRun = await generatePendingDirectPrizesFromOfficialResults({
+      db,
+      sorteoId: 'SRT-OF-1',
+      generadoPor: 'admin@test.com'
+    });
+
+    expect(secondRun.creados).toBe(0);
+    expect(secondRun.duplicados).toBe(1);
+    expect(premios.size).toBe(1);
   });
 });
