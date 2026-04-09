@@ -12,7 +12,7 @@ describe('public/firebase-config.js', () => {
   test('incluye todos los dominios autorizados reales publicados para producción y desarrollo local', () => {
     expect(file).toMatch(/"bingoanimalito\.web\.app"/);
     expect(file).toMatch(/"bingoanimalito\.firebaseapp\.com"/);
-    expect(file).toMatch(/"www\.bingo\.juega-online\.com"/);
+    expect(file).toMatch(/"bingoanimalito\.juega-online\.com"/);
     expect(file).toMatch(/"localhost"/);
   });
 
