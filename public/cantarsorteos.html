@@ -370,8 +370,8 @@
     #resumen-sorteo div { display: flex; justify-content: center; gap: 12px; align-items: center; flex-wrap: wrap; font-size: 0.95rem; }
     #tipo-sorteo span { white-space: nowrap; text-transform: uppercase; }
     #acciones-sorteo {
-      margin: 14px 20px 0;
-      width: calc(100% - 40px);
+      margin: 14px 4px 0;
+      width: min(560px, calc(100% - 8px));
       display: flex;
       justify-content: center;
       align-items: flex-end;
@@ -749,6 +749,42 @@
     #tabla-cantos-container.bloqueado .canto-cell {
       pointer-events: none;
       cursor: default;
+    }
+
+    @media (min-width: 1024px) {
+      #tabla-cantos-wrapper {
+        width: min(1420px, calc(100vw - 24px));
+      }
+      #tabla-cantos-container {
+        overflow-x: visible;
+      }
+      #tabla-cantos {
+        width: 100%;
+        min-width: 100%;
+        table-layout: fixed;
+      }
+    }
+
+    @media (max-width: 640px) and (orientation: portrait) {
+      #tabla-cantos th:first-child,
+      #tabla-cantos td:first-child {
+        min-width: 44px;
+        width: 44px;
+        padding-left: 3px;
+        padding-right: 3px;
+      }
+      #tabla-cantos thead th:first-child {
+        font-size: clamp(0.68rem, 3.6vw, 0.9rem);
+      }
+      .resultado-hora-cell {
+        min-width: 44px;
+      }
+      .resultado-hora-cell .hora-exacta {
+        font-size: clamp(0.66rem, 3.4vw, 0.82rem);
+      }
+      .resultado-hora-cell .hora-intermedia {
+        font-size: clamp(0.62rem, 3.2vw, 0.78rem);
+      }
     }
 
     .resultado-hora-cell {
@@ -2128,6 +2164,7 @@
   let loteriasSorteoActualCache = Object.freeze([]);
   let loteriasSorteoActualCacheSorteoId = '';
   const columnasSemanticas = [{ colIndex: 0, tipo: 'horario', loteria: null }];
+  const MAX_FILAS_TABLA = 13;
   const BLOQUES_RESULTADO = [
     { id: 'exacta', label: 'Hora Exacta', className: 'exacta', color: '#0b4dda' },
     { id: 'intermedia', label: 'Hora intermedia', className: 'intermedia', color: '#ff7a00' }
@@ -3278,7 +3315,7 @@
     thead.appendChild(headRow);
     tabla.appendChild(thead);
     const tbody = document.createElement('tbody');
-    for(let fila=0; fila<15; fila++){
+    for(let fila=0; fila<MAX_FILAS_TABLA; fila++){
       const tr = document.createElement('tr');
       columnas.forEach(({ colIndex, tipo, loteria })=>{
         const base = colIndex * 15 + 1;
@@ -3448,7 +3485,7 @@
   }
 
   function refrescarResultadosEnTabla(){
-    for(let fila = 0; fila < 15; fila++){
+    for(let fila = 0; fila < MAX_FILAS_TABLA; fila++){
       const horaCell = tablaCantosContainer?.querySelector(`.resultado-hora-cell[data-fila="${fila}"]`);
       if(!horaCell) continue;
       const exactaTxt = formatearHoraDesdeNumeroFila(fila, false);
@@ -7198,7 +7235,7 @@
   function obtenerLoteriasConResultadosPendientes(){
     const pendientes = [];
     const setPendientes = new Set();
-    for(let fila=0; fila<15; fila++){
+    for(let fila=0; fila<MAX_FILAS_TABLA; fila++){
       columnasSemanticas.forEach(({ tipo, loteria })=>{
         if(tipo === 'horario' || !loteria?.id) return;
         const clave = construirClaveResultado(loteria.id, fila);
