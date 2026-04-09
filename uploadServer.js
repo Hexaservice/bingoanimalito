@@ -343,7 +343,7 @@ function normalizePendingPrizeState(value) {
 
 function getLegacyDirectPrizeRefFromPendingRef(premioRef) {
   const billeteraRef = premioRef?.parent?.parent;
-  if (!billeteraRef) return null;
+  if (!billeteraRef || typeof billeteraRef.collection !== 'function') return null;
   return billeteraRef.collection('premiosPagosdirectos').doc(premioRef.id);
 }
 
