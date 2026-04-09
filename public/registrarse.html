@@ -694,6 +694,27 @@
       return false;
     }
 
+    async function validarAliasDisponible(aliasIngresado){
+      const alias = (aliasIngresado || '').trim();
+      if(!alias){
+        setFieldMessage('alias','Alias obligatorio (máx. 60 caracteres).');
+        return false;
+      }
+      try{
+        const aliasSnap = await db.collection('users').where('alias','==',alias).limit(1).get();
+        if(!aliasSnap.empty){
+          setFieldMessage('alias','Ya este Alias se encuentra registrado, por favor elige otro DIFERENTE');
+          return false;
+        }
+      }catch(err){
+        console.error('No se pudo validar disponibilidad del alias', err);
+        setFieldMessage('alias','No se pudo validar el Alias en este momento. Inténtalo de nuevo.');
+        return false;
+      }
+      setFieldMessage('alias','Correcto',true);
+      return true;
+    }
+
     async function completarRegistroConDatos(user, datos){
       if(registroEnProceso) return;
       registroEnProceso = true;
@@ -796,13 +817,20 @@
 
     document.getElementById('login-google').addEventListener('click', ()=>iniciarLoginConProveedor('google'));
     document.getElementById('login-apple').addEventListener('click', ()=>iniciarLoginConProveedor('apple'));
-    document.getElementById('btn-step-1-next').addEventListener('click', ()=>{ if(validarPaso1(true)){ irPaso(2); } });
+    document.getElementById('btn-step-1-next').addEventListener('click', async ()=>{
+      if(!validarPaso1(true)){ return; }
+      const aliasValido = await validarAliasDisponible(document.getElementById('alias').value);
+      if(!aliasValido){ return; }
+      irPaso(2);
+    });
     document.getElementById('btn-step-2-back').addEventListener('click', ()=>irPaso(1));
     document.getElementById('btn-step-2-next').addEventListener('click', ()=>{ if(validarPaso2(true)){ irPaso(3); } });
     document.getElementById('btn-step-3-back').addEventListener('click', ()=>irPaso(2));
 
     document.getElementById('registrar').addEventListener('click', async ()=>{
       if(!validarPaso1(true) || !validarPaso2(true)){ return; }
+      const aliasValido = await validarAliasDisponible(document.getElementById('alias').value);
+      if(!aliasValido){ return; }
       const user = auth.currentUser;
       if(!user){ setFieldMessage('cuenta','Selecciona una cuenta de Google o Apple.'); return; }
       await completarRegistroConDatos(user, obtenerDatosFormulario());
