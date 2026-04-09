@@ -1,11 +1,11 @@
 (function () {
   const STORAGE_KEYS = {
-    dismissedUntil: 'installPromptDismissedUntil',
-    installed: 'installPromptInstalled',
-    accepted: 'installPromptAccepted'
+    installed: 'installPromptInstalled'
   };
-  const DISMISS_DAYS = 7;
   const STYLE_ID = 'bo-install-prompt-style';
+  const SESSION_KEYS = {
+    dismissed: 'installPromptDismissedThisSession'
+  };
 
   function isStandalone() {
     return Boolean(
@@ -24,15 +24,19 @@
   }
 
   function shouldPausePrompt() {
-    const dismissedUntil = Number(localStorage.getItem(STORAGE_KEYS.dismissedUntil) || 0);
     const installed = localStorage.getItem(STORAGE_KEYS.installed) === '1';
-    const accepted = localStorage.getItem(STORAGE_KEYS.accepted) === '1';
-    return installed || accepted || Date.now() < dismissedUntil;
+    const dismissedThisSession = sessionStorage.getItem(SESSION_KEYS.dismissed) === '1';
+    return installed || dismissedThisSession;
   }
 
   function markDismissed() {
-    const until = Date.now() + DISMISS_DAYS * 24 * 60 * 60 * 1000;
-    localStorage.setItem(STORAGE_KEYS.dismissedUntil, String(until));
+    sessionStorage.setItem(SESSION_KEYS.dismissed, '1');
+  }
+
+  function cleanupLegacyInstallPromptState() {
+    localStorage.removeItem('installPromptDismissedUntil');
+    localStorage.removeItem('installPromptAccepted');
+    localStorage.removeItem('installPromptUrlNoticeDismissed');
   }
 
   function ensureStyles() {
@@ -61,6 +65,8 @@
   }
 
   function initInstallPrompt(options) {
+    cleanupLegacyInstallPromptState();
+
     const settings = {
       containerId: options?.containerId || 'install-prompt-root',
       mode: options?.mode === 'modal' ? 'modal' : 'banner'
@@ -170,9 +176,7 @@
       modal.style.display = 'none';
       deferredPrompt.prompt();
       const choiceResult = await deferredPrompt.userChoice;
-      if (choiceResult.outcome === 'accepted') {
-        localStorage.setItem(STORAGE_KEYS.accepted, '1');
-      } else {
+      if (choiceResult.outcome !== 'accepted') {
         markDismissed();
       }
       hideAll();

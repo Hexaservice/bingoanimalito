@@ -14,7 +14,7 @@ Para que `public/registrarse.html` y `public/js/auth.js` muestren correctamente 
 5. Confirmar como mínimo estos dominios del proyecto correcto:
    - `bingoanimalito.web.app`
    - `bingoanimalito.firebaseapp.com`
-   - `www.bingo.juega-online.com`
+   - `bingoanimalito.juega-online.com`
    - `localhost` (si se usa flujo local)
 6. Agregar además cualquier dominio real de staging/preview en uso antes de probar login social.
 7. Verificar que **ningún** dominio pertenezca a otro proyecto Firebase antes de guardar cambios.
@@ -28,7 +28,7 @@ Para que `public/registrarse.html` y `public/js/auth.js` muestren correctamente 
 - Dominios por defecto publicados por el script (si no se define `FIREBASE_AUTH_AUTHORIZED_DOMAINS_JSON`):
   - `bingoanimalito.web.app`
   - `bingoanimalito.firebaseapp.com`
-  - `www.bingo.juega-online.com`
+  - `bingoanimalito.juega-online.com`
   - `localhost`
 
 ### Secrets esperados por GitHub Actions

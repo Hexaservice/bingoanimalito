@@ -21,7 +21,7 @@ window.__FIREBASE_AUTH_SETTINGS__ = {
   authorizedDomains: [
     "bingoanimalito.web.app",
     "bingoanimalito.firebaseapp.com",
-    "www.bingo.juega-online.com",
+    "bingoanimalito.juega-online.com",
     "localhost"
   ]
 };
