@@ -44,10 +44,41 @@ function initializeFirebase() {
 
 const app = express();
 
-const allowedOrigins = (process.env.ALLOWED_ORIGINS || 'http://localhost:3000,http://127.0.0.1:3000')
-  .split(',')
-  .map((origin) => origin.trim())
-  .filter(Boolean);
+function normalizeOrigin(value) {
+  const parsed = new URL(String(value).trim());
+  if (!['http:', 'https:'].includes(parsed.protocol)) {
+    throw new Error(`Protocolo no soportado en origen CORS: ${value}`);
+  }
+
+  if (parsed.pathname !== '/' || parsed.search || parsed.hash || parsed.username || parsed.password) {
+    throw new Error(`El origen CORS debe incluir solo scheme + host + puerto: ${value}`);
+  }
+
+  return parsed.origin;
+}
+
+function getAllowedOrigins(env = process.env) {
+  const raw = env.ALLOWED_ORIGINS || 'http://localhost:3000,http://127.0.0.1:3000';
+  const parsed = raw
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean)
+    .map((origin) => normalizeOrigin(origin));
+
+  if (!parsed.length) {
+    throw new Error('ALLOWED_ORIGINS no puede estar vacío.');
+  }
+
+  return [...new Set(parsed)];
+}
+
+let allowedOrigins = [];
+try {
+  allowedOrigins = getAllowedOrigins(process.env);
+} catch (error) {
+  console.error(`Configuración inválida de ALLOWED_ORIGINS: ${error.message}`);
+  process.exit(1);
+}
 
 app.use(helmet());
 app.use(
@@ -70,6 +101,14 @@ app.use(
   })
 );
 app.use(express.json());
+
+app.get('/health', (req, res) => {
+  res.status(200).json({
+    ok: true,
+    service: 'uploadServer',
+    timestamp: new Date().toISOString()
+  });
+});
 
 const ALLOWED_FILE_TYPES = {
   '.png': ['image/png'],
