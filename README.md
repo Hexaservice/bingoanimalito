@@ -118,6 +118,44 @@ Checklist rápido de validación en producción:
 3. Si backend/frontend usan dominios distintos, **no** usar la URL del hosting estático para `UPLOAD_ENDPOINT`.
 4. En modo admin o con `?debug=1` en `billetera.html`, revisar el diagnóstico visible de base efectiva para confirmar la URL usada por `getWalletApiBase`.
 
+### Checklist operativo explícito para `/wallet/transfer-credits`
+
+Antes de validar “transferencia rota”, ejecutar este checklist en orden:
+
+1. **Endpoint efectivo**
+   - En la app publicada, abrir `public/firebase-config.js` servido por Hosting y confirmar que `window.UPLOAD_ENDPOINT` tenga una URL HTTPS real del backend (por ejemplo `https://api.tu-dominio.com/upload`).
+   - Confirmar en `billetera.html?debug=1` que la “Base efectiva” apunte al backend esperado.
+2. **CORS permitido**
+   - En backend, definir `ALLOWED_ORIGINS` con el origen exacto del frontend productivo (`scheme + host + puerto`), sin path ni query.
+   - Ejemplo válido: `ALLOWED_ORIGINS=https://bingoanimalito.web.app`.
+3. **Prueba manual con token válido**
+   - Generar un ID token de un usuario autenticado y ejecutar:
+
+```bash
+curl -i -X POST "https://api.tu-dominio.com/wallet/transfer-credits" \
+  -H "Authorization: Bearer <ID_TOKEN_VALIDO>" \
+  -H "Content-Type: application/json" \
+  --data '{"toEmail":"destino@dominio.com","amount":1}'
+```
+
+   - Resultado esperado: respuesta JSON (`200/4xx` según reglas de negocio), **no** error HTML ni fallo CORS del navegador.
+
+### Health check JSON rápido del backend
+
+`uploadServer.js` expone `GET /health` para verificar rápidamente que la API responde JSON:
+
+```bash
+curl -sS https://api.tu-dominio.com/health
+```
+
+Respuesta esperada (ejemplo):
+
+```json
+{"ok":true,"service":"uploadServer","timestamp":"2026-01-01T00:00:00.000Z"}
+```
+
+Si `/health` responde correctamente pero `/wallet/transfer-credits` falla, el problema ya no es “API caída” sino configuración/autorización del flujo de billetera.
+
 En GitHub Actions, define también el secret:
 
 - `UPLOAD_ENDPOINT`
