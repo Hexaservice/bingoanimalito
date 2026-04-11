@@ -1051,7 +1051,7 @@ app.post('/wallet/transfer-credits', verificarUsuarioAutenticado, async (req, re
   if (!Number.isFinite(monto) || monto <= 0) {
     return res.status(400).json({ error: 'El monto debe ser mayor a 0.' });
   }
-  const montoNormalizado = Number(monto.toFixed(2));
+  const montoNormalizado = Number(monto.toFixed(6));
   try {
     const aliasLower = alias.toLocaleLowerCase('es');
     const [receptorAliasLowerSnap, emisorUserSnap] = await Promise.all([
@@ -1133,10 +1133,10 @@ app.post('/wallet/transfer-credits', verificarUsuarioAutenticado, async (req, re
       if (disponibles < montoNormalizado) {
         throw new Error('CREDITOS_INSUFICIENTES');
       }
-      tx.set(origenRef, { creditos: Number((creditosOrigen - montoNormalizado).toFixed(2)) }, { merge: true });
+      tx.set(origenRef, { creditos: Number((creditosOrigen - montoNormalizado).toFixed(6)) }, { merge: true });
       tx.set(destinoRef, {
         email: destinoWalletContext.canonicalEmail || receptorEmail,
-        creditos: Number((Number(destinoData.creditos || 0) + montoNormalizado).toFixed(2)),
+        creditos: Number((Number(destinoData.creditos || 0) + montoNormalizado).toFixed(6)),
         CartonesGratis: Number(destinoData.CartonesGratis ?? destinoData.cartonesGratis ?? 0) || 0,
         creditostransito: Number(destinoData.creditostransito || 0) || 0
       }, { merge: true });
