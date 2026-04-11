@@ -1054,14 +1054,34 @@ app.post('/wallet/transfer-credits', verificarUsuarioAutenticado, async (req, re
   const montoNormalizado = Number(monto.toFixed(2));
   try {
     const aliasLower = alias.toLocaleLowerCase('es');
-    const [receptorSnap, emisorUserSnap] = await Promise.all([
-      db.collection('users').where('aliasLower', '==', aliasLower).limit(1).get(),
+    const [receptorAliasLowerSnap, emisorUserSnap] = await Promise.all([
+      db.collection('users').where('aliasLower', '==', aliasLower).limit(2).get(),
       db.collection('users').doc(userEmail).get()
     ]);
-    if (receptorSnap.empty) {
-      return res.status(404).json({ error: 'No se encontró el alias beneficiario.' });
+
+    if (receptorAliasLowerSnap.size > 1) {
+      return res.status(409).json({
+        error: 'Conflicto de alias: existen múltiples usuarios con el mismo alias normalizado.',
+        code: 'ALIAS_CONFLICT_ALIAS_LOWER'
+      });
     }
-    const receptorDoc = receptorSnap.docs[0];
+
+    let receptorDoc = receptorAliasLowerSnap.docs[0] || null;
+
+    if (!receptorDoc) {
+      const receptorAliasExactSnap = await db.collection('users').where('alias', '==', alias).limit(2).get();
+      if (receptorAliasExactSnap.size > 1) {
+        return res.status(409).json({
+          error: 'Conflicto de alias: existen múltiples usuarios con el alias exacto indicado.',
+          code: 'ALIAS_CONFLICT_ALIAS_EXACT'
+        });
+      }
+      if (receptorAliasExactSnap.empty) {
+        return res.status(404).json({ error: 'No se encontró el alias beneficiario.' });
+      }
+      receptorDoc = receptorAliasExactSnap.docs[0];
+    }
+
     const receptorEmail = receptorDoc.id.toLowerCase();
     const aliasBeneficiario = normalizeString(receptorDoc.data()?.alias || alias, 40);
     if (receptorEmail === userEmail) {
