@@ -106,6 +106,8 @@ Ahora el deploy publica `UPLOAD_ENDPOINT` dentro de `public/firebase-config.js` 
 - `/admin/session/status`
 - endpoints de billetera como `/wallet/transfer-credits` (cuando `billetera.html` usa `getWalletApiBase`).
 
+> Nota técnica: `/wallet/transfer-credits` se valida y ejecuta en backend con Firebase Admin SDK (no como escritura directa del cliente a Firestore).
+
 La recomendación es una de estas dos (evitando que apunte al hosting estático si backend y frontend no comparten origen):
 
 1. **Mismo origen**: exponer el backend detrás del mismo dominio del frontend y usar `UPLOAD_ENDPOINT=https://tu-dominio.com/upload`.
@@ -117,6 +119,14 @@ Checklist rápido de validación en producción:
 2. Confirmar que la URL tenga el dominio real del backend (ejemplo: `https://api.tu-dominio.com/upload`).
 3. Si backend/frontend usan dominios distintos, **no** usar la URL del hosting estático para `UPLOAD_ENDPOINT`.
 4. En modo admin o con `?debug=1` en `billetera.html`, revisar el diagnóstico visible de base efectiva para confirmar la URL usada por `getWalletApiBase`.
+
+### Matriz rápida de ejecución y dependencias (billetera/transferencias)
+
+| Operación | Ejecutor | ¿Afectada por lock de premios en `firestore.rules`? | ¿Depende de CORS / `UPLOAD_ENDPOINT`? |
+| --- | --- | --- | --- |
+| Transferir créditos (`POST /wallet/transfer-credits`) | Backend (`uploadServer.js` + Admin SDK) | No, porque la transacción la ejecuta el backend | Sí |
+| Escribir premios/acreditaciones directo desde cliente a Firestore | Cliente (SDK web) | Sí, cuando el lock está activo se bloquea según reglas | No |
+| Acreditación directa controlada sobre `Billetera/{email}` (excepción de reglas) | Cliente (SDK web, con validaciones de reglas) | Sí, solo permitida la mutación puntual definida en reglas | No |
 
 ### Checklist operativo explícito para `/wallet/transfer-credits`
 
@@ -156,6 +166,24 @@ Respuesta esperada (ejemplo):
 
 Si `/health` responde correctamente pero `/wallet/transfer-credits` falla, el problema ya no es “API caída” sino configuración/autorización del flujo de billetera.
 
+### Troubleshooting rápido: mensajes genéricos al transferir créditos
+
+Cuando la UI muestra un error genérico en transferencias, validar en este orden:
+
+1. **Base API efectiva (`UPLOAD_ENDPOINT`)**
+   - Revisar `public/firebase-config.js` publicado y confirmar `window.UPLOAD_ENDPOINT` con dominio backend real.
+   - En `billetera.html?debug=1`, validar que la “Base efectiva” coincida.
+2. **CORS (`ALLOWED_ORIGINS`)**
+   - Confirmar que incluya el origen exacto del frontend (incluyendo `https://` y puerto si aplica).
+   - Si falta, el navegador puede mostrar error genérico aunque backend esté activo.
+3. **Sesión/token**
+   - Reautenticar usuario y repetir, para descartar token expirado o inválido.
+4. **Prueba aislada por `curl`**
+   - Ejecutar el `curl` de la sección de checklist para separar problema de UI vs. backend.
+5. **Respuesta backend**
+   - Si `curl` devuelve JSON con `4xx`, revisar regla de negocio (saldo, destinatario, permisos).
+   - Si `curl` falla por conexión/HTML, revisar URL, proxy y despliegue del backend.
+
 En GitHub Actions, define también el secret:
 
 - `UPLOAD_ENDPOINT`
@@ -180,6 +208,8 @@ Ese flujo deja en Authentication los claims `{ role: 'Superadmin', roles: ['Supe
 ## Operación: lock de escrituras de premios y excepción segura de acreditación directa
 
 Cuando `Variablesglobales/Parametros.bloquearEscriturasClientePremios == true`, las reglas de Firestore mantienen bloqueadas las escrituras de cliente relacionadas con premios.
+
+Importante: ese lock aplica a escrituras directas iniciadas desde cliente (SDK web). No bloquea transacciones internas del backend ejecutadas con Firebase Admin SDK.
 
 Excepción controlada en `Billetera/{email}`:
 
