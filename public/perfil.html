@@ -641,6 +641,37 @@
   function normalizarAlias(valor){
     return (valor||'').toString().trim().slice(0,20);
   }
+  function normalizarAliasLower(valor){
+    return normalizarAlias(valor).toLocaleLowerCase('es');
+  }
+  function aliasTieneEmoji(valor){
+    return /\p{Extended_Pictographic}/u.test((valor||'').toString());
+  }
+  function aliasTieneEspacios(valor){
+    return /\s/.test((valor||'').toString());
+  }
+  function obtenerErrorAlias(valor){
+    const alias=normalizarAlias(valor);
+    if(!alias){
+      return 'Todos los campos son obligatorios';
+    }
+    if(aliasTieneEmoji(alias) || aliasTieneEspacios(alias)){
+      return 'El Alias no permite emojis ni espacios en blanco.';
+    }
+    return '';
+  }
+  async function aliasDisponibleParaUsuario(alias,emailActual){
+    const aliasNormalizado=normalizarAlias(alias);
+    const aliasLower=normalizarAliasLower(aliasNormalizado);
+    const emailNormalizado=(emailActual||'').toString().trim().toLowerCase();
+    const byAliasLower=await db.collection('users').where('aliasLower','==',aliasLower).limit(3).get();
+    const existeAliasLower=byAliasLower.docs.some(doc=>doc.id.toLowerCase()!==emailNormalizado);
+    if(existeAliasLower){
+      return false;
+    }
+    const byAlias=await db.collection('users').where('alias','==',aliasNormalizado).limit(3).get();
+    return !byAlias.docs.some(doc=>doc.id.toLowerCase()!==emailNormalizado);
+  }
 
   function normalizarNumeroLocal(valor){
     return (valor||'').toString().replace(/[^0-9]/g,'');
@@ -822,7 +853,11 @@
         if(aliasInput.value!==aliasNormalizado){
           aliasInput.value=aliasNormalizado;
         }
-        valido=aliasNormalizado.length>0;
+        const errorAlias=obtenerErrorAlias(aliasNormalizado);
+        valido=!errorAlias;
+        if(errorAlias){
+          mostrarMensajeValidacion(errorAlias);
+        }
       }
       if(campo===celularInput){
         const limpio=normalizarNumeroLocal(campo.value);
@@ -900,6 +935,19 @@
     if(!validarCamposObligatorios()){
       return;
     }
+    const errorAlias=obtenerErrorAlias(valores.alias);
+    if(errorAlias){
+      mostrarMensajeValidacion(errorAlias);
+      actualizarEstadoErrorCampo(aliasInput,true);
+      return;
+    }
+    const aliasDisponible=await aliasDisponibleParaUsuario(valores.alias,user.email);
+    if(!aliasDisponible){
+      mostrarMensajeValidacion('Este Alias ya está registrado. Usa otro diferente sin cambiar mayúsculas/minúsculas.');
+      actualizarEstadoErrorCampo(aliasInput,true);
+      return;
+    }
+    actualizarEstadoErrorCampo(aliasInput,false);
     const confirmar=await window.confirm(modo==='editar'?'¿Deseas EDITAR los datos?':'¿Deseas GUARDAR los datos de tu perfil?');
     if(!confirmar) return;
     const baseDatos={
@@ -919,6 +967,9 @@
         if('celular' in cambios){
           cambios.numerocel=valores.celular;
         }
+        if('alias' in cambios){
+          cambios.aliasLower=normalizarAliasLower(valores.alias);
+        }
         if(Object.keys(cambios).length===0){
           alert('No se detectaron cambios para editar.');
           evaluarCambios();
@@ -928,7 +979,7 @@
         alert('Datos editados correctamente.');
         tieneDatosGuardados=camposObligatoriosCompletos(valores);
       }else{
-        await db.collection('users').doc(user.email).set({...baseDatos,...valores},{merge:true});
+        await db.collection('users').doc(user.email).set({...baseDatos,...valores,aliasLower:normalizarAliasLower(valores.alias)},{merge:true});
         alert('Datos guardados correctamente.');
         tieneDatosGuardados=camposObligatoriosCompletos(valores);
       }
