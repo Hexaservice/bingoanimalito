@@ -828,7 +828,11 @@
 
     function formatearMontoPantalla(valor){
       const numero=toNumberSafe(valor,0);
-      return numero.toFixed(2).replace(/\.00$/,'').replace(/(\.\d)0$/,'$1');
+      const texto=numero
+        .toFixed(6)
+        .replace(/(\.\d*?[1-9])0+$/,'$1')
+        .replace(/\.0+$/,'');
+      return texto || '0';
     }
 
     function actualizarResumenCreditos(data){
@@ -1350,7 +1354,7 @@
         setMensajeTransferencia('Debes ingresar un monto válido mayor a 0.');
         return;
       }
-      const confirmar=await mostrarConfirmacionModal(`¿Confirmas transferir ${monto.toFixed(2)} créditos a ${aliasInfo.alias}?`);
+      const confirmar=await mostrarConfirmacionModal(`¿Confirmas transferir ${formatearMontoPantalla(monto)} créditos a ${aliasInfo.alias}?`);
       if(!confirmar) return;
       try{
         const token=await user.getIdToken(true);
@@ -2493,7 +2497,7 @@
         const estadoNormalizado=normalizarEstadoPremioTransaccion(t.estado);
         const estadoColor=estadoNormalizado==='PENDIENTE'?'orange':estadoNormalizado==='ANULADO'?'red':(estadoNormalizado==='APROBADO' || estadoNormalizado==='ACEPTADO')?'green':(estadoNormalizado==='TRANSFERIDO'?'#ff8c00':'black');
         const tr=document.createElement('tr');
-        const montoFmt=parseFloat(t.Monto).toFixed(2).replace(/\.00$/, '').replace(/(\.\d)0$/, '$1');
+        const montoFmt=formatearMontoPantalla(t.Monto);
         const tipoTrans=(t.tipotrans||'').toLowerCase();
         const cartonesGratisNum=Number(t.cartonesGratis)||0;
         const esRecarga=tipoTrans==='recarga';
@@ -2664,7 +2668,7 @@
           const aliasValor=esEntrante?(t.aliasContraparte||'Sin alias'):(t.aliasBeneficiario||'Sin alias');
           const colorMonto=esEntrante?'#0a7d2a':'#ff8c00';
           cont.innerHTML=
-            `<div style="font-weight:bold;color:${colorMonto};">${tituloMonto}: ${total.toFixed(2)}</div>`+
+            `<div style="font-weight:bold;color:${colorMonto};">${tituloMonto}: ${formatearMontoPantalla(total)}</div>`+
             `<div style="font-weight:bold;color:#6a1b9a;">${aliasCampo}: ${aliasValor}</div>`+
             `<button id='modal-ok'>Aceptar</button>`;
         }else if(esPremioCartones){
@@ -2674,14 +2678,14 @@
         }else
         if(t.tipotrans==='premio' || t.tipotrans==='pago'){
           cont.innerHTML=
-            `<div style="font-weight:bold;color:#1b5e20;">Total recibido: ${total.toFixed(2)}</div>`+
+            `<div style="font-weight:bold;color:#1b5e20;">Total recibido: ${formatearMontoPantalla(total)}</div>`+
             `<button id='modal-ok'>Aceptar</button>`;
         }else{
           cont.innerHTML=
-            `<div style="font-weight:bold;color:purple;">Monto solicitado: ${solicitado.toFixed(2)}</div>`+
-            `<div style="color:orange;">Comisión Bancaria: ${comB.toFixed(2)}</div>`+
-            `<div style="color:orange;">Comisión Gestión: ${comG.toFixed(2)}</div>`+
-            `<div style="font-weight:bold;color:darkgreen;">Total recibido: ${total.toFixed(2)}</div>`+
+            `<div style="font-weight:bold;color:purple;">Monto solicitado: ${formatearMontoPantalla(solicitado)}</div>`+
+            `<div style="color:orange;">Comisión Bancaria: ${formatearMontoPantalla(comB)}</div>`+
+            `<div style="color:orange;">Comisión Gestión: ${formatearMontoPantalla(comG)}</div>`+
+            `<div style="font-weight:bold;color:darkgreen;">Total recibido: ${formatearMontoPantalla(total)}</div>`+
             `<button id='modal-ok'>Aceptar</button>`;
         }
         const modal=document.getElementById('modal-detalle');

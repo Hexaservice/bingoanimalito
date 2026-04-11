@@ -169,6 +169,7 @@ Para evitar diferencias entre cálculo de servidor y visualización en cliente, 
 - Formas históricas que dependían de flags tipo `premioCompartido`, `dividirPremio` o `divisible` ahora siguen la regla única de división para créditos.
 - Si un sorteo histórico requiere conservar un valor fijo de cartones por ganador, definir explícitamente `cartonesGratisPorGanador` en la forma.
 - No se requiere migración de documentos de premios ya generados/acreditados; la regla aplica a nuevos cálculos de premios pendientes.
+- Para billetera y transacciones históricas, los montos ya guardados con 2 decimales se siguen leyendo sin migración; la visualización ahora acepta hasta 6 decimales y elimina ceros de cola para mantener compatibilidad hacia atrás.
 
 ## Catálogo oficial de imágenes de loterías
 
