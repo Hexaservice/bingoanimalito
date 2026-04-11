@@ -575,10 +575,12 @@
     function normalizarAliasLower(valor){ return normalizarAlias(valor).toLocaleLowerCase('es'); }
     function aliasTieneEmoji(valor){ return /\p{Extended_Pictographic}/u.test((valor || '').toString()); }
     function aliasTieneEspacios(valor){ return /\s/.test((valor || '').toString()); }
+    function aliasSoloLetrasNumeros(valor){ return /^[\p{L}\p{N}]+$/u.test((valor || '').toString()); }
     function obtenerErrorAlias(valor){
       const alias = normalizarAlias(valor);
       if(!alias){ return 'Alias obligatorio (máx. 60 caracteres).'; }
       if(aliasTieneEmoji(alias) || aliasTieneEspacios(alias)){ return 'El Alias no permite emojis ni espacios en blanco.'; }
+      if(!aliasSoloLetrasNumeros(alias)){ return 'El Alias solo permite letras y números.'; }
       return '';
     }
 

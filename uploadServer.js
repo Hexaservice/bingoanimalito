@@ -294,6 +294,26 @@ async function verificarToken(req, res, next) {
   }
 }
 
+async function verificarUsuarioAutenticado(req, res, next) {
+  const authHeader = req.headers.authorization || '';
+  const match = authHeader.match(/^Bearer (.+)$/);
+  if (!match) {
+    return res.status(401).json({ error: 'No autorizado' });
+  }
+  try {
+    const decoded = await admin.auth().verifyIdToken(match[1]);
+    const email = normalizeString(decoded?.email, 200).toLowerCase();
+    if (!email) {
+      return res.status(401).json({ error: 'Token sin correo asociado' });
+    }
+    req.user = { uid: decoded.uid || '', email };
+    return next();
+  } catch (error) {
+    console.error('Error verificando token de usuario', error);
+    return res.status(401).json({ error: 'Token inválido' });
+  }
+}
+
 async function verificarOperadorPrivilegiado(req, res, next) {
   const authHeader = req.headers.authorization || '';
   const match = authHeader.match(/^Bearer (.+)$/);
@@ -962,6 +982,83 @@ async function resolveWinnerIdentity({
     internalCandidates: uniqueInternals
   };
 }
+
+app.post('/wallet/transfer-credits', verificarUsuarioAutenticado, async (req, res) => {
+  const db = admin.firestore();
+  const userEmail = normalizeString(req.user?.email, 200).toLowerCase();
+  const alias = normalizeString(req.body?.alias, 40);
+  const monto = Number(req.body?.monto);
+  if (!alias) {
+    return res.status(400).json({ error: 'El alias es obligatorio.' });
+  }
+  if (!/^[\p{L}\p{N}]+$/u.test(alias)) {
+    return res.status(400).json({ error: 'El alias solo permite letras y números.' });
+  }
+  if (!Number.isFinite(monto) || monto <= 0) {
+    return res.status(400).json({ error: 'El monto debe ser mayor a 0.' });
+  }
+  const montoNormalizado = Number(monto.toFixed(2));
+  try {
+    const aliasLower = alias.toLocaleLowerCase('es');
+    const receptorSnap = await db.collection('users').where('aliasLower', '==', aliasLower).limit(1).get();
+    if (receptorSnap.empty) {
+      return res.status(404).json({ error: 'No se encontró el alias beneficiario.' });
+    }
+    const receptorDoc = receptorSnap.docs[0];
+    const receptorEmail = receptorDoc.id.toLowerCase();
+    const aliasBeneficiario = normalizeString(receptorDoc.data()?.alias || alias, 40);
+    if (receptorEmail === userEmail) {
+      return res.status(400).json({ error: 'No puedes transferirte créditos a tu propio alias.' });
+    }
+
+    const origenRef = db.collection('Billetera').doc(userEmail);
+    const destinoRef = db.collection('Billetera').doc(receptorEmail);
+    const transaccionRef = db.collection('transacciones').doc();
+    const ahora = new Date();
+    const fecha = `${String(ahora.getUTCDate()).padStart(2, '0')}/${String(ahora.getUTCMonth() + 1).padStart(2, '0')}/${ahora.getUTCFullYear()}`;
+    const hora = `${String(ahora.getUTCHours()).padStart(2, '0')}:${String(ahora.getUTCMinutes()).padStart(2, '0')}`;
+
+    await db.runTransaction(async (tx) => {
+      const [origenSnap, destinoSnap] = await Promise.all([tx.get(origenRef), tx.get(destinoRef)]);
+      const origenData = origenSnap.exists ? (origenSnap.data() || {}) : {};
+      const destinoData = destinoSnap.exists ? (destinoSnap.data() || {}) : {};
+      const creditosOrigen = Number(origenData.creditos || 0);
+      const creditosTransito = Math.max(0, Number(origenData.creditostransito || 0));
+      const disponibles = Math.max(0, creditosOrigen - creditosTransito);
+      if (disponibles < montoNormalizado) {
+        throw new Error('CREDITOS_INSUFICIENTES');
+      }
+      tx.set(origenRef, { creditos: Number((creditosOrigen - montoNormalizado).toFixed(2)) }, { merge: true });
+      tx.set(destinoRef, { creditos: Number((Number(destinoData.creditos || 0) + montoNormalizado).toFixed(2)) }, { merge: true });
+      tx.set(transaccionRef, {
+        tipotrans: 'transferencia',
+        IDbilletera: userEmail,
+        idBilleteraInterna: req.user?.uid || '',
+        beneficiarioEmail: receptorEmail,
+        aliasBeneficiario,
+        Monto: montoNormalizado,
+        estado: 'TRANSFERIDO',
+        referencia: 'TRANSFERENCIA',
+        comentario: '',
+        usuariogestor: userEmail,
+        rolusuario: 'Jugador',
+        fechasolicitud: fecha,
+        horasolicitud: hora,
+        fechagestion: fecha,
+        horagestion: hora,
+        nota: ''
+      });
+    });
+
+    return res.json({ ok: true, aliasBeneficiario, monto: montoNormalizado });
+  } catch (error) {
+    if (error?.message === 'CREDITOS_INSUFICIENTES') {
+      return res.status(400).json({ error: 'No tienes créditos suficientes para transferir ese monto.' });
+    }
+    console.error('Error al transferir créditos entre billeteras', error);
+    return res.status(500).json({ error: 'No se pudo procesar la transferencia.' });
+  }
+});
 
 app.post('/toggleUser', verificarToken, async (req, res) => {
   const { email, disabled } = req.body || {};

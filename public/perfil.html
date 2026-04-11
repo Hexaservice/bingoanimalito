@@ -650,6 +650,9 @@
   function aliasTieneEspacios(valor){
     return /\s/.test((valor||'').toString());
   }
+  function aliasSoloLetrasNumeros(valor){
+    return /^[\p{L}\p{N}]+$/u.test((valor||'').toString());
+  }
   function obtenerErrorAlias(valor){
     const alias=normalizarAlias(valor);
     if(!alias){
@@ -657,6 +660,9 @@
     }
     if(aliasTieneEmoji(alias) || aliasTieneEspacios(alias)){
       return 'El Alias no permite emojis ni espacios en blanco.';
+    }
+    if(!aliasSoloLetrasNumeros(alias)){
+      return 'El Alias solo permite letras y números.';
     }
     return '';
   }
