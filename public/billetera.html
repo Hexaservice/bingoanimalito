@@ -136,6 +136,19 @@
       box-shadow:inset 0 1px 3px rgba(15,23,42,0.06);
     }
     #transferencia-msg{font-size:0.84rem;min-height:18px;margin:0;font-weight:700;}
+    #transferencia-api-base-debug{
+      display:none;
+      margin:0;
+      padding:8px 10px;
+      border-radius:8px;
+      border:1px dashed #4b5563;
+      background:#f8fafc;
+      color:#1f2937;
+      font-size:0.75rem;
+      text-align:left;
+      word-break:break-all;
+    }
+    #transferencia-api-base-debug.visible{display:block;}
     .favoritos-transferencias{
       border-top:1px solid #d7ddff;
       padding-top:12px;
@@ -741,6 +754,7 @@
           <input type="checkbox" id="transferencia-guardar-favorito"> Guardar favorito
         </label>
         <p id="transferencia-msg"></p>
+        <p id="transferencia-api-base-debug" aria-live="polite"></p>
         <div class="favoritos-transferencias">
           <h5>Alias favoritos</h5>
           <div class="favoritos-toolbar">
@@ -1295,6 +1309,29 @@
       return (window.location?.origin||'').trim();
     }
 
+    function shouldShowWalletApiDebug(rol){
+      const rolNormalizado=(rol||window.currentRole||'').toString().trim().toLowerCase();
+      const esAdmin=['administrador','superadmin'].includes(rolNormalizado);
+      const params=new URLSearchParams(window.location.search||'');
+      const debugParam=(params.get('debug')||'').toLowerCase();
+      const debugActivo=debugParam==='1'||debugParam==='true'||debugParam==='si';
+      return esAdmin || debugActivo;
+    }
+
+    function actualizarDiagnosticoWalletApi(rol){
+      const el=document.getElementById('transferencia-api-base-debug');
+      if(!el) return;
+      if(!shouldShowWalletApiDebug(rol)){
+        el.classList.remove('visible');
+        el.textContent='';
+        return;
+      }
+      const apiBase=getWalletApiBase();
+      const endpointConfigurado=(window.UPLOAD_ENDPOINT||window.__APP_CONFIG__?.uploadEndpoint||'').toString().trim()||'(vacío)';
+      el.textContent=`Diagnóstico API billetera · Base efectiva: ${apiBase||'(vacía)'} · UPLOAD_ENDPOINT: ${endpointConfigurado}`;
+      el.classList.add('visible');
+    }
+
     async function ejecutarTransferenciaCreditos(){
       const user=auth.currentUser;
       if(!user){
@@ -1322,7 +1359,21 @@
           headers:{'Content-Type':'application/json', Authorization:`Bearer ${token}`},
           body:JSON.stringify({alias:aliasInfo.alias,monto})
         });
-        const payload=await response.json();
+        const contentType=(response.headers.get('content-type')||'').toLowerCase();
+        if(!contentType.includes('application/json')){
+          const cuerpo=await response.text();
+          console.error('Respuesta no JSON en transferencia de créditos',{status:response.status,contentType,cuerpo});
+          setMensajeTransferencia('Error de configuración de API: la respuesta no es JSON. Verifica getWalletApiBase/UPLOAD_ENDPOINT.');
+          return;
+        }
+        let payload=null;
+        try{
+          payload=await response.json();
+        }catch(parseError){
+          console.error('JSON inválido en transferencia de créditos',parseError);
+          setMensajeTransferencia('Error de configuración de API: respuesta JSON inválida del backend.');
+          return;
+        }
         if(!response.ok){
           setMensajeTransferencia(payload?.error||'No se pudo completar la transferencia.');
           return;
@@ -1358,6 +1409,7 @@
           }
         }
         actualizarOpcionPagoFiltro(rolActual);
+        actualizarDiagnosticoWalletApi(rolActual);
         cargarBancosBilletera();
         cargarBancosBingo();
         const paramDoc = await db.collection('Variablesglobales').doc('Parametros').get();
