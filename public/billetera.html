@@ -1315,11 +1315,7 @@
 
     function shouldShowWalletApiDebug(rol){
       const rolNormalizado=(rol||window.currentRole||'').toString().trim().toLowerCase();
-      const esAdmin=['administrador','superadmin'].includes(rolNormalizado);
-      const params=new URLSearchParams(window.location.search||'');
-      const debugParam=(params.get('debug')||'').toLowerCase();
-      const debugActivo=debugParam==='1'||debugParam==='true'||debugParam==='si';
-      return esAdmin || debugActivo;
+      return ['administrador','superadmin'].includes(rolNormalizado);
     }
 
     function actualizarDiagnosticoWalletApi(rol){
@@ -1334,6 +1330,21 @@
       const endpointConfigurado=(window.UPLOAD_ENDPOINT||window.__APP_CONFIG__?.uploadEndpoint||'').toString().trim()||'(vacío)';
       el.textContent=`Diagnóstico API billetera · Base efectiva: ${apiBase||'(vacía)'} · UPLOAD_ENDPOINT: ${endpointConfigurado}`;
       el.classList.add('visible');
+    }
+
+    function construirBasesApiBilletera(){
+      const normalizarBase=(valor)=>{
+        if(typeof valor!=='string') return '';
+        const limpio=valor.trim();
+        if(!limpio) return '';
+        return limpio.replace(/\/upload\/?$/,'').replace(/\/+$/,'');
+      };
+      const candidatas=[
+        normalizarBase(getWalletApiBase()),
+        normalizarBase(window.UPLOAD_ENDPOINT||''),
+        normalizarBase(window.__APP_CONFIG__?.uploadEndpoint||'')
+      ];
+      return Array.from(new Set(candidatas.filter(Boolean)));
     }
 
     async function ejecutarTransferenciaCreditos(){
@@ -1358,28 +1369,42 @@
       if(!confirmar) return;
       try{
         const token=await user.getIdToken(true);
-        const response=await fetch(`${getWalletApiBase()}/wallet/transfer-credits`,{
-          method:'POST',
-          headers:{'Content-Type':'application/json', Authorization:`Bearer ${token}`},
-          body:JSON.stringify({alias:aliasInfo.alias,monto})
-        });
-        const contentType=(response.headers.get('content-type')||'').toLowerCase();
-        if(!contentType.includes('application/json')){
-          const cuerpo=await response.text();
-          console.error('Respuesta no JSON en transferencia de créditos',{status:response.status,contentType,cuerpo});
-          setMensajeTransferencia('Error de configuración de API: la respuesta no es JSON. Verifica getWalletApiBase/UPLOAD_ENDPOINT.');
+        const apiBases=construirBasesApiBilletera();
+        if(!apiBases.length){
+          console.error('No se encontró una base válida para API de billetera');
+          setMensajeTransferencia('No se pudo completar la transferencia en este momento. Inténtalo nuevamente.');
           return;
         }
-        let payload=null;
-        try{
-          payload=await response.json();
-        }catch(parseError){
-          console.error('JSON inválido en transferencia de créditos',parseError);
-          setMensajeTransferencia('Error de configuración de API: respuesta JSON inválida del backend.');
-          return;
+        let ultimoErrorBackend='';
+        let transferenciaAplicada=false;
+        for(const apiBase of apiBases){
+          const response=await fetch(`${apiBase}/wallet/transfer-credits`,{
+            method:'POST',
+            headers:{'Content-Type':'application/json', Authorization:`Bearer ${token}`},
+            body:JSON.stringify({alias:aliasInfo.alias,monto})
+          });
+          const contentType=(response.headers.get('content-type')||'').toLowerCase();
+          if(!contentType.includes('application/json')){
+            const cuerpo=await response.text();
+            console.error('Respuesta no JSON en transferencia de créditos',{apiBase,status:response.status,contentType,cuerpo});
+            continue;
+          }
+          let payload=null;
+          try{
+            payload=await response.json();
+          }catch(parseError){
+            console.error('JSON inválido en transferencia de créditos',{apiBase,parseError});
+            continue;
+          }
+          if(!response.ok){
+            ultimoErrorBackend=(payload?.error||'').toString().trim();
+            continue;
+          }
+          transferenciaAplicada=true;
+          break;
         }
-        if(!response.ok){
-          setMensajeTransferencia(payload?.error||'No se pudo completar la transferencia.');
+        if(!transferenciaAplicada){
+          setMensajeTransferencia(ultimoErrorBackend||'No se pudo completar la transferencia en este momento. Inténtalo nuevamente.');
           return;
         }
         const guardarFavorito=document.getElementById('transferencia-guardar-favorito')?.checked;
