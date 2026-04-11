@@ -1331,7 +1331,11 @@
       }
       const apiBase=getWalletApiBase();
       const endpointConfigurado=(window.UPLOAD_ENDPOINT||window.__APP_CONFIG__?.uploadEndpoint||'').toString().trim()||'(vacío)';
-      el.textContent=`Diagnóstico API billetera · Base efectiva: ${apiBase||'(vacía)'} · UPLOAD_ENDPOINT: ${endpointConfigurado}`;
+      const detalleFallo=window.__walletTransferDebugLastFailure;
+      const segmentoFallo=detalleFallo
+        ? ` · Último intento: ${detalleFallo.apiBase||'(sin base)'} · Motivo: ${detalleFallo.errorType||'desconocido'}${Number.isFinite(detalleFallo.status)?` (HTTP ${detalleFallo.status})`:''}`
+        : '';
+      el.textContent=`Diagnóstico API billetera · Base efectiva: ${apiBase||'(vacía)'} · UPLOAD_ENDPOINT: ${endpointConfigurado}${segmentoFallo}`;
       el.classList.add('visible');
     }
 
@@ -1395,34 +1399,64 @@
         }
         let ultimoErrorBackend='';
         let transferenciaAplicada=false;
+        const intentosTransferencia=[];
+        window.__walletTransferDebugLastFailure=null;
         for(const apiBase of apiBases){
-          const response=await fetch(`${apiBase}/wallet/transfer-credits`,{
-            method:'POST',
-            headers:{'Content-Type':'application/json', Authorization:`Bearer ${token}`},
-            body:JSON.stringify({alias:aliasInfo.alias,monto})
-          });
-          const contentType=(response.headers.get('content-type')||'').toLowerCase();
-          if(!contentType.includes('application/json')){
-            const cuerpo=await response.text();
-            console.error('Respuesta no JSON en transferencia de créditos',{apiBase,status:response.status,contentType,cuerpo});
-            continue;
-          }
-          let payload=null;
           try{
-            payload=await response.json();
-          }catch(parseError){
-            console.error('JSON inválido en transferencia de créditos',{apiBase,parseError});
-            continue;
+            const response=await fetch(`${apiBase}/wallet/transfer-credits`,{
+              method:'POST',
+              headers:{'Content-Type':'application/json', Authorization:`Bearer ${token}`},
+              body:JSON.stringify({alias:aliasInfo.alias,monto})
+            });
+            const contentType=(response.headers.get('content-type')||'').toLowerCase();
+            if(!contentType.includes('application/json')){
+              const cuerpo=await response.text();
+              const intento={apiBase,errorType:'non-json',status:response.status};
+              intentosTransferencia.push(intento);
+              window.__walletTransferDebugLastFailure=intento;
+              console.error('Respuesta no JSON en transferencia de créditos',{...intento,contentType,cuerpo});
+              continue;
+            }
+            let payload=null;
+            try{
+              payload=await response.json();
+            }catch(parseError){
+              const intento={apiBase,errorType:'non-json',status:response.status};
+              intentosTransferencia.push(intento);
+              window.__walletTransferDebugLastFailure=intento;
+              console.error('JSON inválido en transferencia de créditos',{...intento,parseError});
+              continue;
+            }
+            if(!response.ok){
+              const intento={apiBase,errorType:'http',status:response.status};
+              intentosTransferencia.push(intento);
+              window.__walletTransferDebugLastFailure=intento;
+              ultimoErrorBackend=(payload?.error||'').toString().trim();
+              console.error('Error HTTP en transferencia de créditos',{...intento,payload});
+              continue;
+            }
+            transferenciaAplicada=true;
+            break;
+          }catch(fetchError){
+            const mensaje=(fetchError?.message||'').toString().toLowerCase();
+            const tipo=mensaje.includes('cors')
+              ? 'cors'
+              : 'network';
+            const intento={apiBase,errorType:tipo,status:null};
+            intentosTransferencia.push(intento);
+            window.__walletTransferDebugLastFailure=intento;
+            console.error('Error de red/CORS en transferencia de créditos',{...intento,fetchError});
           }
-          if(!response.ok){
-            ultimoErrorBackend=(payload?.error||'').toString().trim();
-            continue;
-          }
-          transferenciaAplicada=true;
-          break;
         }
         if(!transferenciaAplicada){
-          setMensajeTransferencia(ultimoErrorBackend||'No se pudo completar la transferencia en este momento. Inténtalo nuevamente.');
+          actualizarDiagnosticoWalletApi(window.currentRole||'');
+          const tipos=new Set(intentosTransferencia.map((i)=>i.errorType));
+          const mensajeUsuario=tipos.has('non-json')
+            ? 'El backend respondió un formato inválido.'
+            : (tipos.has('cors') || tipos.has('network'))
+              ? 'No se pudo conectar con el servidor de billetera (CORS o endpoint).'
+              : (ultimoErrorBackend||'No se pudo completar la transferencia en este momento. Inténtalo nuevamente.');
+          setMensajeTransferencia(mensajeUsuario);
           return;
         }
         const guardarFavorito=document.getElementById('transferencia-guardar-favorito')?.checked;
