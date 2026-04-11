@@ -1013,7 +1013,8 @@ app.post('/wallet/transfer-credits', verificarUsuarioAutenticado, async (req, re
 
     const origenRef = db.collection('Billetera').doc(userEmail);
     const destinoRef = db.collection('Billetera').doc(receptorEmail);
-    const transaccionRef = db.collection('transacciones').doc();
+    const transaccionSalidaRef = db.collection('transacciones').doc();
+    const transaccionEntradaRef = db.collection('transacciones').doc();
     const ahora = new Date();
     const fecha = `${String(ahora.getUTCDate()).padStart(2, '0')}/${String(ahora.getUTCMonth() + 1).padStart(2, '0')}/${ahora.getUTCFullYear()}`;
     const hora = `${String(ahora.getUTCHours()).padStart(2, '0')}:${String(ahora.getUTCMinutes()).padStart(2, '0')}`;
@@ -1023,6 +1024,7 @@ app.post('/wallet/transfer-credits', verificarUsuarioAutenticado, async (req, re
       const origenData = origenSnap.exists ? (origenSnap.data() || {}) : {};
       const destinoData = destinoSnap.exists ? (destinoSnap.data() || {}) : {};
       const creditosOrigen = Number(origenData.creditos || 0);
+      const receptorUid = normalizeString(receptorDoc.data()?.uid, 200);
       const creditosTransito = Math.max(0, Number(origenData.creditostransito || 0));
       const disponibles = Math.max(0, creditosOrigen - creditosTransito);
       if (disponibles < montoNormalizado) {
@@ -1030,15 +1032,38 @@ app.post('/wallet/transfer-credits', verificarUsuarioAutenticado, async (req, re
       }
       tx.set(origenRef, { creditos: Number((creditosOrigen - montoNormalizado).toFixed(2)) }, { merge: true });
       tx.set(destinoRef, { creditos: Number((Number(destinoData.creditos || 0) + montoNormalizado).toFixed(2)) }, { merge: true });
-      tx.set(transaccionRef, {
+      tx.set(transaccionSalidaRef, {
         tipotrans: 'transferencia',
         IDbilletera: userEmail,
         idBilleteraInterna: req.user?.uid || '',
         beneficiarioEmail: receptorEmail,
         aliasBeneficiario,
+        aliasContraparte: aliasBeneficiario,
+        transferenciaDireccion: 'saliente',
         Monto: montoNormalizado,
         estado: 'TRANSFERIDO',
         referencia: 'TRANSFERENCIA',
+        comentario: '',
+        usuariogestor: userEmail,
+        rolusuario: 'Jugador',
+        fechasolicitud: fecha,
+        horasolicitud: hora,
+        fechagestion: fecha,
+        horagestion: hora,
+        nota: ''
+      });
+      tx.set(transaccionEntradaRef, {
+        tipotrans: 'transferencia',
+        IDbilletera: receptorEmail,
+        idBilleteraInterna: receptorUid || '',
+        beneficiarioEmail: receptorEmail,
+        aliasBeneficiario,
+        aliasContraparte: normalizeString(req.user?.name || req.user?.alias || '', 40),
+        transferenciaDireccion: 'entrante',
+        emisorEmail: userEmail,
+        Monto: montoNormalizado,
+        estado: 'TRANSFERIDO',
+        referencia: 'TRANSFERENCIA RECIBIDA',
         comentario: '',
         usuariogestor: userEmail,
         rolusuario: 'Jugador',
