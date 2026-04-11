@@ -531,10 +531,12 @@
     }
 
     function obtenerDatosFormulario(){
+      const aliasNormalizado = normalizarAlias(document.getElementById('alias').value);
       return {
         nombre: document.getElementById('nombre').value.trim(),
         apellido: document.getElementById('apellido').value.trim(),
-        alias: document.getElementById('alias').value.trim(),
+        alias: aliasNormalizado,
+        aliasLower: normalizarAliasLower(aliasNormalizado),
         celularLocal: document.getElementById('celular').value.trim().replace(/\D/g,''),
         codigoPais: selectCodigoPais ? selectCodigoPais.value || '' : '',
         codigoReferido: (codigoReferidoInputEl?.value || '').trim().toUpperCase(),
@@ -569,6 +571,16 @@
     }
 
     function validarTexto(txt,max){ return txt && txt.length<=max && /^[A-Za-zÁÉÍÓÚáéíóúñÑ\s]+$/.test(txt); }
+    function normalizarAlias(valor){ return (valor || '').toString().trim().slice(0,60); }
+    function normalizarAliasLower(valor){ return normalizarAlias(valor).toLocaleLowerCase('es'); }
+    function aliasTieneEmoji(valor){ return /\p{Extended_Pictographic}/u.test((valor || '').toString()); }
+    function aliasTieneEspacios(valor){ return /\s/.test((valor || '').toString()); }
+    function obtenerErrorAlias(valor){
+      const alias = normalizarAlias(valor);
+      if(!alias){ return 'Alias obligatorio (máx. 60 caracteres).'; }
+      if(aliasTieneEmoji(alias) || aliasTieneEspacios(alias)){ return 'El Alias no permite emojis ni espacios en blanco.'; }
+      return '';
+    }
 
     function validarTelefono(datos){
       if(!datos.codigoPais || !datos.celularLocal){
@@ -594,7 +606,8 @@
       let ok=true;
       if(!d.nombre || !validarTexto(d.nombre,40)){ ok=false; if(mostrarErrores) setFieldMessage('nombre','Nombre inválido (solo letras, hasta 40).'); } else if(mostrarErrores) setFieldMessage('nombre','Correcto',true);
       if(!d.apellido || !validarTexto(d.apellido,40)){ ok=false; if(mostrarErrores) setFieldMessage('apellido','Apellido inválido (solo letras, hasta 40).'); } else if(mostrarErrores) setFieldMessage('apellido','Correcto',true);
-      if(!d.alias || d.alias.length>60){ ok=false; if(mostrarErrores) setFieldMessage('alias','Alias obligatorio (máx. 60 caracteres).'); } else if(mostrarErrores) setFieldMessage('alias','Correcto',true);
+      const errorAlias = obtenerErrorAlias(d.alias);
+      if(errorAlias){ ok=false; if(mostrarErrores) setFieldMessage('alias',errorAlias); } else if(mostrarErrores) setFieldMessage('alias','Correcto',true);
       const tel=validarTelefono(d);
       if(!tel.ok){ ok=false; if(mostrarErrores) setFieldMessage('celular',tel.mensaje); } else if(mostrarErrores) setFieldMessage('celular',`Teléfono válido: ${tel.nacional || tel.e164}`,true);
       return ok;
@@ -695,12 +708,19 @@
     }
 
     async function validarAliasDisponible(aliasIngresado){
-      const alias = (aliasIngresado || '').trim();
-      if(!alias){
-        setFieldMessage('alias','Alias obligatorio (máx. 60 caracteres).');
+      const alias = normalizarAlias(aliasIngresado);
+      const aliasLower = normalizarAliasLower(alias);
+      const errorAlias = obtenerErrorAlias(alias);
+      if(errorAlias){
+        setFieldMessage('alias',errorAlias);
         return false;
       }
       try{
+        const aliasLowerSnap = await db.collection('users').where('aliasLower','==',aliasLower).limit(1).get();
+        if(!aliasLowerSnap.empty){
+          setFieldMessage('alias','Ya este Alias se encuentra registrado, por favor elige otro DIFERENTE');
+          return false;
+        }
         const aliasSnap = await db.collection('users').where('alias','==',alias).limit(1).get();
         if(!aliasSnap.empty){
           setFieldMessage('alias','Ya este Alias se encuentra registrado, por favor elige otro DIFERENTE');
@@ -754,7 +774,7 @@
         }
         const referidoPorEmail = usuarioReferidor ? normalizeEmailId(usuarioReferidor.email || usuarioReferidor.id) : '';
         await db.collection('users').doc(emailId).set({
-          name:datos.nombre, apellido:datos.apellido, alias:datos.alias,
+          name:datos.nombre, apellido:datos.apellido, alias:datos.alias, aliasLower:datos.aliasLower,
           celular:numeroCompleto, numerocel:numeroCompleto, email:emailId,
           photoURL:user.photoURL, role:'Jugador', aceptoNotificaciones:'NO',
           codigoPromocional, codigoReferidoUsado: codigoReferido || '',
