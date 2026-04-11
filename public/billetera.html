@@ -144,9 +144,52 @@
       gap:8px;
     }
     .favoritos-transferencias h5{margin:0;color:#4b0082;font-size:1rem;}
+    .transferencia-favorito-inline{
+      display:flex;
+      align-items:center;
+      gap:8px;
+      font-weight:700;
+      color:#2d3c91;
+      margin-top:-2px;
+      margin-bottom:2px;
+    }
+    .transferencia-favorito-inline input[type="checkbox"]{
+      margin:0;
+      width:16px;
+      height:16px;
+    }
     #favoritos-transferencia-lista{display:flex;flex-direction:column;gap:8px;max-height:170px;overflow:auto;}
-    .favorito-transferencia-item{display:flex;align-items:center;justify-content:space-between;gap:10px;background:#f9f6ff;border:1px solid #d8c8ff;border-radius:10px;padding:7px 10px;}
-    .favorito-transferencia-item button{padding:5px 10px;font-size:0.75rem;}
+    .favorito-transferencia-item{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+      background:#f9f6ff;
+      border:1px solid #d8c8ff;
+      border-radius:10px;
+      padding:7px 10px;
+      cursor:pointer;
+    }
+    .favorito-transferencia-item.is-selected{
+      background:#efe7ff;
+      border-color:#6d28d9;
+      box-shadow:0 0 0 2px rgba(109,40,217,0.18);
+    }
+    .favorito-transferencia-item strong{color:#4b0082;}
+    .favoritos-toolbar{
+      display:flex;
+      justify-content:flex-end;
+      gap:8px;
+    }
+    .favoritos-toolbar button{
+      border:1px solid #c7b8f4;
+      background:#fff;
+      color:#4c1d95;
+      border-radius:10px;
+      padding:6px 10px;
+      font-size:0.85rem;
+      cursor:pointer;
+    }
     .transferencia-acciones{display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap;}
     #modal-transferencia .modal-card{
       background:linear-gradient(160deg,#ffffff,#eef2ff);
@@ -163,22 +206,26 @@
       letter-spacing:0.05em;
     }
     #modal-transferencia .transferencia-acciones button{
-      min-width:110px;
+      min-width:130px;
       border-radius:12px;
       border-width:1px;
-      font-size:0.9rem;
-      padding:9px 14px;
+      font-size:0.95rem;
+      font-weight:800;
+      padding:10px 16px;
+      box-shadow:0 8px 16px rgba(30,41,59,0.2);
     }
-    #btn-confirmar-transferencia{
-      background:linear-gradient(180deg,#6d28d9,#4c1d95);
+    #confirmar-transferencia{
+      background:linear-gradient(180deg,#16a34a,#0a7d2a);
       color:#fff;
-      border-color:#4c1d95;
+      border-color:#0a7d2a;
     }
     #cerrar-modal-transferencia{
-      background:#eef2ff;
-      color:#2d3c91;
-      border-color:#a5b4fc;
+      background:linear-gradient(180deg,#f9fafb,#e5e7eb);
+      color:#374151;
+      border-color:#cbd5e1;
     }
+    #modal-confirm{z-index:22000;}
+    #modal-alert{z-index:22000;}
     #carton-icon{width:24px;height:24px;}
     #creditos-valor.verde{text-shadow:0 0 5px #006600;}
     #creditos-valor.rojo{text-shadow:0 0 5px red;}
@@ -690,13 +737,17 @@
           <button id="buscar-alias-transferencia" type="button" aria-label="Buscar alias">🔍</button>
         </div>
         <input id="transferencia-monto" type="text" inputmode="numeric" placeholder="Créditos a transferir">
+        <label class="transferencia-favorito-inline" for="transferencia-guardar-favorito">
+          <input type="checkbox" id="transferencia-guardar-favorito"> Guardar favorito
+        </label>
         <p id="transferencia-msg"></p>
         <div class="favoritos-transferencias">
           <h5>Alias favoritos</h5>
+          <div class="favoritos-toolbar">
+            <button id="editar-favorito-transferencia" type="button" aria-label="Editar alias favorito">✏️ Editar</button>
+            <button id="eliminar-favorito-transferencia" type="button" aria-label="Eliminar alias favorito">🗑️ Eliminar</button>
+          </div>
           <div id="favoritos-transferencia-lista"></div>
-          <label style="font-size:0.8rem;color:#333;">
-            <input type="checkbox" id="transferencia-guardar-favorito"> Guardar alias como favorito
-          </label>
         </div>
         <div class="transferencia-acciones">
           <button id="cerrar-modal-transferencia" class="btn-secundario" type="button">Cancelar</button>
@@ -746,6 +797,7 @@
     const transaccionesGlobales=new Map();
     const favoritosTransferencias = new Set();
     let aliasBusquedaTransferencia = null;
+    let aliasFavoritoSeleccionado = '';
 
     function normalizarAliasTransferencia(valor){
       return (valor||'').toString().trim().slice(0,20);
@@ -1091,6 +1143,11 @@
       renderFavoritosTransferencias();
     }
 
+    function seleccionarAliasFavorito(alias){
+      aliasFavoritoSeleccionado = alias || '';
+      renderFavoritosTransferencias();
+    }
+
     function renderFavoritosTransferencias(){
       const lista=document.getElementById('favoritos-transferencia-lista');
       if(!lista) return;
@@ -1105,29 +1162,18 @@
       Array.from(favoritosTransferencias).sort((a,b)=>a.localeCompare(b,'es',{sensitivity:'base'})).forEach((alias)=>{
         const item=document.createElement('div');
         item.className='favorito-transferencia-item';
-        const usarBtn=document.createElement('button');
-        usarBtn.type='button';
-        usarBtn.className='btn-secundario';
-        usarBtn.textContent='Usar';
-        usarBtn.addEventListener('click',()=>{
+        if(aliasFavoritoSeleccionado===alias){
+          item.classList.add('is-selected');
+        }
+        item.addEventListener('click',()=>{
+          seleccionarAliasFavorito(alias);
           document.getElementById('transferencia-alias').value=alias;
           aliasBusquedaTransferencia={alias};
           setMensajeTransferencia(`Alias seleccionado: ${alias}`,'#2d3c91');
         });
         const aliasTexto=document.createElement('strong');
         aliasTexto.textContent=alias;
-        aliasTexto.style.color='#4b0082';
-        const quitarBtn=document.createElement('button');
-        quitarBtn.type='button';
-        quitarBtn.className='btn-secundario';
-        quitarBtn.textContent='Quitar';
-        quitarBtn.addEventListener('click',async ()=>{
-          favoritosTransferencias.delete(alias);
-          await guardarFavoritosTransferencias();
-        });
         item.appendChild(aliasTexto);
-        item.appendChild(usarBtn);
-        item.appendChild(quitarBtn);
         lista.appendChild(item);
       });
     }
@@ -1217,6 +1263,30 @@
       return aliasBusquedaTransferencia;
     }
 
+    async function eliminarAliasFavoritoSeleccionado(){
+      if(!aliasFavoritoSeleccionado){
+        setMensajeTransferencia('Selecciona un alias favorito para eliminar.');
+        return;
+      }
+      const confirmar = await mostrarConfirmacionModal(`¿Deseas eliminar el alias favorito ${aliasFavoritoSeleccionado}?`);
+      if(!confirmar) return;
+      favoritosTransferencias.delete(aliasFavoritoSeleccionado);
+      aliasFavoritoSeleccionado='';
+      await guardarFavoritosTransferencias();
+      setMensajeTransferencia('Alias favorito eliminado.','#0a7d2a');
+    }
+
+    function editarAliasFavoritoSeleccionado(){
+      if(!aliasFavoritoSeleccionado){
+        setMensajeTransferencia('Selecciona un alias favorito para editar.');
+        return;
+      }
+      document.getElementById('transferencia-alias').value=aliasFavoritoSeleccionado;
+      aliasBusquedaTransferencia={alias:aliasFavoritoSeleccionado};
+      setMensajeTransferencia(`Edita el alias en el campo y luego presiónalo para buscar o transferir.`,'#2d3c91');
+      document.getElementById('transferencia-alias').focus();
+    }
+
     function getWalletApiBase(){
       if(typeof getAdminApiBase==='function'){
         const apiBase=getAdminApiBase();
@@ -1259,7 +1329,11 @@
         }
         const guardarFavorito=document.getElementById('transferencia-guardar-favorito')?.checked;
         if(guardarFavorito){
+          if(aliasFavoritoSeleccionado && aliasFavoritoSeleccionado!==aliasInfo.alias){
+            favoritosTransferencias.delete(aliasFavoritoSeleccionado);
+          }
           favoritosTransferencias.add(aliasInfo.alias);
+          aliasFavoritoSeleccionado=aliasInfo.alias;
           await guardarFavoritosTransferencias();
         }
         setMensajeTransferencia('Transferencia realizada con éxito.','#0a7d2a');
@@ -2375,13 +2449,14 @@
         const esPremio=tipoTrans==='premio';
         const esPago=tipoTrans==='pago';
         const esTransferencia=tipoTrans==='transferencia';
+        const transferenciaEntrante=esTransferencia && (t.transferenciaDireccion==='entrante');
         const esPremioCartones=esPremio && cartonesGratisNum>0 && (Number(t.Monto)||0)===cartonesGratisNum;
         const esResaltado=esPremio||esPago||esTransferencia;
-        const colorTipo=esRecarga?'green':esRetiro?'red':(esTransferencia?'#ff8c00':(esPremio?'#1b5e20':'#1b5e20'));
+        const colorTipo=esRecarga?'green':esRetiro?'red':(esTransferencia?(transferenciaEntrante?'#0a7d2a':'#ff8c00'):(esPremio?'#1b5e20':'#1b5e20'));
         const montoTexto=esPremioCartones?String(cartonesGratisNum):montoFmt;
         const montoStyle=esPremioCartones
           ? 'background:#6a1b9a;color:#fff;font-weight:800;'
-          : (esPremio?'color:#0a7d2a;font-weight:800;':(esPago?`background:#1b5e20;color:#fff;`:(esTransferencia?'color:#ff8c00;font-weight:800;':`color:${colorTipo};`)));
+          : (esPremio?'color:#0a7d2a;font-weight:800;':(esPago?`background:#1b5e20;color:#fff;`:(esTransferencia?`color:${transferenciaEntrante?'#0a7d2a':'#ff8c00'};font-weight:800;`:`color:${colorTipo};`)));
         const fechaStyle=esResaltado?`color:#1b5e20;`:'';
         const celdas = [
           { texto: String(n) },
@@ -2531,9 +2606,14 @@
         const total=parseFloat(t.Monto);
         const cont=document.querySelector('#modal-detalle .contenido');
         if(t.tipotrans==='transferencia'){
+          const esEntrante=t.transferenciaDireccion==='entrante';
+          const tituloMonto=esEntrante?'Monto recibido':'Monto transferido';
+          const aliasCampo=esEntrante?'Alias remitente':'Alias beneficiario';
+          const aliasValor=esEntrante?(t.aliasContraparte||'Sin alias'):(t.aliasBeneficiario||'Sin alias');
+          const colorMonto=esEntrante?'#0a7d2a':'#ff8c00';
           cont.innerHTML=
-            `<div style="font-weight:bold;color:#ff8c00;">Monto transferido: ${total.toFixed(2)}</div>`+
-            `<div style="font-weight:bold;color:#6a1b9a;">Alias beneficiario: ${(t.aliasBeneficiario||'Sin alias')}</div>`+
+            `<div style="font-weight:bold;color:${colorMonto};">${tituloMonto}: ${total.toFixed(2)}</div>`+
+            `<div style="font-weight:bold;color:#6a1b9a;">${aliasCampo}: ${aliasValor}</div>`+
             `<button id='modal-ok'>Aceptar</button>`;
         }else if(esPremioCartones){
           cont.innerHTML=
@@ -2573,6 +2653,8 @@
       const modal=document.getElementById('modal-transferencia');
       modal.style.display='flex';
       modal.setAttribute('aria-hidden','false');
+      aliasFavoritoSeleccionado='';
+      renderFavoritosTransferencias();
       setMensajeTransferencia('');
       document.getElementById('transferencia-alias').focus();
     });
@@ -2580,13 +2662,20 @@
       const modal=document.getElementById('modal-transferencia');
       modal.style.display='none';
       modal.setAttribute('aria-hidden','true');
+      aliasFavoritoSeleccionado='';
+      renderFavoritosTransferencias();
     });
     document.getElementById('buscar-alias-transferencia').addEventListener('click',buscarAliasTransferencia);
     document.getElementById('confirmar-transferencia').addEventListener('click',ejecutarTransferenciaCreditos);
+    document.getElementById('editar-favorito-transferencia').addEventListener('click',editarAliasFavoritoSeleccionado);
+    document.getElementById('eliminar-favorito-transferencia').addEventListener('click',eliminarAliasFavoritoSeleccionado);
     document.getElementById('transferencia-alias').addEventListener('input',(event)=>{
       const normalizado=normalizarAliasTransferencia(event.target.value);
       if(event.target.value!==normalizado){ event.target.value=normalizado; }
       aliasBusquedaTransferencia=null;
+      if(aliasFavoritoSeleccionado && normalizado && normalizado!==aliasFavoritoSeleccionado){
+        setMensajeTransferencia(`Alias editado. Si marcas "Guardar favorito", reemplazará a ${aliasFavoritoSeleccionado}.`,'#2d3c91');
+      }
     });
     document.getElementById('transferencia-monto').addEventListener('input',(event)=>{
       event.target.value=event.target.value.replace(/[^\d.]/g,'').replace(/(\..*)\./g,'$1');
