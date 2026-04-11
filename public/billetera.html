@@ -78,6 +78,50 @@
     #creditos-valor{font-size:2.4rem;animation:pulse 1s infinite;}
     #creditos-info{display:flex;align-items:center;justify-content:center;gap:15px;}
     #cartones-gratis{font-family:"Bangers",cursive;color:#fff;font-size:2rem;text-shadow:0 0 8px #00008B;animation:pulse 1s infinite;display:flex;align-items:center;gap:3px;}
+    #btn-transferir-creditos{
+      font-family:'Poppins',sans-serif;
+      font-size:0.5rem;
+      font-weight:800;
+      letter-spacing:0.04em;
+      text-transform:uppercase;
+      background:rgba(255,153,0,0.2);
+      color:#ff8c00;
+      border:1px solid #ff8c00;
+      border-radius:8px;
+      padding:4px 6px;
+      cursor:pointer;
+    }
+    #btn-transferir-creditos:active{background:#ff8c00;color:#fff;}
+    .transferencia-panel{
+      display:flex;
+      flex-direction:column;
+      gap:10px;
+      text-align:left;
+    }
+    .transferencia-row{display:flex;align-items:center;gap:8px;}
+    .transferencia-row input{margin:0;flex:1;width:auto;text-align:left;}
+    #buscar-alias-transferencia{
+      width:34px;
+      height:34px;
+      min-width:34px;
+      border-radius:8px;
+      border:1px solid #5f73ff;
+      background:#e8edff;
+      cursor:pointer;
+    }
+    #transferencia-msg{font-size:0.78rem;min-height:16px;margin:0;}
+    .favoritos-transferencias{
+      border-top:1px solid #dedede;
+      padding-top:10px;
+      display:flex;
+      flex-direction:column;
+      gap:8px;
+    }
+    .favoritos-transferencias h5{margin:0;color:#4b0082;}
+    #favoritos-transferencia-lista{display:flex;flex-direction:column;gap:6px;max-height:160px;overflow:auto;}
+    .favorito-transferencia-item{display:flex;align-items:center;justify-content:space-between;gap:10px;background:#fff7eb;border:1px solid #ffd59a;border-radius:8px;padding:6px 8px;}
+    .favorito-transferencia-item button{padding:4px 8px;font-size:0.72rem;}
+    .transferencia-acciones{display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap;}
     #carton-icon{width:24px;height:24px;}
     #creditos-valor.verde{text-shadow:0 0 5px #006600;}
     #creditos-valor.rojo{text-shadow:0 0 5px red;}
@@ -439,6 +483,7 @@
         <img id="carton-icon" src="https://cdn-icons-png.flaticon.com/32/5065/5065890.png" alt="Ticket">
         <span id="cartones-valor">0</span>
       </div>
+      <button id="btn-transferir-creditos" type="button">TRANSFEREIR CREDITOS</button>
     </div>
   </div>
 
@@ -532,6 +577,7 @@
                 <option value="recarga">RECARGA</option>
                 <option value="retiro">RETIRO</option>
                 <option value="premio">PREMIO</option>
+                <option value="transferencia">TRANSFERENCIA</option>
               </select>
             </th>
             <th><input id="filtro-monto" type="number" placeholder="MONTO"></th>
@@ -543,6 +589,7 @@
                 <option value="APROBADO">Aprobado</option>
                 <option value="ACEPTADO">Aceptado</option>
                 <option value="ANULADO">Anulado</option>
+                <option value="TRANSFERIDO">Transferido</option>
               </select>
             </th>
           </tr>
@@ -574,6 +621,30 @@
       <p id="modal-alert-text"></p>
       <div class="modal-actions" style="justify-content:center;">
         <button id="modal-alert-accept" class="btn-primario" type="button">Entendido</button>
+      </div>
+    </div>
+  </div>
+  <div id="modal-transferencia" class="modal-overlay" aria-hidden="true" role="dialog" aria-label="Transferir créditos">
+    <div class="modal-card">
+      <h4>TRANSFERIR CRÉDITOS</h4>
+      <div class="transferencia-panel">
+        <div class="transferencia-row">
+          <input id="transferencia-alias" type="text" placeholder="Alias" maxlength="20" autocomplete="off">
+          <button id="buscar-alias-transferencia" type="button" aria-label="Buscar alias">🔍</button>
+        </div>
+        <input id="transferencia-monto" type="text" inputmode="numeric" placeholder="Créditos a transferir">
+        <p id="transferencia-msg"></p>
+        <div class="favoritos-transferencias">
+          <h5>Alias favoritos</h5>
+          <div id="favoritos-transferencia-lista"></div>
+          <label style="font-size:0.8rem;color:#333;">
+            <input type="checkbox" id="transferencia-guardar-favorito"> Guardar alias como favorito
+          </label>
+        </div>
+        <div class="transferencia-acciones">
+          <button id="cerrar-modal-transferencia" class="btn-secundario" type="button">Cancelar</button>
+          <button id="confirmar-transferencia" class="btn-primario" type="button">Transferir</button>
+        </div>
       </div>
     </div>
   </div>
@@ -616,6 +687,16 @@
     let unsubscribePremiosProyeccion=null;
     const transaccionesPremioProyeccion=new Map();
     const transaccionesGlobales=new Map();
+    const favoritosTransferencias = new Set();
+    let aliasBusquedaTransferencia = null;
+
+    function normalizarAliasTransferencia(valor){
+      return (valor||'').toString().trim().slice(0,20);
+    }
+
+    function aliasTransferenciaValido(alias){
+      return /^[\p{L}\p{N}]+$/u.test(alias||'');
+    }
 
     function toNumberSafe(valor, defecto=0){
       const numero=parseFloat(valor);
@@ -922,6 +1003,78 @@
       }
     }
 
+    function setMensajeTransferencia(texto,color='#b71c1c'){
+      const el=document.getElementById('transferencia-msg');
+      if(!el) return;
+      el.textContent=texto||'';
+      el.style.color=color;
+    }
+
+    async function cargarFavoritosTransferencias(){
+      const user=auth.currentUser;
+      if(!user?.email) return;
+      try{
+        const doc=await db.collection('users').doc(user.email).get();
+        const data=doc.exists?(doc.data()||{}):{};
+        const lista=Array.isArray(data.aliasFavoritosTransferencias)?data.aliasFavoritosTransferencias:[];
+        favoritosTransferencias.clear();
+        lista.map(normalizarAliasTransferencia).filter(aliasTransferenciaValido).forEach((alias)=>favoritosTransferencias.add(alias));
+        renderFavoritosTransferencias();
+      }catch(error){
+        console.error('No se pudieron cargar alias favoritos',error);
+      }
+    }
+
+    async function guardarFavoritosTransferencias(){
+      const user=auth.currentUser;
+      if(!user?.email) return;
+      await db.collection('users').doc(user.email).set({
+        aliasFavoritosTransferencias:Array.from(favoritosTransferencias).slice(0,25)
+      },{merge:true});
+      renderFavoritosTransferencias();
+    }
+
+    function renderFavoritosTransferencias(){
+      const lista=document.getElementById('favoritos-transferencia-lista');
+      if(!lista) return;
+      lista.innerHTML='';
+      if(!favoritosTransferencias.size){
+        const vacio=document.createElement('small');
+        vacio.textContent='No tienes alias favoritos guardados.';
+        vacio.style.color='#555';
+        lista.appendChild(vacio);
+        return;
+      }
+      Array.from(favoritosTransferencias).sort((a,b)=>a.localeCompare(b,'es',{sensitivity:'base'})).forEach((alias)=>{
+        const item=document.createElement('div');
+        item.className='favorito-transferencia-item';
+        const usarBtn=document.createElement('button');
+        usarBtn.type='button';
+        usarBtn.className='btn-secundario';
+        usarBtn.textContent='Usar';
+        usarBtn.addEventListener('click',()=>{
+          document.getElementById('transferencia-alias').value=alias;
+          aliasBusquedaTransferencia={alias};
+          setMensajeTransferencia(`Alias seleccionado: ${alias}`,'#2d3c91');
+        });
+        const aliasTexto=document.createElement('strong');
+        aliasTexto.textContent=alias;
+        aliasTexto.style.color='#4b0082';
+        const quitarBtn=document.createElement('button');
+        quitarBtn.type='button';
+        quitarBtn.className='btn-secundario';
+        quitarBtn.textContent='Quitar';
+        quitarBtn.addEventListener('click',async ()=>{
+          favoritosTransferencias.delete(alias);
+          await guardarFavoritosTransferencias();
+        });
+        item.appendChild(aliasTexto);
+        item.appendChild(usarBtn);
+        item.appendChild(quitarBtn);
+        lista.appendChild(item);
+      });
+    }
+
     function limitarSoloNumeros(input){
       if(!input) return;
       const sanitizar=()=>{
@@ -978,6 +1131,86 @@
       }
     }
 
+    async function buscarAliasTransferencia(){
+      const aliasInput=document.getElementById('transferencia-alias');
+      const alias=normalizarAliasTransferencia(aliasInput?.value);
+      if(aliasInput) aliasInput.value=alias;
+      aliasBusquedaTransferencia=null;
+      if(!alias){
+        setMensajeTransferencia('Debes ingresar el alias a consultar.');
+        return null;
+      }
+      if(!aliasTransferenciaValido(alias)){
+        setMensajeTransferencia('El alias solo permite letras y números.');
+        return null;
+      }
+      const aliasLower=alias.toLocaleLowerCase('es');
+      const snap=await db.collection('users').where('aliasLower','==',aliasLower).limit(1).get();
+      if(snap.empty){
+        setMensajeTransferencia('No se encontró el alias indicado en la base de datos.');
+        return null;
+      }
+      const doc=snap.docs[0];
+      const data=doc.data()||{};
+      aliasBusquedaTransferencia={ alias:normalizarAliasTransferencia(data.alias||alias), email:doc.id };
+      setMensajeTransferencia(`Alias encontrado: ${aliasBusquedaTransferencia.alias}`,'#0a7d2a');
+      return aliasBusquedaTransferencia;
+    }
+
+    function getWalletApiBase(){
+      if(typeof getAdminApiBase==='function'){
+        const apiBase=getAdminApiBase();
+        if(apiBase) return apiBase;
+      }
+      return (window.location?.origin||'').trim();
+    }
+
+    async function ejecutarTransferenciaCreditos(){
+      const user=auth.currentUser;
+      if(!user){
+        setMensajeTransferencia('Tu sesión no está disponible.');
+        return;
+      }
+      const aliasInfo=aliasBusquedaTransferencia || await buscarAliasTransferencia();
+      if(!aliasInfo) return;
+      if(aliasInfo.email?.toLowerCase()===user.email?.toLowerCase()){
+        setMensajeTransferencia('No puedes transferirte créditos a tu propio alias.');
+        return;
+      }
+      const montoInput=document.getElementById('transferencia-monto');
+      const monto=Number((montoInput?.value||'').trim());
+      if(!Number.isFinite(monto) || monto<=0){
+        setMensajeTransferencia('Debes ingresar un monto válido mayor a 0.');
+        return;
+      }
+      const confirmar=await mostrarConfirmacionModal(`¿Confirmas transferir ${monto.toFixed(2)} créditos a ${aliasInfo.alias}?`);
+      if(!confirmar) return;
+      try{
+        const token=await user.getIdToken(true);
+        const response=await fetch(`${getWalletApiBase()}/wallet/transfer-credits`,{
+          method:'POST',
+          headers:{'Content-Type':'application/json', Authorization:`Bearer ${token}`},
+          body:JSON.stringify({alias:aliasInfo.alias,monto})
+        });
+        const payload=await response.json();
+        if(!response.ok){
+          setMensajeTransferencia(payload?.error||'No se pudo completar la transferencia.');
+          return;
+        }
+        const guardarFavorito=document.getElementById('transferencia-guardar-favorito')?.checked;
+        if(guardarFavorito){
+          favoritosTransferencias.add(aliasInfo.alias);
+          await guardarFavoritosTransferencias();
+        }
+        setMensajeTransferencia('Transferencia realizada con éxito.','#0a7d2a');
+        document.getElementById('transferencia-monto').value='';
+        await refrescarResumenBilletera();
+      }catch(error){
+        console.error('Error transfiriendo créditos',error);
+        setMensajeTransferencia('No se pudo completar la transferencia. Inténtalo nuevamente.');
+      }
+    }
+
     initFirebase().then(() => {
       auth.onAuthStateChanged(async user => {
         if(!user) return;
@@ -1007,6 +1240,7 @@
         const doc = await billeteraRef.get();
         suscribirBilleteraUsuario();
         suscribirTransaccionesUsuario();
+        await cargarFavoritosTransferencias();
         const estadoTutorialActivo = (doc.exists && doc.data()?.tutorialBilleteraEstado === 'Activo');
         tutorialState.datosCargados=true;
         configurarControlesTutorial();
@@ -1122,7 +1356,7 @@
       const rolInterno = (data.rolInterno || data.rolinterno || '').toString().trim().toLowerCase();
       const esRolEspecial = ['desarrolladores','desarrollador','agencia'].includes(rolInterno);
 
-      if(['retiro','recarga','ajuste_colaborador'].includes(tipoCrudo)){
+      if(['retiro','recarga','ajuste_colaborador','transferencia'].includes(tipoCrudo)){
         return tipoCrudo;
       }
 
@@ -2071,7 +2305,7 @@
         if(fecha && f!==fecha) return;
         if(estado && normalizarEstadoPremioTransaccion(t.estado)!==normalizarEstadoPremioTransaccion(estado)) return;
         const estadoNormalizado=normalizarEstadoPremioTransaccion(t.estado);
-        const estadoColor=estadoNormalizado==='PENDIENTE'?'orange':estadoNormalizado==='ANULADO'?'red':(estadoNormalizado==='APROBADO' || estadoNormalizado==='ACEPTADO')?'green':'black';
+        const estadoColor=estadoNormalizado==='PENDIENTE'?'orange':estadoNormalizado==='ANULADO'?'red':(estadoNormalizado==='APROBADO' || estadoNormalizado==='ACEPTADO')?'green':(estadoNormalizado==='TRANSFERIDO'?'#ff8c00':'black');
         const tr=document.createElement('tr');
         const montoFmt=parseFloat(t.Monto).toFixed(2).replace(/\.00$/, '').replace(/(\.\d)0$/, '$1');
         const tipoTrans=(t.tipotrans||'').toLowerCase();
@@ -2080,13 +2314,14 @@
         const esRetiro=tipoTrans==='retiro';
         const esPremio=tipoTrans==='premio';
         const esPago=tipoTrans==='pago';
+        const esTransferencia=tipoTrans==='transferencia';
         const esPremioCartones=esPremio && cartonesGratisNum>0 && (Number(t.Monto)||0)===cartonesGratisNum;
-        const esResaltado=esPremio||esPago;
-        const colorTipo=esRecarga?'green':esRetiro?'red':(esPremio?'#1b5e20':'#1b5e20');
+        const esResaltado=esPremio||esPago||esTransferencia;
+        const colorTipo=esRecarga?'green':esRetiro?'red':(esTransferencia?'#ff8c00':(esPremio?'#1b5e20':'#1b5e20'));
         const montoTexto=esPremioCartones?String(cartonesGratisNum):montoFmt;
         const montoStyle=esPremioCartones
           ? 'background:#6a1b9a;color:#fff;font-weight:800;'
-          : (esPremio?'color:#0a7d2a;font-weight:800;':(esPago?`background:#1b5e20;color:#fff;`:`color:${colorTipo};`));
+          : (esPremio?'color:#0a7d2a;font-weight:800;':(esPago?`background:#1b5e20;color:#fff;`:(esTransferencia?'color:#ff8c00;font-weight:800;':`color:${colorTipo};`)));
         const fechaStyle=esResaltado?`color:#1b5e20;`:'';
         const celdas = [
           { texto: String(n) },
@@ -2196,7 +2431,11 @@
         const fg=formatearFecha(t.fechagestion||'');
         const hg=formatearHora(t.horagestion||'');
         const cont=document.querySelector('#modal-detalle .contenido');
-        if(t.tipotrans==='premio' || t.tipotrans==='pago'){
+        if(t.tipotrans==='transferencia'){
+          cont.innerHTML=`<div style="color:#ff8c00;font-weight:bold;">Fecha de transferencia: ${fg||fs}</div>`+
+          `<div style="color:#4b0082;">Hora de transferencia: ${hg||hs}</div>`+
+          `<button id="modal-ok">Aceptar</button>`;
+        }else if(t.tipotrans==='premio' || t.tipotrans==='pago'){
           const etiqueta=t.tipotrans==='pago'?'PAGO':'PREMIO';
           cont.innerHTML=`<div style="color:#1b5e20;font-weight:bold;">Referencia: ${etiqueta}</div>`+
           `<div style="color:green;">Fecha de gestión: ${fg}</div>`+
@@ -2231,7 +2470,12 @@
         const comG=t.tipotrans==='retiro'?solicitado*porcentajeAdministra/100:0;
         const total=parseFloat(t.Monto);
         const cont=document.querySelector('#modal-detalle .contenido');
-        if(esPremioCartones){
+        if(t.tipotrans==='transferencia'){
+          cont.innerHTML=
+            `<div style="font-weight:bold;color:#ff8c00;">Monto transferido: ${total.toFixed(2)}</div>`+
+            `<div style="font-weight:bold;color:#6a1b9a;">Alias beneficiario: ${(t.aliasBeneficiario||'Sin alias')}</div>`+
+            `<button id='modal-ok'>Aceptar</button>`;
+        }else if(esPremioCartones){
           cont.innerHTML=
             `<div style="font-weight:bold;background:#6a1b9a;color:#fff;padding:8px;border-radius:8px;">Cartones gratis ganados: ${cartonesGratisNum}</div>`+
             `<button id='modal-ok'>Aceptar</button>`;
@@ -2265,6 +2509,28 @@
       document.getElementById('filtro-monto').addEventListener('input',filtrarTransacciones);
     document.getElementById('filtro-fecha').addEventListener('change',filtrarTransacciones);
     document.getElementById('filtro-estado').addEventListener('change',filtrarTransacciones);
+    document.getElementById('btn-transferir-creditos').addEventListener('click',()=>{
+      const modal=document.getElementById('modal-transferencia');
+      modal.style.display='flex';
+      modal.setAttribute('aria-hidden','false');
+      setMensajeTransferencia('');
+      document.getElementById('transferencia-alias').focus();
+    });
+    document.getElementById('cerrar-modal-transferencia').addEventListener('click',()=>{
+      const modal=document.getElementById('modal-transferencia');
+      modal.style.display='none';
+      modal.setAttribute('aria-hidden','true');
+    });
+    document.getElementById('buscar-alias-transferencia').addEventListener('click',buscarAliasTransferencia);
+    document.getElementById('confirmar-transferencia').addEventListener('click',ejecutarTransferenciaCreditos);
+    document.getElementById('transferencia-alias').addEventListener('input',(event)=>{
+      const normalizado=normalizarAliasTransferencia(event.target.value);
+      if(event.target.value!==normalizado){ event.target.value=normalizado; }
+      aliasBusquedaTransferencia=null;
+    });
+    document.getElementById('transferencia-monto').addEventListener('input',(event)=>{
+      event.target.value=event.target.value.replace(/[^\d.]/g,'').replace(/(\..*)\./g,'$1');
+    });
 
     async function validarDatosBancarios(){
       const user=auth.currentUser;
