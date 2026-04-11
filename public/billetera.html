@@ -1409,22 +1409,28 @@
               body:JSON.stringify({alias:aliasInfo.alias,monto})
             });
             const contentType=(response.headers.get('content-type')||'').toLowerCase();
-            if(!contentType.includes('application/json')){
-              const cuerpo=await response.text();
+            const cuerpo=await response.text();
+            let payload=null;
+            let pudoParsearJson=false;
+            if(cuerpo){
+              try{
+                payload=JSON.parse(cuerpo);
+                pudoParsearJson=true;
+              }catch(parseError){
+                if(contentType.includes('application/json')){
+                  const intento={apiBase,errorType:'non-json',status:response.status};
+                  intentosTransferencia.push(intento);
+                  window.__walletTransferDebugLastFailure=intento;
+                  console.error('JSON inválido en transferencia de créditos',{...intento,parseError,cuerpo});
+                  continue;
+                }
+              }
+            }
+            if(!pudoParsearJson && !contentType.includes('application/json')){
               const intento={apiBase,errorType:'non-json',status:response.status};
               intentosTransferencia.push(intento);
               window.__walletTransferDebugLastFailure=intento;
               console.error('Respuesta no JSON en transferencia de créditos',{...intento,contentType,cuerpo});
-              continue;
-            }
-            let payload=null;
-            try{
-              payload=await response.json();
-            }catch(parseError){
-              const intento={apiBase,errorType:'non-json',status:response.status};
-              intentosTransferencia.push(intento);
-              window.__walletTransferDebugLastFailure=intento;
-              console.error('JSON inválido en transferencia de créditos',{...intento,parseError});
               continue;
             }
             if(!response.ok){
@@ -1451,8 +1457,13 @@
         if(!transferenciaAplicada){
           actualizarDiagnosticoWalletApi(window.currentRole||'');
           const tipos=new Set(intentosTransferencia.map((i)=>i.errorType));
-          const mensajeUsuario=tipos.has('non-json')
-            ? 'El backend respondió un formato inválido.'
+          const huboNoJson=tipos.has('non-json');
+          const ultimoIntentoNoJson=[...intentosTransferencia].reverse().find((i)=>i.errorType==='non-json');
+          const mensajeNoJson=(ultimoIntentoNoJson?.status===404 || ultimoIntentoNoJson?.status===502 || ultimoIntentoNoJson?.status===503)
+            ? 'La URL de la API de billetera parece incorrecta o no disponible (respuesta no JSON). Verifica UPLOAD_ENDPOINT y CORS.'
+            : 'El backend respondió un formato inválido.';
+          const mensajeUsuario=huboNoJson
+            ? mensajeNoJson
             : (tipos.has('cors') || tipos.has('network'))
               ? 'No se pudo conectar con el servidor de billetera (CORS o endpoint).'
               : (ultimoErrorBackend||'No se pudo completar la transferencia en este momento. Inténtalo nuevamente.');
