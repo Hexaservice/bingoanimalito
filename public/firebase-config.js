@@ -30,4 +30,4 @@ window.__APP_CONFIG__ = {
   uploadEndpoint: ""
 };
 
-window.UPLOAD_ENDPOINT = window.__APP_CONFIG__.uploadEndpoint;
+window.UPLOAD_ENDPOINT = (window.__APP_CONFIG__.uploadEndpoint || '').trim();

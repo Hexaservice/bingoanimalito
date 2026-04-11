@@ -97,18 +97,26 @@ Ejemplos:
 
 Si el frontend llama desde un origen no incluido, el backend responderá `403` por CORS.
 
-### `UPLOAD_ENDPOINT` para `/upload`, `/syncClaims` y `/admin/session/*`
+### `UPLOAD_ENDPOINT` para `/upload`, `/syncClaims`, `/admin/session/*` y billetera (`/wallet/*`)
 
-Ahora el deploy publica `UPLOAD_ENDPOINT` dentro de `public/firebase-config.js`, y `public/js/auth.js` lo reutiliza para construir la base de:
+Ahora el deploy publica `UPLOAD_ENDPOINT` dentro de `public/firebase-config.js` (generado desde `public/firebase-config.template.js`), y `public/js/auth.js` lo reutiliza para construir la base de:
 
 - `/syncClaims`
 - `/admin/session/register`
 - `/admin/session/status`
+- endpoints de billetera como `/wallet/transfer-credits` (cuando `billetera.html` usa `getWalletApiBase`).
 
-La recomendación es una de estas dos:
+La recomendación es una de estas dos (evitando que apunte al hosting estático si backend y frontend no comparten origen):
 
 1. **Mismo origen**: exponer el backend detrás del mismo dominio del frontend y usar `UPLOAD_ENDPOINT=https://tu-dominio.com/upload`.
 2. **Origen separado**: publicar el backend en otro dominio HTTPS y definir `UPLOAD_ENDPOINT=https://api.tu-dominio.com/upload`.
+
+Checklist rápido de validación en producción:
+
+1. Abrir la app publicada y verificar en `firebase-config.js` que `window.UPLOAD_ENDPOINT` no esté vacío.
+2. Confirmar que la URL tenga el dominio real del backend (ejemplo: `https://api.tu-dominio.com/upload`).
+3. Si backend/frontend usan dominios distintos, **no** usar la URL del hosting estático para `UPLOAD_ENDPOINT`.
+4. En modo admin o con `?debug=1` en `billetera.html`, revisar el diagnóstico visible de base efectiva para confirmar la URL usada por `getWalletApiBase`.
 
 En GitHub Actions, define también el secret:
 
