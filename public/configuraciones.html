@@ -1825,7 +1825,8 @@
     let loteriasData=[];
     let loteriasImagenesCache=null;
     const LOTERIAS_SOURCE_OF_TRUTH_COLLECTION='loterias';
-    let loteriasBaseHash='';
+    let loteriasBaseHash='[]';
+    let loteriasCargadas=false;
     let loteriaImagenTargetId='';
     let loteriaFocusPendienteId='';
     let loteriaSeleccionadaEliminarId='';
@@ -1885,6 +1886,7 @@
       return JSON.stringify(base);
     }
     function hayCambiosLoteriasSinGuardar(){
+      if(!loteriasCargadas) return false;
       return obtenerLoteriasHash()!==loteriasBaseHash;
     }
     async function preguntarSalidaConCambiosLoterias(){
@@ -2238,6 +2240,7 @@
       loteriaSeleccionadaEliminarId='';
       normalizarJerarquiasActivas();
       renderLoterias();
+      loteriasCargadas=true;
       loteriasBaseHash=obtenerLoteriasHash();
       actualizarBotonGuardarLoterias();
       mostrarEstadoLoterias('');
