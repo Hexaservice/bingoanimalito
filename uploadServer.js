@@ -906,6 +906,60 @@ function getBilleteraCandidates({ userEmail, cartonData, payloadUserId }) {
   return Array.from(new Set(values));
 }
 
+function buildWalletResolutionContext({ email, uid, extraCandidates = [] } = {}) {
+  const canonicalEmail = normalizeIdentityValue(email, 160).toLowerCase();
+  const normalizedUid = normalizeIdentityValue(uid, 160);
+  const normalizedExtra = Array.isArray(extraCandidates)
+    ? extraCandidates.map((item) => normalizeIdentityValue(item, 160)).filter(Boolean)
+    : [];
+  const internalCandidates = Array.from(new Set([
+    normalizedUid,
+    ...normalizedExtra.filter((item) => !looksLikeEmailIdentity(item))
+  ].filter(Boolean)));
+  const billeteraIdentity = buildBilleteraIdentity({
+    email: canonicalEmail,
+    uid: normalizedUid,
+    extraCandidates: normalizedExtra
+  });
+  const prioritizedCandidates = Array.from(new Set([
+    canonicalEmail,
+    ...internalCandidates,
+    ...(Array.isArray(billeteraIdentity.billeteraCandidates) ? billeteraIdentity.billeteraCandidates : [])
+  ].filter(Boolean)));
+  return {
+    canonicalEmail: billeteraIdentity.canonicalEmail || canonicalEmail,
+    billeteraId: normalizeIdentityValue(billeteraIdentity.billeteraId, 160),
+    billeteraCandidates: prioritizedCandidates,
+    internalCandidates
+  };
+}
+
+async function resolveWalletDocInTransaction({ tx, db, context }) {
+  const fallbackWalletId = normalizeIdentityValue(
+    context?.billeteraId || context?.canonicalEmail || context?.internalCandidates?.[0],
+    160
+  );
+  const candidates = Array.isArray(context?.billeteraCandidates)
+    ? context.billeteraCandidates.map((item) => normalizeIdentityValue(item, 160)).filter(Boolean)
+    : [];
+  const orderedCandidates = Array.from(new Set([
+    normalizeIdentityValue(context?.canonicalEmail, 160).toLowerCase(),
+    ...candidates
+  ].filter(Boolean)));
+
+  for (const candidate of orderedCandidates) {
+    const ref = db.collection('Billetera').doc(candidate);
+    const snap = await tx.get(ref);
+    if (snap.exists) {
+      return { ref, snap, usedWalletId: candidate };
+    }
+  }
+
+  const fallbackRef = db.collection('Billetera').doc(fallbackWalletId);
+  const fallbackSnap = await tx.get(fallbackRef);
+  return { ref: fallbackRef, snap: fallbackSnap, usedWalletId: fallbackWalletId };
+}
+
 async function resolveWinnerIdentity({
   normalizedEmail,
   normalizedUserId,
@@ -1000,7 +1054,10 @@ app.post('/wallet/transfer-credits', verificarUsuarioAutenticado, async (req, re
   const montoNormalizado = Number(monto.toFixed(2));
   try {
     const aliasLower = alias.toLocaleLowerCase('es');
-    const receptorSnap = await db.collection('users').where('aliasLower', '==', aliasLower).limit(1).get();
+    const [receptorSnap, emisorUserSnap] = await Promise.all([
+      db.collection('users').where('aliasLower', '==', aliasLower).limit(1).get(),
+      db.collection('users').doc(userEmail).get()
+    ]);
     if (receptorSnap.empty) {
       return res.status(404).json({ error: 'No se encontró el alias beneficiario.' });
     }
@@ -1011,8 +1068,28 @@ app.post('/wallet/transfer-credits', verificarUsuarioAutenticado, async (req, re
       return res.status(400).json({ error: 'No puedes transferirte créditos a tu propio alias.' });
     }
 
-    const origenRef = db.collection('Billetera').doc(userEmail);
-    const destinoRef = db.collection('Billetera').doc(receptorEmail);
+    const emisorUserData = emisorUserSnap.exists ? (emisorUserSnap.data() || {}) : {};
+    const receptorUserData = receptorDoc.data() || {};
+    const origenWalletContext = buildWalletResolutionContext({
+      email: userEmail,
+      uid: normalizeString(req.user?.uid, 200),
+      extraCandidates: [
+        normalizeString(emisorUserData?.uid, 200),
+        normalizeString(emisorUserData?.IDbilletera, 200)
+      ]
+    });
+    const destinoWalletContext = buildWalletResolutionContext({
+      email: receptorEmail,
+      uid: normalizeString(receptorUserData?.uid, 200),
+      extraCandidates: [
+        normalizeString(receptorUserData?.uid, 200),
+        normalizeString(receptorUserData?.IDbilletera, 200)
+      ]
+    });
+    if (!origenWalletContext.billeteraId || !destinoWalletContext.billeteraId) {
+      return res.status(400).json({ error: 'No se pudo resolver la identidad de billetera.' });
+    }
+
     const transaccionSalidaRef = db.collection('transacciones').doc();
     const transaccionEntradaRef = db.collection('transacciones').doc();
     const ahora = new Date();
@@ -1020,23 +1097,36 @@ app.post('/wallet/transfer-credits', verificarUsuarioAutenticado, async (req, re
     const hora = `${String(ahora.getUTCHours()).padStart(2, '0')}:${String(ahora.getUTCMinutes()).padStart(2, '0')}`;
 
     await db.runTransaction(async (tx) => {
-      const [origenSnap, destinoSnap] = await Promise.all([tx.get(origenRef), tx.get(destinoRef)]);
+      const [origenResolved, destinoResolved] = await Promise.all([
+        resolveWalletDocInTransaction({ tx, db, context: origenWalletContext }),
+        resolveWalletDocInTransaction({ tx, db, context: destinoWalletContext })
+      ]);
+      const origenRef = origenResolved.ref;
+      const destinoRef = destinoResolved.ref;
+      const origenSnap = origenResolved.snap;
+      const destinoSnap = destinoResolved.snap;
       const origenData = origenSnap.exists ? (origenSnap.data() || {}) : {};
       const destinoData = destinoSnap.exists ? (destinoSnap.data() || {}) : {};
       const creditosOrigen = Number(origenData.creditos || 0);
-      const receptorUid = normalizeString(receptorDoc.data()?.uid, 200);
       const creditosTransito = Math.max(0, Number(origenData.creditostransito || 0));
       const disponibles = Math.max(0, creditosOrigen - creditosTransito);
       if (disponibles < montoNormalizado) {
         throw new Error('CREDITOS_INSUFICIENTES');
       }
       tx.set(origenRef, { creditos: Number((creditosOrigen - montoNormalizado).toFixed(2)) }, { merge: true });
-      tx.set(destinoRef, { creditos: Number((Number(destinoData.creditos || 0) + montoNormalizado).toFixed(2)) }, { merge: true });
+      tx.set(destinoRef, {
+        email: destinoWalletContext.canonicalEmail || receptorEmail,
+        creditos: Number((Number(destinoData.creditos || 0) + montoNormalizado).toFixed(2)),
+        CartonesGratis: Number(destinoData.CartonesGratis ?? destinoData.cartonesGratis ?? 0) || 0,
+        creditostransito: Number(destinoData.creditostransito || 0) || 0
+      }, { merge: true });
       tx.set(transaccionSalidaRef, {
         tipotrans: 'transferencia',
         IDbilletera: userEmail,
-        idBilleteraInterna: req.user?.uid || '',
+        idBilleteraInterna: origenResolved.usedWalletId,
+        billeteraVisibleEmail: userEmail,
         beneficiarioEmail: receptorEmail,
+        beneficiarioIdBilleteraInterna: destinoResolved.usedWalletId,
         aliasBeneficiario,
         aliasContraparte: aliasBeneficiario,
         transferenciaDireccion: 'saliente',
@@ -1055,12 +1145,14 @@ app.post('/wallet/transfer-credits', verificarUsuarioAutenticado, async (req, re
       tx.set(transaccionEntradaRef, {
         tipotrans: 'transferencia',
         IDbilletera: receptorEmail,
-        idBilleteraInterna: receptorUid || '',
+        idBilleteraInterna: destinoResolved.usedWalletId,
+        billeteraVisibleEmail: receptorEmail,
         beneficiarioEmail: receptorEmail,
         aliasBeneficiario,
         aliasContraparte: normalizeString(req.user?.name || req.user?.alias || '', 40),
         transferenciaDireccion: 'entrante',
         emisorEmail: userEmail,
+        emisorIdBilleteraInterna: origenResolved.usedWalletId,
         Monto: montoNormalizado,
         estado: 'TRANSFERIDO',
         referencia: 'TRANSFERENCIA RECIBIDA',
