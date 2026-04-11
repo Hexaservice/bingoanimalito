@@ -1314,6 +1314,9 @@
     }
 
     function shouldShowWalletApiDebug(rol){
+      const debugParam=new URLSearchParams(window.location?.search||'').get('debug');
+      const debugActivo=debugParam==='1'||debugParam==='true';
+      if(!debugActivo) return false;
       const rolNormalizado=(rol||window.currentRole||'').toString().trim().toLowerCase();
       return ['administrador','superadmin'].includes(rolNormalizado);
     }
@@ -1339,10 +1342,25 @@
         if(!limpio) return '';
         return limpio.replace(/\/upload\/?$/,'').replace(/\/+$/,'');
       };
+      const dominiosAutorizados=Array.isArray(window.__FIREBASE_AUTH_SETTINGS__?.authorizedDomains)
+        ? window.__FIREBASE_AUTH_SETTINGS__.authorizedDomains
+        : [];
+      const dominioPublicado=dominiosAutorizados
+        .map((item)=>String(item||'').trim().toLowerCase())
+        .find((dominio)=>
+          dominio &&
+          !dominio.includes('localhost') &&
+          !dominio.endsWith('.web.app') &&
+          !dominio.endsWith('.firebaseapp.com')
+        );
+      const candidatoDominioPublicado=dominioPublicado
+        ? [`https://${dominioPublicado}`, `https://www.${dominioPublicado.replace(/^www\./,'')}`]
+        : [];
       const candidatas=[
         normalizarBase(getWalletApiBase()),
         normalizarBase(window.UPLOAD_ENDPOINT||''),
-        normalizarBase(window.__APP_CONFIG__?.uploadEndpoint||'')
+        normalizarBase(window.__APP_CONFIG__?.uploadEndpoint||''),
+        ...candidatoDominioPublicado.map((url)=>normalizarBase(url))
       ];
       return Array.from(new Set(candidatas.filter(Boolean)));
     }
