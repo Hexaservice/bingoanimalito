@@ -648,7 +648,7 @@ async function getUserRole(user){
 }
 
 async function getRoleConsistencyDiagnosis(user, options = {}){
-  const { forceRefreshToken = true } = options;
+  const { forceRefreshToken = true, allowClaimsResync = true } = options;
   if(!user){
     return {
       ok: false,
@@ -697,6 +697,25 @@ async function getRoleConsistencyDiagnosis(user, options = {}){
     if(isPrivilegedRole(claimsRole) || isPrivilegedRole(userDocRole)){
       const claimsCompatiblesConRol = claimIncluyeRol(claims, userDocRole);
       if(!claimsCompatiblesConRol){
+        if(allowClaimsResync && isPrivilegedRole(userDocRole)){
+          const resincronizado = await intentarResincronizarClaims(user, userDocRole);
+          if(resincronizado){
+            try{
+              const tokenActualizado = await user.getIdTokenResult(true);
+              const claimsActualizados = tokenActualizado?.claims || {};
+              if(claimIncluyeRol(claimsActualizados, userDocRole)){
+                return {
+                  ok: true,
+                  code: 'CLAIMS_RESYNC',
+                  claimsRole: resolveRoleFromClaims(claimsActualizados) || userDocRole,
+                  userDocRole
+                };
+              }
+            }catch(syncErr){
+              console.warn('No se pudo validar claims luego de resincronización automática en diagnóstico de rol', syncErr);
+            }
+          }
+        }
         const result = {
           ok: false,
           code: 'ROLE_MISMATCH',

@@ -202,6 +202,38 @@ describe('auth.js', () => {
     );
   });
 
+  test('getRoleConsistencyDiagnosis intenta resincronizar claims antes de bloquear acceso administrativo', async () => {
+    setupWindow();
+    window.fetch = jest.fn(async () => ({ ok: true, status: 200 }));
+    global.fetch = window.fetch;
+    global.firebase = buildFirebaseMock({ userExists: true, role: 'Superadmin' });
+
+    let getRoleConsistencyDiagnosis;
+    jest.isolateModules(() => {
+      ({ getRoleConsistencyDiagnosis } = require('../public/js/auth.js'));
+    });
+
+    const fakeUser = {
+      email: 'superadmin@correo.com',
+      getIdToken: jest.fn(async () => 'token-demo'),
+      getIdTokenResult: jest
+        .fn()
+        .mockResolvedValueOnce({ claims: {} })
+        .mockResolvedValueOnce({ claims: { role: 'Superadmin', roles: ['Superadmin'], admin: true } })
+    };
+
+    await expect(getRoleConsistencyDiagnosis(fakeUser)).resolves.toEqual({
+      ok: true,
+      code: 'CLAIMS_RESYNC',
+      claimsRole: 'Superadmin',
+      userDocRole: 'Superadmin'
+    });
+    expect(window.fetch).toHaveBeenCalledWith(
+      'https://app.test/syncClaims',
+      expect.objectContaining({ method: 'POST' })
+    );
+  });
+
   test('verificarRolFuerte falla cuando no hay custom claims válidos', async () => {
     setupWindow();
     window.fetch = jest.fn(async () => ({ ok: false, status: 500 }));
