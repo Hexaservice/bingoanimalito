@@ -53,6 +53,22 @@ function buildRoleConsistencyMessage(result){
   return `Bloqueo de seguridad: el rol en claims (${claimsRole}) no coincide con users/{email}.role (${userDocRole}). Solicita resincronizar rol y vuelve a iniciar sesión.`;
 }
 
+function hasValidUserDocRoleForRecovery(result){
+  return !!normalizeRole(result?.userDocRole || null);
+}
+
+function isRecoverableRoleConsistencyError(code){
+  return code === 'ROLE_MISMATCH' || code === 'CLAIMS_READ_ERROR';
+}
+
+function isInvalidOrExpiredTokenError(errorCode){
+  const normalizedCode = (errorCode || '').toString().trim().toLowerCase();
+  return normalizedCode === 'auth/id-token-expired'
+    || normalizedCode === 'auth/user-token-expired'
+    || normalizedCode === 'auth/invalid-user-token'
+    || normalizedCode === 'auth/user-token-revoked';
+}
+
 function getConfigFromWindow(){
   if(!hasWindow()) return null;
   const cfg = window.firebaseConfig || window.__FIREBASE_CONFIG__;
@@ -659,17 +675,13 @@ async function getRoleConsistencyDiagnosis(user, options = {}){
 
   let claimsRole = null;
   let claims = {};
+  let claimsReadErrorCode = null;
   try{
     const token = await user.getIdTokenResult(forceRefreshToken);
     claims = token?.claims || {};
     claimsRole = resolveRoleFromClaims(claims);
   }catch(error){
-    return {
-      ok: false,
-      code: 'CLAIMS_READ_ERROR',
-      message: 'No se pudo leer el token de sesión para validar permisos operativos.',
-      errorCode: error?.code || null
-    };
+    claimsReadErrorCode = error?.code || null;
   }
 
   const emailId = (user?.email || '').trim().toLowerCase();
@@ -694,6 +706,16 @@ async function getRoleConsistencyDiagnosis(user, options = {}){
       };
     }
     const userDocRole = normalizeRole(doc.data()?.role) || 'Jugador';
+    if(claimsReadErrorCode){
+      return {
+        ok: false,
+        code: 'CLAIMS_READ_ERROR',
+        claimsRole,
+        userDocRole,
+        message: 'No se pudo leer el token de sesión para validar permisos operativos.',
+        errorCode: claimsReadErrorCode
+      };
+    }
     if(isPrivilegedRole(claimsRole) || isPrivilegedRole(userDocRole)){
       const claimsCompatiblesConRol = claimIncluyeRol(claims, userDocRole);
       if(!claimsCompatiblesConRol){
@@ -970,11 +992,45 @@ function ensureAuth(roleExpected){
               window.__AUTH_ROLE_CONSISTENCY__ = diagnosticoRol;
               window.__AUTH_SENSITIVE_OPS_BLOCKED__ = true;
             }
-            alert(`Acceso administrativo bloqueado. ${diagnosticoRol.message}`);
-            logout();
-            return;
+            const logoutCritico = diagnosticoRol.code === 'NO_AUTH'
+              || diagnosticoRol.code === 'MISSING_EMAIL'
+              || isInvalidOrExpiredTokenError(diagnosticoRol.errorCode);
+            const degradacionRecuperable = isRecoverableRoleConsistencyError(diagnosticoRol.code)
+              && hasValidUserDocRoleForRecovery(diagnosticoRol);
+
+            if(logoutCritico){
+              alert(`Acceso administrativo bloqueado. ${diagnosticoRol.message}`);
+              logout();
+              return;
+            }
+
+            if(degradacionRecuperable){
+              const mensajeGuiado = `Acceso administrativo restringido. ${diagnosticoRol.message}\n\n¿Deseas reintentar sincronización ahora?\n- Aceptar: reintentar sincronización\n- Cancelar: continuar en modo restringido`;
+              const reintentar = nativeConfirm ? nativeConfirm(mensajeGuiado) : false;
+              if(reintentar){
+                const reintentoDiagnostico = await getRoleConsistencyDiagnosis(user, { forceRefreshToken: true, allowClaimsResync: true });
+                if(reintentoDiagnostico.ok){
+                  if(hasWindow()){
+                    window.__AUTH_ROLE_CONSISTENCY__ = reintentoDiagnostico;
+                    window.__AUTH_SENSITIVE_OPS_BLOCKED__ = false;
+                  }
+                }else{
+                  if(hasWindow()){
+                    window.__AUTH_ROLE_CONSISTENCY__ = reintentoDiagnostico;
+                    window.__AUTH_SENSITIVE_OPS_BLOCKED__ = true;
+                  }
+                  if(nativeAlert){
+                    nativeAlert('Continuas en modo restringido. Solicita resincronización manual del rol antes de ejecutar operaciones sensibles.');
+                  }
+                }
+              }else if(nativeAlert){
+                nativeAlert('Continuas en modo restringido. Las operaciones sensibles permanecerán bloqueadas hasta sincronizar tu rol.');
+              }
+            }else{
+              alert(`Acceso administrativo restringido. ${diagnosticoRol.message}`);
+            }
           }
-          if(hasWindow()){
+          if(hasWindow() && diagnosticoRol.ok){
             window.__AUTH_ROLE_CONSISTENCY__ = diagnosticoRol;
             window.__AUTH_SENSITIVE_OPS_BLOCKED__ = false;
           }
@@ -1149,4 +1205,4 @@ function startUserStatusWatcher(){
   },60000);
 }
 
-if (typeof module !== "undefined") { module.exports = { getUserRole, getRoleConsistencyDiagnosis, redirectByRole, ensureAuth, setupSuperadminExit, verificarRolFuerte, reautenticarConPopup, registrarReautenticacionReciente, tieneReautenticacionReciente, isGoogleAuthEnabled, isAppleAuthEnabled, getAuthorizedDomains, isCurrentDomainPublished, getPublishedProviderLabels, describePublishedProviders, buildFirebaseAuthErrorMessage }; }
+if (typeof module !== "undefined") { module.exports = { getUserRole, getRoleConsistencyDiagnosis, isRecoverableRoleConsistencyError, redirectByRole, ensureAuth, setupSuperadminExit, verificarRolFuerte, reautenticarConPopup, registrarReautenticacionReciente, tieneReautenticacionReciente, isGoogleAuthEnabled, isAppleAuthEnabled, getAuthorizedDomains, isCurrentDomainPublished, getPublishedProviderLabels, describePublishedProviders, buildFirebaseAuthErrorMessage }; }
