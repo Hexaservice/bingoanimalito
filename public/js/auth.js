@@ -825,6 +825,17 @@ function resolverApiBaseParaClaims(){
       source: configuredEndpoint ? 'UPLOAD_ENDPOINT' : 'runtime.uploadEndpoint'
     };
   }
+  if(window.location && window.location.origin){
+    const origin = window.location.origin.toString().trim();
+    if(origin){
+      return {
+        ok: true,
+        code: null,
+        apiBase: origin.replace(/\/+$/, ''),
+        source: 'window.location.origin'
+      };
+    }
+  }
   return {
     ok: false,
     code: 'MISSING_UPLOAD_ENDPOINT',
