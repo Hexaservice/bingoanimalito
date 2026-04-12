@@ -12,11 +12,21 @@ function setupWindow(){
       removeItem: (key) => { delete sessionStore[key]; }
     }
   };
+  global.alert = global.window.alert;
+  global.confirm = global.window.confirm;
+  global.prompt = global.window.prompt;
+  global.document = {
+    getElementById: () => null,
+    querySelector: () => null
+  };
 }
 
 function cleanup(){
   delete global.window;
   delete global.document;
+  delete global.alert;
+  delete global.confirm;
+  delete global.prompt;
   delete global.firebase;
   jest.resetModules();
   jest.clearAllMocks();
@@ -55,7 +65,8 @@ function buildFirebaseMock({ userExists = false, role = 'Jugador', userReadError
       jest.fn(() => ({
         setPersistence: jest.fn(async () => undefined),
         onAuthStateChanged: jest.fn(),
-        getRedirectResult: jest.fn(async () => ({}))
+        getRedirectResult: jest.fn(async () => ({})),
+        signOut: jest.fn(async () => undefined)
       })),
       {
         GoogleAuthProvider: function(){ this.setCustomParameters = jest.fn(); },
@@ -395,6 +406,125 @@ describe('auth.js', () => {
     expect(mensaje).toMatch(/app\.test/);
     expect(mensaje).toMatch(/Authorized domains/);
     expect(mensaje).toMatch(/staging\.app\.test/);
+  });
+
+  test('ensureAuth mantiene sesión y activa modo restringido ante ROLE_MISMATCH recuperable', async () => {
+    setupWindow();
+    window.confirm = () => false;
+    window.UPLOAD_ENDPOINT = 'https://api.test/upload';
+    window.fetch = jest.fn(async () => ({ ok: false, status: 500, json: async () => ({}) }));
+    global.fetch = window.fetch;
+    global.firebase = buildFirebaseMock({ userExists: true, role: 'Superadmin' });
+
+    const authMock = {
+      setPersistence: jest.fn(async () => undefined),
+      onAuthStateChanged: jest.fn(),
+      getRedirectResult: jest.fn(async () => ({})),
+      signOut: jest.fn(async () => undefined),
+      currentUser: null
+    };
+    global.firebase.auth.mockImplementation(() => authMock);
+
+    let ensureAuth;
+    jest.isolateModules(() => {
+      ({ ensureAuth } = require('../public/js/auth.js'));
+    });
+
+    const fakeUser = {
+      uid: 'uid-role-mismatch',
+      email: 'superadmin@correo.com',
+      getIdTokenResult: jest.fn(async () => ({ claims: { role: 'Administrador' } }))
+    };
+
+    ensureAuth('Administrador');
+    await new Promise(resolve => setTimeout(resolve, 0));
+    const authStateHandler = authMock.onAuthStateChanged.mock.calls.at(-1)?.[0];
+    await authStateHandler(fakeUser);
+
+    expect(authMock.signOut).not.toHaveBeenCalled();
+    expect(window.__AUTH_SENSITIVE_OPS_BLOCKED__).toBe(true);
+    expect(window.__AUTH_ROLE_CONSISTENCY__).toEqual(expect.objectContaining({ code: 'ROLE_MISMATCH' }));
+  });
+
+  test('ensureAuth hace logout cuando el token es inválido/expirado', async () => {
+    setupWindow();
+    global.firebase = buildFirebaseMock({ userExists: true, role: 'Superadmin' });
+
+    const authMock = {
+      setPersistence: jest.fn(async () => undefined),
+      onAuthStateChanged: jest.fn(),
+      getRedirectResult: jest.fn(async () => ({})),
+      signOut: jest.fn(async () => undefined),
+      currentUser: null
+    };
+    global.firebase.auth.mockImplementation(() => authMock);
+
+    let ensureAuth;
+    jest.isolateModules(() => {
+      ({ ensureAuth } = require('../public/js/auth.js'));
+    });
+
+    const fakeUser = {
+      uid: 'uid-token-expirado',
+      email: 'superadmin@correo.com',
+      getIdTokenResult: jest.fn(async () => {
+        const error = new Error('Token expirado');
+        error.code = 'auth/id-token-expired';
+        throw error;
+      })
+    };
+
+    ensureAuth('Superadmin');
+    await new Promise(resolve => setTimeout(resolve, 0));
+    const authStateHandler = authMock.onAuthStateChanged.mock.calls.at(-1)?.[0];
+    await authStateHandler(fakeUser);
+
+    expect(authMock.signOut).toHaveBeenCalledTimes(1);
+    expect(window.__AUTH_SENSITIVE_OPS_BLOCKED__).toBe(true);
+  });
+
+  test('ensureAuth desbloquea operaciones tras sync de claims exitoso', async () => {
+    setupWindow();
+    window.UPLOAD_ENDPOINT = 'https://api.test/upload';
+    window.fetch = jest.fn(async () => ({ ok: true, status: 200, json: async () => ({}) }));
+    global.fetch = window.fetch;
+    global.firebase = buildFirebaseMock({ userExists: true, role: 'Superadmin' });
+
+    const authMock = {
+      setPersistence: jest.fn(async () => undefined),
+      onAuthStateChanged: jest.fn(),
+      getRedirectResult: jest.fn(async () => ({})),
+      signOut: jest.fn(async () => undefined),
+      currentUser: null
+    };
+    global.firebase.auth.mockImplementation(() => authMock);
+
+    let ensureAuth;
+    jest.isolateModules(() => {
+      ({ ensureAuth } = require('../public/js/auth.js'));
+    });
+
+    const fakeUser = {
+      uid: 'uid-sync-ok',
+      email: 'superadmin@correo.com',
+      getIdToken: jest.fn(async () => 'token-demo'),
+      getIdTokenResult: jest.fn()
+    };
+    fakeUser.getIdTokenResult
+      .mockResolvedValueOnce({ claims: {} })
+      .mockResolvedValue({ claims: { role: 'Superadmin', roles: ['Superadmin'], admin: true } });
+
+    ensureAuth('Superadmin');
+    await new Promise(resolve => setTimeout(resolve, 0));
+    const authStateHandler = authMock.onAuthStateChanged.mock.calls.at(-1)?.[0];
+    await authStateHandler(fakeUser);
+
+    expect(window.fetch).toHaveBeenCalledWith(
+      'https://api.test/syncClaims',
+      expect.objectContaining({ method: 'POST' })
+    );
+    expect(window.__AUTH_SENSITIVE_OPS_BLOCKED__).toBe(false);
+    expect(authMock.signOut).not.toHaveBeenCalled();
   });
 
 });

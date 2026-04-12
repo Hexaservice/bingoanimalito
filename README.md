@@ -61,6 +61,21 @@ Con esa publicación:
 - `public/js/auth.js` informa si Google o Apple están habilitados y muestra mejor los errores de dominio no autorizado.
 - `public/registrarse.html` muestra u oculta el botón Apple, muestra el dominio actual y lista los dominios autorizados publicados para diagnóstico.
 
+### Rollback operativo para validación de rol/claims (alto riesgo)
+
+Cuando se despliega un cambio en autenticación administrativa con degradación por `ROLE_MISMATCH`, se puede volver temporalmente a la política anterior (logout forzado) sin revertir código:
+
+1. Publicar en la configuración runtime del frontend (`window.__APP_CONFIG__` o `window.appConfig`) el flag:
+
+```js
+window.__APP_CONFIG__ = {
+  forceLogoutOnRecoverableRoleMismatch: true
+};
+```
+
+2. Alternativamente, para diagnóstico inmediato en runtime, definir `window.__AUTH_FORCE_LOGOUT_ON_RECOVERABLE_ROLE_MISMATCH__ = true`.
+3. Criterio sugerido de abortar deploy: si en los primeros 15 minutos post-deploy más de **5%** de validaciones administrativas terminan en `ROLE_MISMATCH`, abortar rollout y activar el flag anterior mientras se corrige origen de claims/perfil.
+
 ## Configurar y ejecutar `uploadServer.js`
 
 El backend `uploadServer.js` **no arranca** si faltan estas variables obligatorias:

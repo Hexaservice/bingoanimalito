@@ -90,6 +90,17 @@ function getAppRuntimeSettings(){
   return {};
 }
 
+function shouldForceLogoutOnRecoverableRoleMismatch(){
+  const appSettings = getAppRuntimeSettings();
+  if(Object.prototype.hasOwnProperty.call(appSettings, 'forceLogoutOnRecoverableRoleMismatch')){
+    return !!appSettings.forceLogoutOnRecoverableRoleMismatch;
+  }
+  if(hasWindow() && Object.prototype.hasOwnProperty.call(window, '__AUTH_FORCE_LOGOUT_ON_RECOVERABLE_ROLE_MISMATCH__')){
+    return !!window.__AUTH_FORCE_LOGOUT_ON_RECOVERABLE_ROLE_MISMATCH__;
+  }
+  return false;
+}
+
 function buildResyncFailureMessage(reason){
   if(reason === 'MISSING_UPLOAD_ENDPOINT' || reason === 'INCOMPLETE_BACKEND_CONFIG'){
     return 'No se puede resincronizar claims porque falta configuración del backend';
@@ -1040,8 +1051,9 @@ function ensureAuth(roleExpected){
               || isInvalidOrExpiredTokenError(diagnosticoRol.errorCode);
             const degradacionRecuperable = isRecoverableRoleConsistencyError(diagnosticoRol.code)
               && hasValidUserDocRoleForRecovery(diagnosticoRol);
+            const forzarLogoutPorPoliticaAnterior = degradacionRecuperable && shouldForceLogoutOnRecoverableRoleMismatch();
 
-            if(logoutCritico){
+            if(logoutCritico || forzarLogoutPorPoliticaAnterior){
               alert(`Acceso administrativo bloqueado. ${diagnosticoRol.message}`);
               logout();
               return;
