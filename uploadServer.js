@@ -1504,7 +1504,7 @@ app.post('/toggleUser', verificarToken, async (req, res) => {
   }
 });
 
-app.post('/syncClaims', verificarToken, async (req, res) => {
+async function syncClaimsHandler(req, res) {
   const email = req.user?.email;
   if (!email) {
     return res.status(401).json({ error: 'No autorizado' });
@@ -1584,7 +1584,9 @@ app.post('/syncClaims', verificarToken, async (req, res) => {
     console.error('Error sincronizando custom claims', e);
     return res.status(500).json({ error: 'Error sincronizando custom claims', message: e.message });
   }
-});
+}
+
+app.post('/syncClaims', verificarToken, syncClaimsHandler);
 
 app.post('/admin/session/register', async (req, res) => {
   const authHeader = req.headers.authorization || '';
@@ -2408,6 +2410,7 @@ module.exports = {
   resolveWinnerIdentity,
   getAcreditacionExecutionMode,
   acreditarPremioEventoHandler,
+  syncClaimsHandler,
   normalizeLoteriaImageItem,
   listLocalLoteriaImages,
   listStorageLoteriaImages,
