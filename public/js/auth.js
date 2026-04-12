@@ -32,6 +32,27 @@ function roleEquals(left, right){
   return leftNormalized === rightNormalized;
 }
 
+function isPrivilegedRole(role){
+  const normalized = normalizeRole(role);
+  return normalized === 'Superadmin' || normalized === 'Administrador' || normalized === 'Colaborador';
+}
+
+function resolveRoleFromClaims(claims = {}){
+  const roleFromClaim = normalizeRole(claims.role);
+  if(roleFromClaim) return roleFromClaim;
+  if(Array.isArray(claims.roles) && claims.roles.length){
+    const roleFromArray = claims.roles.map(normalizeRole).find(Boolean);
+    if(roleFromArray) return roleFromArray;
+  }
+  return null;
+}
+
+function buildRoleConsistencyMessage(result){
+  const claimsRole = result.claimsRole || 'sin rol en claims';
+  const userDocRole = result.userDocRole || 'sin rol en users/{email}';
+  return `Bloqueo de seguridad: el rol en claims (${claimsRole}) no coincide con users/{email}.role (${userDocRole}). Solicita resincronizar rol y vuelve a iniciar sesión.`;
+}
+
 function getConfigFromWindow(){
   if(!hasWindow()) return null;
   const cfg = window.firebaseConfig || window.__FIREBASE_CONFIG__;
@@ -578,15 +599,9 @@ async function getUserRole(user){
   try{
     const token = await user.getIdTokenResult(true);
     const claims = token?.claims || {};
-    const roleFromClaim = normalizeRole(claims.role);
+    const roleFromClaim = resolveRoleFromClaims(claims);
     if(roleFromClaim){
       return { role: roleFromClaim, exists: true };
-    }
-    if(Array.isArray(claims.roles) && claims.roles.length){
-      const roleFromArray = claims.roles.map(normalizeRole).find(Boolean);
-      if(roleFromArray){
-        return { role: roleFromArray, exists: true };
-      }
     }
   }catch(e){
     console.error('No se pudieron leer los custom claims del usuario', e);
@@ -628,6 +643,84 @@ async function getUserRole(user){
       exists: null,
       readError: true,
       errorCode: e?.code || null
+    };
+  }
+}
+
+async function getRoleConsistencyDiagnosis(user, options = {}){
+  const { forceRefreshToken = true } = options;
+  if(!user){
+    return {
+      ok: false,
+      code: 'NO_AUTH',
+      message: 'No hay sesión autenticada para validar permisos operativos.'
+    };
+  }
+
+  let claimsRole = null;
+  let claims = {};
+  try{
+    const token = await user.getIdTokenResult(forceRefreshToken);
+    claims = token?.claims || {};
+    claimsRole = resolveRoleFromClaims(claims);
+  }catch(error){
+    return {
+      ok: false,
+      code: 'CLAIMS_READ_ERROR',
+      message: 'No se pudo leer el token de sesión para validar permisos operativos.',
+      errorCode: error?.code || null
+    };
+  }
+
+  const emailId = (user?.email || '').trim().toLowerCase();
+  if(!emailId){
+    return {
+      ok: false,
+      code: 'MISSING_EMAIL',
+      claimsRole,
+      message: 'La sesión no tiene correo asociado. No se pueden validar permisos operativos.'
+    };
+  }
+
+  try{
+    const doc = await db.collection('users').doc(emailId).get();
+    if(!doc.exists){
+      return {
+        ok: false,
+        code: 'USER_DOC_NOT_FOUND',
+        claimsRole,
+        userDocRole: null,
+        message: `No existe users/${emailId}. Debe crearse y asignar rol operativo antes de continuar.`
+      };
+    }
+    const userDocRole = normalizeRole(doc.data()?.role) || 'Jugador';
+    if(isPrivilegedRole(claimsRole) || isPrivilegedRole(userDocRole)){
+      if(!claimsRole || !roleEquals(claimsRole, userDocRole)){
+        const result = {
+          ok: false,
+          code: 'ROLE_MISMATCH',
+          claimsRole,
+          userDocRole
+        };
+        return {
+          ...result,
+          message: buildRoleConsistencyMessage(result)
+        };
+      }
+    }
+    return {
+      ok: true,
+      code: null,
+      claimsRole,
+      userDocRole
+    };
+  }catch(error){
+    return {
+      ok: false,
+      code: 'USER_DOC_READ_ERROR',
+      claimsRole,
+      message: 'No se pudo leer users/{email} para validar permisos operativos.',
+      errorCode: error?.code || null
     };
   }
 }
@@ -828,6 +921,7 @@ function ensureAuth(roleExpected){
   const rolesEsperados = (Array.isArray(roleExpected) ? roleExpected : (roleExpected ? [roleExpected] : []))
     .map(normalizeRole)
     .filter(Boolean);
+  const requiereValidacionConsistencia = rolesEsperados.some(isPrivilegedRole);
   initFirebase()
     .then(() => {
       auth.onAuthStateChanged(async user => {
@@ -848,6 +942,22 @@ function ensureAuth(roleExpected){
         if(rolesEsperados.length && !rolesEsperados.some(rol => roleEquals(rol, role)) && !roleEquals(role, 'Superadmin')){
           redirectByRole(role);
           return;
+        }
+        if(requiereValidacionConsistencia){
+          const diagnosticoRol = await getRoleConsistencyDiagnosis(user, { forceRefreshToken: true });
+          if(!diagnosticoRol.ok){
+            if(hasWindow()){
+              window.__AUTH_ROLE_CONSISTENCY__ = diagnosticoRol;
+              window.__AUTH_SENSITIVE_OPS_BLOCKED__ = true;
+            }
+            alert(`Acceso administrativo bloqueado. ${diagnosticoRol.message}`);
+            logout();
+            return;
+          }
+          if(hasWindow()){
+            window.__AUTH_ROLE_CONSISTENCY__ = diagnosticoRol;
+            window.__AUTH_SENSITIVE_OPS_BLOCKED__ = false;
+          }
         }
         window.currentRole = role;
         if(roleEquals(role, 'Superadmin')){
@@ -1019,4 +1129,4 @@ function startUserStatusWatcher(){
   },60000);
 }
 
-if (typeof module !== "undefined") { module.exports = { getUserRole, redirectByRole, ensureAuth, setupSuperadminExit, verificarRolFuerte, reautenticarConPopup, registrarReautenticacionReciente, tieneReautenticacionReciente, isGoogleAuthEnabled, isAppleAuthEnabled, getAuthorizedDomains, isCurrentDomainPublished, getPublishedProviderLabels, describePublishedProviders, buildFirebaseAuthErrorMessage }; }
+if (typeof module !== "undefined") { module.exports = { getUserRole, getRoleConsistencyDiagnosis, redirectByRole, ensureAuth, setupSuperadminExit, verificarRolFuerte, reautenticarConPopup, registrarReautenticacionReciente, tieneReautenticacionReciente, isGoogleAuthEnabled, isAppleAuthEnabled, getAuthorizedDomains, isCurrentDomainPublished, getPublishedProviderLabels, describePublishedProviders, buildFirebaseAuthErrorMessage }; }

@@ -178,6 +178,30 @@ describe('auth.js', () => {
     );
   });
 
+  test('getRoleConsistencyDiagnosis reporta desalineación entre claims y users/{email}.role', async () => {
+    setupWindow();
+    global.firebase = buildFirebaseMock({ userExists: true, role: 'Jugador' });
+
+    let getRoleConsistencyDiagnosis;
+    jest.isolateModules(() => {
+      ({ getRoleConsistencyDiagnosis } = require('../public/js/auth.js'));
+    });
+
+    const fakeUser = {
+      email: 'admin@correo.com',
+      getIdTokenResult: jest.fn(async () => ({ claims: { role: 'Administrador' } }))
+    };
+
+    await expect(getRoleConsistencyDiagnosis(fakeUser)).resolves.toEqual(
+      expect.objectContaining({
+        ok: false,
+        code: 'ROLE_MISMATCH',
+        claimsRole: 'Administrador',
+        userDocRole: 'Jugador'
+      })
+    );
+  });
+
   test('verificarRolFuerte falla cuando no hay custom claims válidos', async () => {
     setupWindow();
     window.fetch = jest.fn(async () => ({ ok: false, status: 500 }));

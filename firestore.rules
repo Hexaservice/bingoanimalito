@@ -26,8 +26,21 @@ service cloud.firestore {
         && rolesPermitidos.hasAny([currentUserDoc().data.role]);
     }
 
+    function tokenHasRole(roleEsperado) {
+      return request.auth.token.admin == true
+        || request.auth.token.role == roleEsperado
+        || (request.auth.token.roles is list && request.auth.token.roles.hasAny([roleEsperado]));
+    }
+
+    function hasSynchronizedRole(rolesPermitidos) {
+      return isSignedIn()
+        && currentUserDoc().exists()
+        && rolesPermitidos.hasAny([currentUserDoc().data.role])
+        && tokenHasRole(currentUserDoc().data.role);
+    }
+
     function isAdmin() {
-      return isSystemRequest() || hasRole(['Superadmin', 'Administrador']);
+      return isSystemRequest() || hasSynchronizedRole(['Superadmin', 'Administrador']);
     }
 
     function hasStrongRole(roleEsperado) {
@@ -44,7 +57,7 @@ service cloud.firestore {
     }
 
     function isPrivilegedOperator() {
-      return isAdmin() || hasRole(['Colaborador']);
+      return isAdmin() || hasSynchronizedRole(['Colaborador']);
     }
 
     function isProductionLockEnabled() {

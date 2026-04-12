@@ -7184,6 +7184,84 @@
     };
   }
 
+  function normalizarRolOperativo(valor){
+    if(typeof valor !== 'string') return null;
+    const limpio = valor.trim().toLowerCase();
+    if(!limpio) return null;
+    if(limpio === 'superadmin' || limpio === 'super administrador' || limpio === 'super-administrador'){
+      return 'Superadmin';
+    }
+    if(limpio === 'administrador' || limpio === 'admin'){
+      return 'Administrador';
+    }
+    if(limpio === 'colaborador'){
+      return 'Colaborador';
+    }
+    if(limpio === 'jugador' || limpio === 'player'){
+      return 'Jugador';
+    }
+    return valor.trim();
+  }
+
+  function extraerRolClaimOperativo(claims = {}){
+    const rolDirecto = normalizarRolOperativo(claims?.role);
+    if(rolDirecto) return rolDirecto;
+    if(Array.isArray(claims?.roles) && claims.roles.length){
+      const rolLista = claims.roles.map(normalizarRolOperativo).find(Boolean);
+      if(rolLista) return rolLista;
+    }
+    return null;
+  }
+
+  async function validarPermisoEfectivoFinalizarSorteo(){
+    const user = auth?.currentUser || null;
+    if(!user){
+      return {
+        permitido: false,
+        mensaje: 'No hay sesión activa para finalizar el sorteo. Inicia sesión nuevamente.'
+      };
+    }
+    const email = (user.email || '').trim().toLowerCase();
+    if(!email){
+      return {
+        permitido: false,
+        mensaje: 'No se detectó correo en la sesión actual. No se puede validar rol operativo.'
+      };
+    }
+    try{
+      const token = await user.getIdTokenResult(true);
+      const claimsRole = extraerRolClaimOperativo(token?.claims || {});
+      const userDoc = await db.collection('users').doc(email).get();
+      if(!userDoc.exists){
+        return {
+          permitido: false,
+          mensaje: `Acción bloqueada: no existe users/${email}. Solicita alta/sincronización de rol operativo.`
+        };
+      }
+      const userRole = normalizarRolOperativo(userDoc.data()?.role) || 'Jugador';
+      const rolesPermitidos = new Set(['Superadmin', 'Administrador', 'Colaborador']);
+      if(!rolesPermitidos.has(userRole)){
+        return {
+          permitido: false,
+          mensaje: `Acción bloqueada: users/${email}.role=${userRole}. Debe ser Superadmin, Administrador o Colaborador para finalizar sorteos.`
+        };
+      }
+      if(!claimsRole || claimsRole !== userRole){
+        return {
+          permitido: false,
+          mensaje: `Acción bloqueada por desalineación de rol. claims=${claimsRole || 'sin rol'} y users/${email}.role=${userRole}. Ejecuta sincronización de claims y vuelve a iniciar sesión.`
+        };
+      }
+      return { permitido: true, claimsRole, userRole };
+    }catch(error){
+      console.error('Error validando permisos efectivos de finalización', error);
+      return {
+        permitido: false,
+        mensaje: 'No se pudo validar el rol operativo en Firestore. Verifica permisos y vuelve a intentar.'
+      };
+    }
+  }
+
   async function finalizarSorteo(){
     if(!currentSorteoId || !currentSorteoData){
       alert('Selecciona un sorteo primero.');
@@ -7204,6 +7282,11 @@
     }
     const confirmar = await preguntarAccionEstado(mensajeConfirmacion);
     if(!confirmar) return;
+    const permisoEfectivo = await validarPermisoEfectivoFinalizarSorteo();
+    if(!permisoEfectivo.permitido){
+      mostrarAvisoSimple(permisoEfectivo.mensaje, 'Permiso operativo insuficiente');
+      return;
+    }
     try {
       let resumenAcumulado = null;
       if(diagnostico.resultadosCompletos && totalSinGanadores > 0){
