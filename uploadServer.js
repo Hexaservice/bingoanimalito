@@ -4,7 +4,7 @@ const cors = require('cors');
 const multer = require('multer');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
-const { buildRoleClaims, buildUserProfileUpdate } = require('./lib/roleProvisioning');
+const { ALLOWED_ROLES, buildRoleClaims, buildUserProfileUpdate, normalizeRoleToCanonical } = require('./lib/roleProvisioning');
 const path = require('path');
 const crypto = require('crypto');
 const fs = require('fs/promises');
@@ -1516,9 +1516,31 @@ app.post('/syncClaims', verificarToken, async (req, res) => {
       admin.auth().getUserByEmail(email)
     ]);
 
-    const role = profileDoc.exists ? profileDoc.data()?.role : undefined;
-    if (!role) {
+    const roleOriginal = profileDoc.exists ? profileDoc.data()?.role : undefined;
+    if (!roleOriginal) {
+      console.info(JSON.stringify({
+        event: 'sync_claims_role',
+        email,
+        role_original: roleOriginal ?? null,
+        role_normalizado: null,
+        resultado: 'error_role_missing'
+      }));
       return res.status(400).json({ error: 'Rol no encontrado en el perfil del usuario' });
+    }
+
+    const role = normalizeRoleToCanonical(roleOriginal);
+    if (!role) {
+      const allowedRolesLabel = ALLOWED_ROLES.join(', ');
+      console.info(JSON.stringify({
+        event: 'sync_claims_role',
+        email,
+        role_original: roleOriginal,
+        role_normalizado: null,
+        resultado: 'error_role_invalid'
+      }));
+      return res.status(400).json({
+        error: `Rol no normalizable: "${roleOriginal}". Actualiza users/${email}.role a uno permitido: ${allowedRolesLabel}.`
+      });
     }
 
     const nextClaims = {
@@ -1542,8 +1564,23 @@ app.post('/syncClaims', verificarToken, async (req, res) => {
       roleUpdatedAt: admin.firestore.FieldValue.serverTimestamp()
     }, { merge: true });
 
+    console.info(JSON.stringify({
+      event: 'sync_claims_role',
+      email,
+      role_original: roleOriginal,
+      role_normalizado: role,
+      resultado: 'ok'
+    }));
+
     return res.json({ status: 'ok', role });
   } catch (e) {
+    console.info(JSON.stringify({
+      event: 'sync_claims_role',
+      email,
+      role_original: null,
+      role_normalizado: null,
+      resultado: 'error_internal'
+    }));
     console.error('Error sincronizando custom claims', e);
     return res.status(500).json({ error: 'Error sincronizando custom claims', message: e.message });
   }
