@@ -388,6 +388,41 @@ async function verificarOperadorPrivilegiado(req, res, next) {
   }
 }
 
+async function verificarOperadorFinalizacion(req, res, next) {
+  const authHeader = req.headers.authorization || '';
+  const match = authHeader.match(/^Bearer (.+)$/);
+  if (!match) {
+    return res.status(401).json({ permitido: false, motivo: 'sesion_invalida', detalle: { mensaje: 'No autorizado' } });
+  }
+  let decoded;
+  try {
+    decoded = await admin.auth().verifyIdToken(match[1]);
+  } catch (error) {
+    console.error('Error verificando token para finalizar sorteo', error);
+    return res.status(401).json({ permitido: false, motivo: 'sesion_invalida', detalle: { mensaje: 'Token inválido' } });
+  }
+  const email = normalizeString(decoded?.email, 200).toLowerCase();
+  if (!email) {
+    return res.status(401).json({ permitido: false, motivo: 'sesion_invalida', detalle: { mensaje: 'Token sin correo asociado' } });
+  }
+  try {
+    const userDoc = await admin.firestore().collection('users').doc(email).get();
+    const userRole = normalizeOperationalRole(userDoc.exists ? userDoc.data()?.role : null);
+    if (!ROLES_OPERATIVOS_FINALIZACION.has(userRole)) {
+      return res.status(403).json({
+        permitido: false,
+        motivo: 'permisos_insuficientes',
+        detalle: { mensaje: 'Acceso restringido a operadores autorizados', userRole: userRole || 'sin-rol' }
+      });
+    }
+    req.user = { uid: decoded.uid, email, role: userRole };
+    return next();
+  } catch (error) {
+    console.error('Error validando operador de finalización', error);
+    return res.status(500).json({ permitido: false, motivo: 'error_interno', detalle: { mensaje: error.message } });
+  }
+}
+
 function normalizeString(value, maxLength = 200) {
   return typeof value === 'string' ? value.trim().slice(0, maxLength) : '';
 }
@@ -399,6 +434,206 @@ function normalizeNumber(value) {
 
 function normalizePendingPrizeState(value) {
   return normalizeString(value, 40).toLowerCase();
+}
+
+const MAX_FILAS_RESULTADOS = 13;
+const ROLES_OPERATIVOS_FINALIZACION = new Set(['Superadmin', 'Administrador', 'Colaborador']);
+
+function normalizeOperationalRole(value) {
+  const raw = normalizeString(value, 60);
+  const normalized = raw.toLowerCase();
+  if (normalized === 'superadmin' || normalized === 'super administrador' || normalized === 'super-administrador') {
+    return 'Superadmin';
+  }
+  if (normalized === 'administrador' || normalized === 'admin') {
+    return 'Administrador';
+  }
+  if (normalized === 'colaborador') {
+    return 'Colaborador';
+  }
+  if (normalized === 'jugador' || normalized === 'player') {
+    return 'Jugador';
+  }
+  return raw || null;
+}
+
+function normalizeScheduleLabel(value) {
+  const schedule = normalizeString(value, 40).toLowerCase().replace(/\./g, '');
+  if (!schedule) return '';
+  const match = /^(\d{1,2}):(\d{2})(?:\s*([ap]m))?$/.exec(schedule);
+  if (!match) return schedule.replace(/\s+/g, ' ');
+  let hours = Number.parseInt(match[1], 10);
+  const minutes = match[2];
+  const period = match[3];
+  if (period === 'pm' && hours < 12) hours += 12;
+  if (period === 'am' && hours === 12) hours = 0;
+  return `${String(hours).padStart(2, '0')}:${minutes}`;
+}
+
+function buildScheduleByRow(row, isIntermedia = false) {
+  const baseHour = 8 + Math.max(0, Number.isFinite(Number(row)) ? Number(row) : 0);
+  return `${String(baseHour).padStart(2, '0')}:${isIntermedia ? '30' : '00'}`;
+}
+
+function isResultBlockEnabled(loteria = {}, row, tipoBloque) {
+  const normalizedRow = Number.isFinite(Number(row)) ? Math.max(0, Number(row)) : 0;
+  const blockType = normalizeString(tipoBloque, 20).toLowerCase();
+  const isIntermedia = blockType === 'intermedia';
+  const expectedSchedule = normalizeScheduleLabel(buildScheduleByRow(normalizedRow, isIntermedia));
+  const scheduleBlocks = Array.isArray(loteria?.bloquesHorarios) ? loteria.bloquesHorarios : [];
+  const normalizedBlocks = new Set(scheduleBlocks.map((item) => normalizeScheduleLabel(item)).filter(Boolean));
+  if (normalizedBlocks.size > 0) {
+    return normalizedBlocks.has(expectedSchedule);
+  }
+  if (isIntermedia) {
+    const allowsIntermedia = loteria?.mostrarBloquesIntermedios ?? loteria?.horaIntermedia ?? loteria?.bloqueIntermedia ?? loteria?.intermedia ?? true;
+    return Boolean(allowsIntermedia);
+  }
+  const allowsExacta = loteria?.horaExacta ?? loteria?.bloqueExacta ?? loteria?.exacta ?? true;
+  return Boolean(allowsExacta);
+}
+
+function normalizeResultNumber(value) {
+  if (value === null || value === undefined) return null;
+  const text = String(value).trim();
+  if (!text) return null;
+  const number = Number(text);
+  if (!Number.isFinite(number)) return null;
+  return number;
+}
+
+function computeRequiredResultBlocks(loterias = []) {
+  if (!Array.isArray(loterias) || !loterias.length) return 0;
+  let total = 0;
+  loterias.forEach((loteria) => {
+    for (let row = 0; row < MAX_FILAS_RESULTADOS; row += 1) {
+      if (isResultBlockEnabled(loteria, row, 'exacta')) total += 1;
+      if (isResultBlockEnabled(loteria, row, 'intermedia')) total += 1;
+    }
+  });
+  return total;
+}
+
+function computeLoadedResultBlocks(resultadosPorCelda = {}) {
+  if (!resultadosPorCelda || typeof resultadosPorCelda !== 'object') return 0;
+  let loaded = 0;
+  Object.values(resultadosPorCelda).forEach((item) => {
+    if (normalizeResultNumber(item?.exacta) !== null) loaded += 1;
+    if (normalizeResultNumber(item?.intermedia) !== null) loaded += 1;
+  });
+  return loaded;
+}
+
+function getMissingWinnerForms(sorteoData = {}) {
+  const formas = Array.isArray(sorteoData?.formas) ? sorteoData.formas : [];
+  const activeForms = formas
+    .map((forma) => ({
+      idx: Number(forma?.idx),
+      nombre: normalizeString(forma?.nombre || `Forma ${forma?.idx}`, 120)
+    }))
+    .filter((forma) => Number.isFinite(forma.idx));
+  const lock = (sorteoData?.ganadoresBloqueadosPorForma && typeof sorteoData.ganadoresBloqueadosPorForma === 'object')
+    ? sorteoData.ganadoresBloqueadosPorForma
+    : {};
+  return activeForms.filter((forma) => {
+    const lockEntry = lock[String(forma.idx)];
+    return !(lockEntry && Array.isArray(lockEntry.cartonClaves) && lockEntry.cartonClaves.length > 0);
+  });
+}
+
+function buildFinalizationContract({ sorteoData = {}, cantosData = {} } = {}) {
+  const estado = normalizeString(sorteoData?.estado, 40).toLowerCase();
+  const missingWinnerForms = getMissingWinnerForms(sorteoData);
+  const totalMissingWinners = missingWinnerForms.length;
+  const allFormsHaveWinners = totalMissingWinners === 0;
+  const loterias = Array.isArray(sorteoData?.loterias)
+    ? sorteoData.loterias
+    : (Array.isArray(sorteoData?.loteriasAsignadas) ? sorteoData.loteriasAsignadas : []);
+  const requiredResults = computeRequiredResultBlocks(loterias);
+  const loadedResults = computeLoadedResultBlocks(cantosData?.resultadosPorCelda);
+  const resultsComplete = requiredResults > 0 && loadedResults >= requiredResults;
+  const permitted = estado === 'jugando' && (allFormsHaveWinners || resultsComplete);
+
+  if (estado !== 'jugando') {
+    return {
+      permitido: false,
+      motivo: 'estado_no_jugando',
+      detalle: {
+        estadoActual: estado || 'desconocido',
+        totalFormasSinGanador: totalMissingWinners,
+        totalResultadosRequeridos: requiredResults,
+        totalResultadosCargados: loadedResults
+      }
+    };
+  }
+
+  if (!allFormsHaveWinners && !resultsComplete) {
+    return {
+      permitido: false,
+      motivo: 'faltan_resultados_y_ganadores',
+      detalle: {
+        estadoActual: estado,
+        totalFormasSinGanador: totalMissingWinners,
+        formasSinGanador: missingWinnerForms,
+        totalResultadosRequeridos: requiredResults,
+        totalResultadosCargados: loadedResults,
+        bloquesResultadosPendientes: Math.max(0, requiredResults - loadedResults)
+      }
+    };
+  }
+
+  return {
+    permitido: true,
+    motivo: 'ok',
+    detalle: {
+      estadoActual: estado,
+      totalFormasSinGanador: totalMissingWinners,
+      formasSinGanador: missingWinnerForms,
+      totalResultadosRequeridos: requiredResults,
+      totalResultadosCargados: loadedResults,
+      resultadosCompletos: resultsComplete
+    }
+  };
+}
+
+async function executeAuthoritativeSorteoFinalization({ db, sorteoId, operadorEmail }) {
+  const normalizedSorteoId = normalizeString(sorteoId, 120);
+  if (!normalizedSorteoId) {
+    return {
+      permitido: false,
+      motivo: 'sorteo_id_obligatorio',
+      detalle: { mensaje: 'sorteoId es obligatorio' }
+    };
+  }
+  const sorteoRef = db.collection('sorteos').doc(normalizedSorteoId);
+  const cantosRef = db.collection('cantos').doc(normalizedSorteoId);
+  return db.runTransaction(async (tx) => {
+    const [sorteoSnap, cantosSnap] = await Promise.all([tx.get(sorteoRef), tx.get(cantosRef)]);
+    if (!sorteoSnap.exists) {
+      return {
+        permitido: false,
+        motivo: 'sorteo_no_encontrado',
+        detalle: { mensaje: `No existe el sorteo ${normalizedSorteoId}` }
+      };
+    }
+    const sorteoData = sorteoSnap.data() || {};
+    const cantosData = cantosSnap.exists ? (cantosSnap.data() || {}) : {};
+    const contrato = buildFinalizationContract({ sorteoData, cantosData });
+    if (!contrato.permitido) return contrato;
+    tx.update(sorteoRef, {
+      estado: 'Finalizado',
+      finalizadoEn: admin.firestore.FieldValue.serverTimestamp(),
+      finalizadoPor: normalizeString(operadorEmail, 200) || 'desconocido'
+    });
+    return {
+      permitido: true,
+      motivo: 'finalizado',
+      detalle: {
+        ...contrato.detalle,
+        sorteoId: normalizedSorteoId
+      }
+    };
+  });
 }
 
 function buildPremiosEngineDisabledResponse({ action, sorteoId = '', status = 409 } = {}) {
@@ -1693,6 +1928,39 @@ async function acreditarPremioEventoHandler(req, res) {
 
 app.post('/acreditarPremioEvento', verificarOperadorPrivilegiado, acreditarPremioEventoHandler);
 
+app.post('/admin/finalizar-sorteo', verificarOperadorFinalizacion, async (req, res) => {
+  const sorteoId = normalizeString(req.body?.sorteoId, 120);
+  if (!sorteoId) {
+    return res.status(400).json({
+      permitido: false,
+      motivo: 'sorteo_id_obligatorio',
+      detalle: { mensaje: 'sorteoId es obligatorio' }
+    });
+  }
+  const db = admin.firestore();
+  try {
+    const resultado = await executeAuthoritativeSorteoFinalization({
+      db,
+      sorteoId,
+      operadorEmail: req.user?.email || 'desconocido'
+    });
+    if (!resultado.permitido && resultado.motivo === 'sorteo_no_encontrado') {
+      return res.status(404).json(resultado);
+    }
+    if (!resultado.permitido) {
+      return res.status(409).json(resultado);
+    }
+    return res.status(200).json(resultado);
+  } catch (error) {
+    console.error('Error en finalización autoritativa del sorteo', { sorteoId, error });
+    return res.status(500).json({
+      permitido: false,
+      motivo: 'error_finalizacion',
+      detalle: { mensaje: 'Error interno al finalizar sorteo', code: normalizeString(error?.code, 80) || null }
+    });
+  }
+});
+
 app.post('/admin/generar-premios-pendientes-directos-oficiales', verificarToken, async (req, res) => {
   const sorteoId = normalizeString(req.body?.sorteoId, 120);
   if (!sorteoId) {
@@ -2088,6 +2356,9 @@ module.exports = {
   getPurgeCounts,
   isSorteoEligibleForAutoPrize,
   normalizePendingPrizeState,
+  normalizeOperationalRole,
+  buildFinalizationContract,
+  executeAuthoritativeSorteoFinalization,
   buildReconciledPrizeTransactionId,
   reconcileSinglePendingPrize,
   reconcilePendingPrizesBySorteo,

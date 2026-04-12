@@ -7312,6 +7312,83 @@
     return { code: code || 'desconocido', ...base };
   }
 
+  function resolverBaseApiAdministrativa(){
+    if(typeof getAdminApiBase === 'function'){
+      const base = (getAdminApiBase() || '').toString().trim();
+      if(base) return base;
+    }
+    const uploadEndpoint = (window.UPLOAD_ENDPOINT || '').toString().trim();
+    if(uploadEndpoint){
+      return uploadEndpoint.replace(/\/upload\/?$/, '');
+    }
+    return (window.location?.origin || '').toString().trim();
+  }
+
+  function mapearMotivoBloqueoFinalizacionBackend(motivo = '', detalle = {}){
+    const catalogo = {
+      estado_no_jugando: {
+        titulo: 'Precondición no cumplida',
+        mensaje: 'El sorteo debe estar en estado Jugando para poder finalizarse.'
+      },
+      faltan_resultados_y_ganadores: {
+        titulo: 'Finalización bloqueada',
+        mensaje: `Faltan resultados o ganadores por forma para finalizar (pendientes: ${Number(detalle?.bloquesResultadosPendientes || 0)}).`
+      },
+      permisos_insuficientes: {
+        titulo: 'Permiso operativo insuficiente',
+        mensaje: 'No tienes permisos operativos para finalizar este sorteo.'
+      },
+      sesion_invalida: {
+        titulo: 'Sesión inválida',
+        mensaje: 'Tu sesión no es válida para completar esta acción. Inicia sesión nuevamente.'
+      },
+      sorteo_no_encontrado: {
+        titulo: 'Sorteo no disponible',
+        mensaje: 'El sorteo ya no existe o no está disponible.'
+      }
+    };
+    return catalogo[motivo] || {
+      titulo: 'Error de finalización',
+      mensaje: 'No fue posible finalizar el sorteo en este momento.'
+    };
+  }
+
+  async function solicitarFinalizacionAutoritativaBackend(){
+    const user = auth?.currentUser || null;
+    if(!user){
+      return { permitido: false, motivo: 'sesion_invalida', detalle: { mensaje: 'No hay sesión activa.' } };
+    }
+    const apiBase = resolverBaseApiAdministrativa();
+    if(!apiBase || typeof fetch !== 'function'){
+      return { permitido: false, motivo: 'api_no_disponible', detalle: { mensaje: 'No hay API administrativa configurada.' } };
+    }
+    const token = await user.getIdToken(true);
+    const respuesta = await fetch(`${apiBase}/admin/finalizar-sorteo`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`
+      },
+      body: JSON.stringify({ sorteoId: currentSorteoId })
+    });
+    let payload = null;
+    try{
+      payload = await respuesta.json();
+    }catch(_errorParse){
+      payload = null;
+    }
+    if(payload && typeof payload === 'object'){
+      payload.status = respuesta.status;
+      return payload;
+    }
+    return {
+      permitido: false,
+      motivo: 'respuesta_invalida_backend',
+      detalle: { mensaje: `Respuesta no JSON (${respuesta.status})` },
+      status: respuesta.status
+    };
+  }
+
   function registrarTelemetriaFinalizacion(nombreEvento, payload = {}){
     if(typeof window.trackEvent === 'function'){
       window.trackEvent(nombreEvento, payload);
@@ -7364,14 +7441,33 @@
       return;
     }
     try {
-      let resumenAcumulado = null;
-      if(diagnostico.resultadosCompletos && totalSinGanadores > 0){
-        resumenAcumulado = await registrarAcumuladoFormasSinGanador(diagnostico.formasSinGanador);
+      const resultadoFinalizacion = await solicitarFinalizacionAutoritativaBackend();
+      if(!resultadoFinalizacion?.permitido){
+        const bloqueo = mapearMotivoBloqueoFinalizacionBackend(resultadoFinalizacion?.motivo, resultadoFinalizacion?.detalle);
+        registrarTelemetriaFinalizacion('cantarsorteos_finalizacion_fallida', {
+          ...contextoSeguroBase,
+          motivo: resultadoFinalizacion?.motivo || 'desconocido',
+          status: Number(resultadoFinalizacion?.status || 0)
+        });
+        mostrarAvisoSimple(
+          resultadoFinalizacion?.detalle?.mensaje || bloqueo.mensaje,
+          bloqueo.titulo
+        );
+        return;
       }
-      await db.collection('sorteos').doc(currentSorteoId).update({
-        estado: 'Finalizado',
-        finalizadoEn: getServerTimestamp() || getPreciseTimestamp()
-      });
+      const detalleFinalizacion = resultadoFinalizacion?.detalle || {};
+      const formasSinGanadorBackend = Array.isArray(detalleFinalizacion?.formasSinGanador)
+        ? detalleFinalizacion.formasSinGanador
+        : [];
+      let resumenAcumulado = null;
+      if(detalleFinalizacion?.resultadosCompletos && formasSinGanadorBackend.length > 0){
+        const formasSinGanadorConDetalle = formasSinGanadorBackend.map(item=>{
+          const idx = Number(item?.idx);
+          const formaLocal = formasActivas.find(forma=>Number(forma?.idx) === idx) || null;
+          return { idx, forma: formaLocal || item?.forma || { idx, nombre: item?.nombre || `Forma ${idx}` } };
+        });
+        resumenAcumulado = await registrarAcumuladoFormasSinGanador(formasSinGanadorConDetalle);
+      }
       mensajeEl.textContent = resumenAcumulado?.montoCreditos
         ? `Sorteo finalizado. Se registró un acumulado de ${formatearNumero(resumenAcumulado.montoCreditos)} créditos.`
         : 'Sorteo finalizado correctamente.';
