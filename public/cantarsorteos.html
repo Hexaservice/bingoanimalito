@@ -4399,18 +4399,11 @@
       ?? forma?.cartones
       ?? 0
     );
-    let ganadoresNumero = Number(totalGanadores);
-    if(!Number.isFinite(ganadoresNumero)){
-      ganadoresNumero = 1;
-    }else{
-      ganadoresNumero = Math.floor(ganadoresNumero);
-    }
-    const totalSeguro = Math.max(1, ganadoresNumero);
     if(Number.isFinite(cartonesPorGanadorRaw)){
       return Number(Math.max(0, cartonesPorGanadorRaw).toFixed(6));
     }
     const totalCartones = Number.isFinite(totalCartonesRaw) ? Math.max(0, totalCartonesRaw) : 0;
-    return Number((totalCartones / totalSeguro).toFixed(6));
+    return Number(totalCartones.toFixed(6));
   }
 
   function obtenerCartonesGratisTotalesEntregados(forma,totalGanadores){
@@ -4502,9 +4495,7 @@
       }
       const data = doc.data() || {};
       ganadoresBloqueadosPorForma = normalizarLockGanadoresDesdeFuente(data?.[CAMPO_LOCK_GANADORES_FORMA]);
-      Promise.resolve().then(()=>{
-        sincronizarPremiosPendientesDirectosDesdeLocks({ contexto: 'cargar_locks_remotos' });
-      });
+
     }catch(err){
       console.warn('No se pudieron cargar locks remotos de ganadores por forma.', err);
       ganadoresBloqueadosPorForma = new Map();
@@ -4615,9 +4606,7 @@
         return (Number(a.forma?.idx) || 0) - (Number(b.forma?.idx) || 0);
       });
     });
-    Promise.resolve().then(()=>{
-      sincronizarPremiosPendientesDirectosDesdeLocks({ contexto: 'calcular_ganadores' });
-    });
+
     evaluarEstadoFormasGanadoras();
     actualizarBotonesFormas();
     gestionarComplementariosPendientes();
@@ -7096,219 +7085,8 @@
     }
   }
 
-  function normalizarRolOperativo(role){
-    if(typeof normalizeRole === 'function'){
-      return normalizeRole(role);
-    }
-    if(typeof role !== 'string') return null;
-    const limpio = role.trim().toLowerCase();
-    if(!limpio) return null;
-    if(limpio === 'superadmin' || limpio === 'super administrador' || limpio === 'super-administrador') return 'Superadmin';
-    if(limpio === 'administrador' || limpio === 'admin') return 'Administrador';
-    if(limpio === 'colaborador') return 'Colaborador';
-    if(limpio === 'jugador' || limpio === 'player') return 'Jugador';
-    return role.trim();
-  }
-
-  async function validarPermisoFinalizarSorteo(){
-    const currentUser = auth?.currentUser || null;
-    if(!currentUser){
-      return {
-        permitido: false,
-        mensaje: 'No se encontró una sesión activa. Inicia sesión nuevamente para finalizar el sorteo.',
-        motivo: 'sin_sesion'
-      };
-    }
-
-    const uid = (currentUser.uid || '').toString().trim();
-    const emailLower = (currentUser.email || '').toString().trim().toLowerCase();
-    const rolesPermitidos = new Set(['Superadmin', 'Administrador', 'Colaborador']);
-    const fuentesConsultadas = [];
-    const detallesFuentes = [];
-
-    let tokenResult = null;
-    try{
-      tokenResult = await currentUser.getIdTokenResult(true);
-    }catch(errorToken){
-      console.warn('[cantarsorteos][finalizar][bloqueado]', {
-        motivo: 'token_refresh_failed',
-        sorteoId: currentSorteoId || '',
-        uid: uid || null,
-        email: emailLower || null,
-        errorCode: (errorToken?.code || '').toString().trim(),
-        errorMessage: (errorToken?.message || '').toString().trim()
-      });
-      return {
-        permitido: false,
-        mensaje: 'No se pudo refrescar tu sesión de seguridad. Vuelve a intentarlo en unos segundos.',
-        motivo: 'token_refresh_failed'
-      };
-    }
-
-    let rawRole = null;
-    let roleSource = null;
-
-    fuentesConsultadas.push('custom_claims');
-    const claims = tokenResult?.claims || {};
-    const rawRoleClaim = claims.role ?? claims.rol ?? null;
-    const roleClaim = normalizarRolOperativo(rawRoleClaim);
-    detallesFuentes.push({
-      fuente: 'custom_claims',
-      roleRaw: rawRoleClaim ?? null,
-      roleNormalized: roleClaim ?? null
-    });
-    if(roleClaim){
-      rawRole = rawRoleClaim;
-      roleSource = 'custom_claims';
-    }
-
-    if(!roleSource && emailLower){
-      try{
-        fuentesConsultadas.push('users_email');
-        const userByEmailRef = db.collection('users').doc(emailLower);
-        const userByEmailDoc = await userByEmailRef.get();
-        const rawRoleEmail = userByEmailDoc.exists ? userByEmailDoc.data()?.role : null;
-        const roleEmail = normalizarRolOperativo(rawRoleEmail);
-        detallesFuentes.push({
-          fuente: 'users_email',
-          key: emailLower,
-          docExists: userByEmailDoc.exists,
-          roleRaw: rawRoleEmail ?? null,
-          roleNormalized: roleEmail ?? null
-        });
-        if(roleEmail){
-          rawRole = rawRoleEmail;
-          roleSource = 'users_email';
-        }
-      }catch(errorEmailDoc){
-        detallesFuentes.push({
-          fuente: 'users_email',
-          key: emailLower,
-          errorCode: (errorEmailDoc?.code || '').toString().trim() || null,
-          errorMessage: (errorEmailDoc?.message || '').toString().trim() || null
-        });
-      }
-    }
-
-    if(!roleSource && uid){
-      try{
-        fuentesConsultadas.push('users_uid');
-        const userByUidRef = db.collection('users').doc(uid);
-        const userByUidDoc = await userByUidRef.get();
-        const rawRoleUid = userByUidDoc.exists ? userByUidDoc.data()?.role : null;
-        const roleUid = normalizarRolOperativo(rawRoleUid);
-        detallesFuentes.push({
-          fuente: 'users_uid',
-          key: uid,
-          docExists: userByUidDoc.exists,
-          roleRaw: rawRoleUid ?? null,
-          roleNormalized: roleUid ?? null
-        });
-        if(roleUid){
-          rawRole = rawRoleUid;
-          roleSource = 'users_uid';
-        }
-      }catch(errorUidDoc){
-        detallesFuentes.push({
-          fuente: 'users_uid',
-          key: uid,
-          errorCode: (errorUidDoc?.code || '').toString().trim() || null,
-          errorMessage: (errorUidDoc?.message || '').toString().trim() || null
-        });
-      }
-    }
-
-    const role = normalizarRolOperativo(rawRole);
-    if(!role){
-      console.warn('[cantarsorteos][finalizar][bloqueado]', {
-        motivo: 'rol_no_encontrado',
-        sorteoId: currentSorteoId || '',
-        uid: uid || null,
-        email: emailLower || null,
-        fuentesConsultadas,
-        detallesFuentes
-      });
-      return {
-        permitido: false,
-        mensaje: 'No fue posible determinar tu rol operativo para finalizar el sorteo. Verifica tu usuario en el panel de administración.',
-        motivo: 'rol_no_encontrado'
-      };
-    }
-
-    if(!rolesPermitidos.has(role)){
-      console.warn('[cantarsorteos][finalizar][bloqueado]', {
-        motivo: 'rol_no_permitido',
-        sorteoId: currentSorteoId || '',
-        uid: uid || null,
-        email: emailLower || null,
-        roleSource: roleSource || null,
-        roleRaw: rawRole ?? null,
-        roleNormalized: role ?? null,
-        rolesPermitidos: Array.from(rolesPermitidos),
-        fuentesConsultadas,
-        detallesFuentes
-      });
-      return {
-        permitido: false,
-        mensaje: 'No tienes permisos para finalizar sorteos. Se requiere rol Superadmin, Administrador o Colaborador.',
-        motivo: 'rol_no_permitido'
-      };
-    }
-
-    return { permitido: true, uid, emailLower, role, roleSource };
-  }
-
-  function obtenerLoteriasConResultadosPendientes(){
-    const pendientes = [];
-    const setPendientes = new Set();
-    for(let fila=0; fila<MAX_FILAS_TABLA; fila++){
-      columnasSemanticas.forEach(({ tipo, loteria })=>{
-        if(tipo === 'horario' || !loteria?.id) return;
-        const clave = construirClaveResultado(loteria.id, fila);
-        const claveCompatible = resolverClaveResultadoCompatible(clave);
-        if(!claveCompatible) return;
-        const habilitacion = obtenerBloquesHabilitadosEnFila(loteria, fila);
-        if(!habilitacion.exacta && !habilitacion.intermedia) return;
-        const resultados = resultadosPorCelda.get(claveCompatible) || {};
-        const exactaLista = !habilitacion.exacta || Boolean(window.CantosCanonicos?.normalizarNumeroCanonico(resultados?.exacta));
-        const intermediaLista = !habilitacion.intermedia || Boolean(window.CantosCanonicos?.normalizarNumeroCanonico(resultados?.intermedia));
-        if(exactaLista && intermediaLista) return;
-        const loteriaId = (loteria.id || '').toString().trim();
-        if(!loteriaId || setPendientes.has(loteriaId)) return;
-        setPendientes.add(loteriaId);
-        const nombreLoteria = (loteria.nombre || '').toString().trim() || `Lotería ${loteriaId}`;
-        pendientes.push(nombreLoteria);
-      });
-    }
-    return pendientes;
-  }
-
-  function resolverApiAdminBaseCantarsorteos(){
-    if(typeof window.getAdminApiBase === 'function'){
-      const base = (window.getAdminApiBase() || '').toString().trim();
-      if(base) return base.replace(/\/+$/, '');
-    }
-    const uploadEndpoint = (window.UPLOAD_ENDPOINT || '').toString().trim();
-    if(uploadEndpoint){
-      return uploadEndpoint.replace(/\/upload\/?$/i, '').replace(/\/+$/, '');
-    }
-    return (window.location?.origin || '').replace(/\/+$/, '');
-  }
-
-  function registrarTelemetriaOperacion(nombreEvento, payload = {}){
-    if(typeof window.trackEvent === 'function'){
-      window.trackEvent(nombreEvento, payload);
-    } else {
-      console.info(`[telemetria] ${nombreEvento}`, payload);
-    }
-  }
-
   function extraerResumenPremiosDirectosOficiales(data = {}){
-    const candidatos = [
-      data?.resumen,
-      data?.resultado,
-      data
-    ];
+    const candidatos = [data?.resumen, data?.resultado, data];
     let origen = {};
     for(const item of candidatos){
       if(item && typeof item === 'object'){
@@ -7316,7 +7094,7 @@
         break;
       }
     }
-    const numeroSeguro = (valor)=>{
+    const numeroSeguro = valor=>{
       const numero = Number(valor);
       return Number.isFinite(numero) && numero >= 0 ? numero : 0;
     };
@@ -7328,290 +7106,27 @@
   }
 
   async function generarPremiosPendientesDirectosOficiales(sorteoId){
-    const premiosEngineEnabled = typeof premiosEngineV2Enabled === 'boolean' ? premiosEngineV2Enabled : false;
     const sorteoSeguro = (sorteoId || '').toString().trim();
-    if(!sorteoSeguro){
-      return { ok: false, omitido: true, motivo: 'sorteo_id_vacio', resumen: { creados: 0, duplicados: 0, evaluados: 0 } };
-    }
-    if(!premiosEngineEnabled){
-      return {
-        ok: false,
-        omitido: true,
-        idempotente: true,
-        statusCode: 409,
-        motivo: 'premios_engine_v2_disabled',
-        resumen: { creados: 0, duplicados: 0, evaluados: 0 }
-      };
-    }
-    const currentUser = auth?.currentUser || null;
-    if(!currentUser){
-      throw new Error('No hay usuario autenticado para generar premios pendientes directos oficiales.');
-    }
-    const validacionPermiso = await validarPermisoFinalizarSorteo();
-    if(!validacionPermiso?.permitido){
-      const errorPermisos = new Error(validacionPermiso?.mensaje || 'No tienes permisos para generar premios pendientes directos oficiales.');
-      errorPermisos.code = 'permission-denied';
-      throw errorPermisos;
-    }
-    const apiBase = resolverApiAdminBaseCantarsorteos();
-    if(!apiBase){
-      throw new Error('No se pudo resolver la URL base del API administrativo.');
-    }
-    const token = await currentUser.getIdToken(true);
-    let responseData = {};
-    let statusCode = 0;
-    try {
-      const response = await fetch(`${apiBase}/admin/generar-premios-pendientes-directos-oficiales`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify({ sorteoId: sorteoSeguro })
-      });
-      statusCode = Number(response.status) || 0;
-      responseData = await response.json().catch(()=>({}));
-      if(!response.ok && response.status !== 409){
-        const detalle = (responseData?.message || responseData?.error || '').toString().trim();
-        throw new Error(detalle || `HTTP ${response.status}`);
-      }
-      const resumen = extraerResumenPremiosDirectosOficiales(responseData);
-      const idempotente = statusCode === 409 || resumen.duplicados > 0 || Boolean(responseData?.idempotente || responseData?.yaExistianPremios);
-      registrarTelemetriaOperacion('cantarsorteos_generar_premios_directos_oficiales_exito', {
-        sorteoId: sorteoSeguro,
-        statusCode,
-        ...resumen,
-        idempotente
-      });
-      return { ok: true, idempotente, statusCode, resumen, data: responseData };
-    } catch (error) {
-      registrarTelemetriaOperacion('cantarsorteos_generar_premios_directos_oficiales_error', {
-        sorteoId: sorteoSeguro,
-        statusCode,
-        errorCode: (error?.code || '').toString().trim() || null,
-        errorMessage: (error?.message || '').toString().trim() || null
-      });
-      throw error;
-    }
-  }
-
-  function construirFirmaGanadoresBloqueados(mapa = ganadoresBloqueadosPorForma){
-    const payload = serializarGanadoresBloqueadosPorForma(mapa);
-    const entradas = Object.entries(payload)
-      .filter(([, valor])=>valor && Array.isArray(valor.cartonClaves) && valor.cartonClaves.length)
-      .map(([idx, valor])=>({
-        idx: Number(idx),
-        paso: Number(valor?.paso),
-        cartonClaves: valor.cartonClaves.map(item=>(item ?? '').toString().trim()).filter(Boolean).sort()
-      }))
-      .sort((a,b)=>a.idx-b.idx);
-    if(!entradas.length) return '';
-    return JSON.stringify(entradas);
-  }
-
-  async function sincronizarPremiosPendientesDirectosDesdeLocks({
-    forzar = false,
-    contexto = 'sin_contexto'
-  } = {}){
-    const premiosEngineEnabled = typeof premiosEngineV2Enabled === 'boolean' ? premiosEngineV2Enabled : false;
-    if(!premiosEngineEnabled){
-      return {
-        ok: false,
-        omitido: true,
-        idempotente: true,
-        statusCode: 409,
-        motivo: 'premios_engine_v2_disabled',
-        resumen: { creados: 0, duplicados: 0, evaluados: 0 }
-      };
-    }
-    const estadoActual = obtenerEstadoActualNormalizado();
-    if(estadoActual !== 'jugando' && estadoActual !== 'finalizado') return null;
-    if(!currentSorteoId) return null;
-    const firmaGanadores = construirFirmaGanadoresBloqueados();
-    if(!firmaGanadores) return null;
-    const firmaActual = `${currentSorteoId}::${firmaGanadores}`;
-    if(sincronizacionPremiosDirectosEnCurso) return null;
-    if(!forzar && firmaActual === firmaSincronizacionPremiosDirectos) return resumenUltimaSincronizacionPremiosDirectos;
-
-    sincronizacionPremiosDirectosEnCurso = true;
-    try{
-      const resultado = await generarPremiosPendientesDirectosOficiales(currentSorteoId);
-      firmaSincronizacionPremiosDirectos = firmaActual;
-      resumenUltimaSincronizacionPremiosDirectos = resultado?.resumen || null;
-      const resumen = resultado?.resumen || { creados: 0, duplicados: 0, evaluados: 0 };
-      console.info('[cantarsorteos][premios-directos][sync-ok]', {
-        contexto,
-        sorteoId: currentSorteoId || '',
-        estado: estadoActual,
-        ...resumen,
-        idempotente: Boolean(resultado?.idempotente)
-      });
-      return resultado;
-    }catch(error){
-      console.warn('[cantarsorteos][premios-directos][sync-error]', {
-        contexto,
-        sorteoId: currentSorteoId || '',
-        estado: estadoActual,
-        errorCode: (error?.code || '').toString().trim() || null,
-        errorMessage: (error?.message || '').toString().trim() || null
-      });
-      return null;
-    }finally{
-      sincronizacionPremiosDirectosEnCurso = false;
-    }
+    return {
+      ok: false,
+      omitido: true,
+      idempotente: true,
+      statusCode: 409,
+      motivo: 'premios_engine_v2_disabled',
+      sorteoId: sorteoSeguro,
+      resumen: extraerResumenPremiosDirectosOficiales({})
+    };
   }
 
   async function finalizarSorteo(){
-    if(!currentSorteoId || !currentSorteoData){ alert('Selecciona un sorteo primero.'); return; }
-    const estadoActual = obtenerEstadoActualNormalizado();
-    if(estadoActual === 'finalizado'){
-      forzarVisibilidadResultado(true);
-      let estadoPdfResultado = (currentSorteoData.pdfresul || '').toString().trim().toLowerCase();
-      if(estadoPdfResultado !== 'si'){
-        try {
-          await asegurarDbListo();
-          const docFinal = await db.collection('sorteos').doc(currentSorteoId).get();
-          if(docFinal.exists){
-            const datosFinal = docFinal.data() || {};
-            estadoPdfResultado = (datosFinal.pdfresul || '').toString().trim().toLowerCase() || estadoPdfResultado;
-            currentSorteoData.pdfresul = estadoPdfResultado;
-            const indiceSorteo = sorteos.findIndex(s=>s && s.id === currentSorteoId);
-            if(indiceSorteo >= 0){
-              sorteos[indiceSorteo] = { ...sorteos[indiceSorteo], pdfresul: estadoPdfResultado };
-            }
-          }
-        } catch (errFinal) {
-          console.warn('No se pudo actualizar el estado del PDF de resultados al reintentar la descarga', errFinal);
-        }
-      }
-
-      if(estadoPdfResultado !== 'si'){
-        mostrarAvisoSimple('El sorteo ya se encuentra finalizado. Se abrirá el PDF de resultados para que confirmes su descarga.', 'PDF pendiente');
-        abrirPdfResultados();
-      } else {
-        alert('El sorteo ya finalizó.');
-      }
+    if(!currentSorteoId || !currentSorteoData){
+      alert('Selecciona un sorteo primero.');
       return;
     }
-    if(estadoActual !== 'jugando'){
-      alert('El sorteo debe estar en estado Jugando para finalizar.');
-      return;
-    }
-    const nombre = obtenerNombreSorteoActual();
-    const confirmar = await preguntarAccionEstado(`¿Estas seguro de Finalizar el sorteo: ${nombre}?`);
-    if(!confirmar) return;
-    try {
-      await asegurarDbListo();
-      const validacionPermiso = await validarPermisoFinalizarSorteo();
-      if(!validacionPermiso?.permitido){
-        mostrarAvisoSimple(validacionPermiso?.mensaje || 'No tienes permisos para finalizar sorteos.', 'Acción no permitida');
-        alert(validacionPermiso?.mensaje || 'No tienes permisos para finalizar sorteos.');
-        return;
-      }
-      const ref = db.collection('sorteos').doc(currentSorteoId);
-      const snap = await ref.get();
-      if(!snap.exists){
-        const mensajeInexistente = 'No se encontró el sorteo en base de datos. Es posible que haya sido eliminado.';
-        mostrarAvisoSimple(mensajeInexistente, 'Sorteo inexistente');
-        alert(mensajeInexistente);
-        return;
-      }
-      const estadoPersistido = normalizarEstadoSorteo(snap.data()?.estado);
-      if(estadoPersistido !== 'jugando'){
-        const mensajeConflictoPrevio = 'El estado del sorteo cambió en el servidor y ya no está en Jugando.';
-        mostrarAvisoSimple(mensajeConflictoPrevio, 'Conflicto de estado');
-        alert(`${mensajeConflictoPrevio} Otro operador pudo haber actualizado el sorteo.`);
-        return;
-      }
-      const estadoAcumulado = await registrarAcumuladoFormasSinGanador();
-      if(estadoAcumulado?.ok === false){
-        console.warn('Finalización con acumulado pendiente para sorteo', currentSorteoId);
-      }
-      const loteriasPendientes = obtenerLoteriasConResultadosPendientes();
-      if(loteriasPendientes.length){
-        const mensajePendientes = `Aún existen resultados de las loterías ${loteriasPendientes.join(', ')} por cargar`;
-        mostrarAvisoSimple(mensajePendientes, 'Resultados pendientes');
-        alert(mensajePendientes);
-        return;
-      }
-      await db.runTransaction(async(transaction)=>{
-        const docTx = await transaction.get(ref);
-        if(!docTx.exists){
-          const errorNoExiste = new Error('Sorteo inexistente durante transacción de finalización.');
-          errorNoExiste.code = 'not-found';
-          throw errorNoExiste;
-        }
-        const estadoTx = normalizarEstadoSorteo(docTx.data()?.estado);
-        if(estadoTx !== 'jugando'){
-          const errorConflicto = new Error('Estado de sorteo modificado por otro operador.');
-          errorConflicto.code = 'failed-precondition';
-          throw errorConflicto;
-        }
-        transaction.update(ref, {
-          estado: 'Finalizado',
-          finalizacionAuditoria: {
-            origen: 'cantarsorteos/finalizacion-segura',
-            operador: (adminActual?.email || auth?.currentUser?.email || '').toString().trim() || 'desconocido',
-            fechaIso: new Date().toISOString(),
-            premiosEngineV2Enabled
-          }
-        });
-      });
-      conservarLoteriasCacheEnSorteoActual();
-      mostrarAvisoSimple(
-        'Finalización segura aplicada: pagos y acreditaciones automáticas deshabilitadas por premiosEngineV2Enabled=false.',
-        'Motor de premios deshabilitado'
-      );
-      mensajeEl.textContent = estadoAcumulado?.pendiente
-        ? 'Sorteo finalizado correctamente. Acumulado pendiente de gestión administrativa.'
-        : 'Sorteo finalizado correctamente.';
-      finalizarBtn.classList.remove('attention');
-      forzarVisibilidadResultado(true);
-      abrirPdfResultados();
-    } catch (err) {
-      const errorCode = (err?.code || '').toString().trim().toLowerCase();
-      const errorMessage = (err?.message || '').toString().trim();
-      const errorName = (err?.name || '').toString().trim();
-      console.error('Error finalizando sorteo', {
-        err,
-        errorCode,
-        errorName,
-        errorMessage
-      });
-      const userEmail = (adminActual?.email || auth?.currentUser?.email || '').toString().trim();
-
-      const esErrorRed = errorCode.includes('unavailable') || errorCode.includes('deadline-exceeded');
-      let mensajeOperador = 'No fue posible finalizar el sorteo en este momento. Verifica el estado e inténtalo de nuevo.';
-      let errorId = 'E-FIN-500';
-      if(errorCode === 'permission-denied'){
-        mensajeOperador = 'No tienes permisos suficientes para finalizar este sorteo. Verifica tu rol de operador/administrador.';
-        errorId = 'E-FIN-403';
-      } else if(errorCode === 'not-found'){
-        mensajeOperador = 'No se encontró el documento del sorteo que intentas finalizar. Revisa si el sorteo existe o fue eliminado.';
-        errorId = 'E-FIN-404';
-      } else if(errorCode === 'failed-precondition'){
-        mensajeOperador = 'No se pudo finalizar porque otro operador cambió el estado del sorteo. Refresca la vista y verifica el estado actual.';
-        errorId = 'E-FIN-409';
-      } else if(esErrorRed){
-        mensajeOperador = 'Hay un problema de conectividad con el servidor. Revisa tu conexión e intenta nuevamente en unos segundos.';
-        errorId = 'E-FIN-503';
-      }
-
-      const telemetriaErrorFinalizar = {
-        sorteoId: currentSorteoId || '',
-        estadoActual,
-        userEmail,
-        errorCode
-      };
-      if(typeof window.trackEvent === 'function'){
-        window.trackEvent('cantarsorteos_finalizar_error', telemetriaErrorFinalizar);
-      } else {
-        console.info('[telemetria] cantarsorteos_finalizar_error', telemetriaErrorFinalizar);
-      }
-
-      mostrarAvisoSimple(`${mensajeOperador} (Ref: ${errorId})`, 'No se pudo finalizar');
-      alert(`No fue posible finalizar el sorteo. Código de soporte: ${errorId}`);
-    }
+    mostrarAvisoSimple(
+      'La lógica de finalización de sorteos está temporalmente deshabilitada para su reconstrucción.',
+      'Finalización en mantenimiento'
+    );
   }
 
   function abrirPdfResultados(){
