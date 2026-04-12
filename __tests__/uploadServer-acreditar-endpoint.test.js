@@ -25,7 +25,7 @@ function makeRes() {
 }
 
 describe('endpoint /acreditarPremioEvento', () => {
-  test('valida que llegue premioId o eventoGanadorId', async () => {
+  test('responde 409 cuando el motor de premios está deshabilitado', async () => {
     const { acreditarPremioEventoHandler } = require('../uploadServer.js');
 
     const req = {
@@ -37,13 +37,16 @@ describe('endpoint /acreditarPremioEvento', () => {
 
     await acreditarPremioEventoHandler(req, res);
 
-    expect(res.statusCode).toBe(400);
-    expect(res.body).toEqual({
-      error: 'Debes enviar premioId o eventoGanadorId para acreditar el premio pendiente directo.'
-    });
+    expect(res.statusCode).toBe(409);
+    expect(res.body).toEqual(expect.objectContaining({
+      code: 'PREMIOS_ENGINE_V2_DISABLED',
+      premiosEngineV2Enabled: false,
+      action: 'acreditar-premio-evento',
+      idempotente: true
+    }));
   });
 
-  test('responde éxito idempotente cuando el premio ya estaba acreditado', async () => {
+  test('mantiene respuesta idempotente 409 aunque llegue premio válido', async () => {
     jest.resetModules();
     const admin = require('firebase-admin');
     const { acreditarPremioEventoHandler } = require('../uploadServer.js');
@@ -130,12 +133,12 @@ describe('endpoint /acreditarPremioEvento', () => {
 
     await acreditarPremioEventoHandler(req, res);
 
-    expect(res.statusCode).toBe(200);
-    expect(res.body).toEqual({
-      status: 'ok',
-      resultado: 'ya_acreditado',
-      idempotente: true,
-      premioId
-    });
+    expect(res.statusCode).toBe(409);
+    expect(res.body).toEqual(expect.objectContaining({
+      code: 'PREMIOS_ENGINE_V2_DISABLED',
+      premiosEngineV2Enabled: false,
+      action: 'acreditar-premio-evento',
+      idempotente: true
+    }));
   });
 });

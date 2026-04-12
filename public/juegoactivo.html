@@ -4680,6 +4680,7 @@
   const { obtenerLoteriasAsignadas, normalizarMiniaturaLoteria, formatearNumeroAnimalVisual, normalizarClaveResultado } = window.SorteoDataAdapters;
   const premiosPendientesIdsApi = window.PremiosPendientesIds || {};
   const billeteraIdentityApi = window.BilleteraIdentity || {};
+  const premiosEngineV2Enabled = false;
 
   initBingoAudioControl({
     containerId: 'audio-control-game',
@@ -10425,6 +10426,7 @@
       const mostrarAcreditar = !esSimulacion
         && !detalle?.perdido
         && !sorteoFinalizado
+        && premiosEngineV2Enabled
         && premioPendienteDetectado;
       modalCelebracionListaEl.appendChild(crearLineaCelebracionGanador(detalle, { mostrarAcreditar }));
     });
@@ -10548,6 +10550,17 @@
 
   async function acreditarPremioAhora(detalle, botonEl=null){
     if(acreditandoPremioAhora || !db || !usuarioActual) return;
+    const sorteoActivoLocal = (typeof activeSorteo !== 'undefined' && activeSorteo) ? activeSorteo : null;
+    const estadoSorteoActual = ((sorteoActivoLocal?.estado || '').toString().trim().toLowerCase());
+    const premiosEngineEnabled = typeof premiosEngineV2Enabled === 'boolean' ? premiosEngineV2Enabled : true;
+    if(estadoSorteoActual && estadoSorteoActual !== 'finalizado'){
+      alert('Solo puedes acreditar premios cuando el sorteo esté Finalizado (422).');
+      return;
+    }
+    if(!premiosEngineEnabled){
+      alert('Acreditación deshabilitada por premiosEngineV2Enabled=false (409).');
+      return;
+    }
     const billeteraIdsBase = (typeof obtenerBilleterasIdCandidatasActual === 'function')
       ? obtenerBilleterasIdCandidatasActual()
       : Array.from(new Set([

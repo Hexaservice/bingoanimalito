@@ -43,7 +43,7 @@ describe('cantarsorteos generarPremiosPendientesDirectosOficiales', () => {
     return context;
   }
 
-  test('invoca POST al endpoint oficial al generar pendientes desde finalización', async () => {
+  test('retorna modo omitido cuando el motor está deshabilitado', async () => {
     const fetchMock = jest.fn().mockResolvedValue({
       ok: true,
       status: 200,
@@ -53,24 +53,17 @@ describe('cantarsorteos generarPremiosPendientesDirectosOficiales', () => {
 
     const result = await ctx.generarPremiosPendientesDirectosOficiales('SRT-FINAL-1');
 
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(fetchMock).toHaveBeenCalledWith(
-      'https://api.test/admin/generar-premios-pendientes-directos-oficiales',
-      expect.objectContaining({
-        method: 'POST',
-        headers: expect.objectContaining({
-          'Content-Type': 'application/json',
-          Authorization: 'Bearer token-de-prueba'
-        }),
-        body: JSON.stringify({ sorteoId: 'SRT-FINAL-1' })
-      })
-    );
-    expect(result.ok).toBe(true);
-    expect(result.idempotente).toBe(false);
-    expect(result.resumen).toEqual({ creados: 1, duplicados: 0, evaluados: 1 });
+    expect(fetchMock).toHaveBeenCalledTimes(0);
+    expect(result).toEqual(expect.objectContaining({
+      ok: false,
+      omitido: true,
+      idempotente: true,
+      statusCode: 409,
+      motivo: 'premios_engine_v2_disabled'
+    }));
   });
 
-  test('trata respuesta 409 como idempotente sin fallar', async () => {
+  test('mantiene respuesta idempotente sin realizar fetch', async () => {
     const fetchMock = jest.fn().mockResolvedValue({
       ok: false,
       status: 409,
@@ -80,9 +73,10 @@ describe('cantarsorteos generarPremiosPendientesDirectosOficiales', () => {
 
     const result = await ctx.generarPremiosPendientesDirectosOficiales('SRT-FINAL-1');
 
-    expect(result.ok).toBe(true);
+    expect(fetchMock).toHaveBeenCalledTimes(0);
+    expect(result.ok).toBe(false);
     expect(result.idempotente).toBe(true);
     expect(result.statusCode).toBe(409);
-    expect(result.resumen).toEqual({ creados: 0, duplicados: 1, evaluados: 1 });
+    expect(result.resumen).toEqual({ creados: 0, duplicados: 0, evaluados: 0 });
   });
 });
