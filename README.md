@@ -207,6 +207,76 @@ node scripts/assignRoleClaims.js \
 
 Ese flujo deja en Authentication los claims `{ role: 'Superadmin', roles: ['Superadmin'], admin: true }` y en Firestore actualiza `users/{email}` con al menos `email`, `role`, `roles`, `admin` y `uid`.
 
+## Operación segura: backfill masivo de claims operativos
+
+Para alinear usuarios operativos existentes (`Superadmin`, `Administrador`, `Colaborador`) entre Firebase Auth y `users/{email}`, existe el script:
+
+```bash
+npm run backfill:operational-claims -- --dry-run true
+```
+
+### Qué hace el backfill
+
+1. Recorre `users` filtrando por:
+   - `role in [Superadmin, Administrador, Colaborador]`
+   - o `roles array-contains-any [Superadmin, Administrador, Colaborador]`.
+2. Para cada usuario:
+   - valida email y uid contra Firebase Auth,
+   - construye claims canónicos (`role`, `roles`, `admin`),
+   - ejecuta `setCustomUserClaims` (solo fuera de dry-run),
+   - actualiza `users/{email}` con `role`, `roles`, `admin`, `uid`, `roleUpdatedAt`.
+3. Imprime reporte final con:
+   - `totalProcesados`,
+   - `exitosos`,
+   - `fallidos`,
+   - lista de `errores` con causa.
+
+### Modo auditoría (dry-run)
+
+Primero correr SIEMPRE en modo simulación:
+
+```bash
+npm run backfill:operational-claims -- --dry-run true
+```
+
+En este modo **no** se escriben claims ni Firestore; solo valida y reporta.
+
+### Ejecución real (con confirmación explícita)
+
+```bash
+npm run backfill:operational-claims -- --confirm true
+```
+
+Opcional: limitar lote para pruebas controladas.
+
+```bash
+npm run backfill:operational-claims -- --confirm true --limit 20
+```
+
+### Rollback operativo
+
+Si se detecta desalineación después del backfill:
+
+1. Detener operación (no continuar lotes).
+2. Re-ejecutar en `--dry-run true` para identificar cuentas afectadas.
+3. Restaurar usuario por usuario con el script puntual:
+
+```bash
+node scripts/assignRoleClaims.js --email usuario@dominio.com --role <Superadmin|Administrador|Colaborador>
+```
+
+4. Forzar cierre/reinicio de sesión en frontend para refrescar token con claims actualizados.
+
+### Verificación post-ejecución
+
+Checklist recomendado:
+
+1. Validar que `fallidos` sea `0` o que todas las causas estén diagnosticadas.
+2. Para una muestra de usuarios, confirmar:
+   - claims en Auth (`role`, `roles`, `admin`),
+   - documento `users/{email}` con `roles`, `admin`, `roleUpdatedAt`, `uid`.
+3. Probar acceso a vistas operativas (`super.html`, `admin.html`, `collab.html`) y acciones críticas según rol.
+
 ## Checklist operativo para `cantarsorteos.html` (roles sincronizados)
 
 Antes de usar acciones sensibles como **finalizar sorteo** en `cantarsorteos`, validar siempre:
