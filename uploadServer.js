@@ -699,14 +699,14 @@ function computeWinnerPrizeAmounts(forma = {}, totalGanadores = 1) {
   const cartonesPorGanador = Number.isFinite(cartonesPorGanadorRaw)
     ? Math.max(0, cartonesPorGanadorRaw)
     : null;
-  // Convención oficial:
-  // - cartonesGratisPorGanador: valor explícito por ganador (no se divide).
-  // - cartonesGratis: total de la forma, se divide entre ganadores igual que créditos.
+  // Convención vigente:
+  // - cartonesGratisPorGanador: valor explícito por ganador.
+  // - cartonesGratis: también se interpreta por ganador (no se divide entre ganadores).
   const cartonesGratis = Math.max(
     0,
     cartonesPorGanador !== null
       ? cartonesPorGanador
-      : (cartonesBase / total)
+      : cartonesBase
   );
   return {
     creditos: Number(creditos.toFixed(6)),

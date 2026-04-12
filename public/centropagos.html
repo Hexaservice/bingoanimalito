@@ -1685,18 +1685,11 @@
         ?? forma?.cartones
         ?? 0
       );
-      let ganadoresNumero = Number(totalGanadores);
-      if(!Number.isFinite(ganadoresNumero)){
-        ganadoresNumero = 1;
-      }else{
-        ganadoresNumero = Math.floor(ganadoresNumero);
-      }
-      const totalSeguro = Math.max(1, ganadoresNumero);
       if(Number.isFinite(cartonesPorGanadorRaw)){
         return Number(Math.max(0, cartonesPorGanadorRaw).toFixed(6));
       }
       const totalCartones = Number.isFinite(totalCartonesRaw) ? Math.max(0, totalCartonesRaw) : 0;
-      return Number((totalCartones / totalSeguro).toFixed(6));
+      return Number(totalCartones.toFixed(6));
     }
 
     function cpObtenerCartonesGratisTotalesEntregados(forma,totalGanadores){

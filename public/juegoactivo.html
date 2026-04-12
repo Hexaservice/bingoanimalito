@@ -5066,14 +5066,17 @@
   }
 
   function actualizarBotonesCartonesPublicados(){
+    const haySorteoSeleccionado = Boolean(activeSorteoId);
     const publicadoJugando = esFlagPublicado(activeSorteo?.cartonesJugandoPublicados) || esFlagPublicado(activeSorteo?.pdf);
     const publicadoGanadores = esFlagPublicado(activeSorteo?.cartonesGanadoresPublicados) || esFlagPublicado(activeSorteo?.pdfresul);
     if(cartonesJugandoBtnEl){
+      cartonesJugandoBtnEl.hidden = !haySorteoSeleccionado;
       cartonesJugandoBtnEl.disabled = !publicadoJugando;
       cartonesJugandoBtnEl.classList.toggle('publicado', publicadoJugando);
       cartonesJugandoBtnEl.title = publicadoJugando ? 'Ver cartones en juego' : 'Aún no publicados por administración';
     }
     if(cartonesGanadoresBtnEl){
+      cartonesGanadoresBtnEl.hidden = !haySorteoSeleccionado;
       cartonesGanadoresBtnEl.disabled = !publicadoGanadores;
       cartonesGanadoresBtnEl.classList.toggle('publicado', publicadoGanadores);
       cartonesGanadoresBtnEl.title = publicadoGanadores ? 'Ver cartones ganadores' : 'Aún no publicados por administración';
@@ -10083,18 +10086,11 @@
       const totalManual=Number.isFinite(totalCartonesRaw) ? Math.max(0, totalCartonesRaw) : 0;
       return Number(totalManual.toFixed(6));
     }
-    let ganadoresNumero=Number(totalGanadores);
-    if(!Number.isFinite(ganadoresNumero)){
-      ganadoresNumero=1;
-    }else{
-      ganadoresNumero=Math.floor(ganadoresNumero);
-    }
-    const totalSeguro=Math.max(1,ganadoresNumero);
     if(Number.isFinite(cartonesPorGanadorRaw)){
       return Number(Math.max(0, cartonesPorGanadorRaw).toFixed(6));
     }
     const totalCartones=Number.isFinite(totalCartonesRaw) ? Math.max(0,totalCartonesRaw) : 0;
-    return Number((totalCartones/totalSeguro).toFixed(6));
+    return Number(totalCartones.toFixed(6));
   }
 
   function obtenerCartonesGratisTotalEntregados(forma,totalGanadores){
