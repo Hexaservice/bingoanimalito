@@ -90,6 +90,13 @@ function getAppRuntimeSettings(){
   return {};
 }
 
+function buildResyncFailureMessage(reason){
+  if(reason === 'MISSING_UPLOAD_ENDPOINT' || reason === 'INCOMPLETE_BACKEND_CONFIG'){
+    return 'No se puede resincronizar claims porque falta configuración del backend';
+  }
+  return null;
+}
+
 function isProviderEnabled(providerKey, defaultValue = true){
   const settings = getAuthRuntimeSettings();
   const providers = settings.providers;
@@ -637,8 +644,8 @@ async function getUserRole(user){
     const rolPersistente = normalizeRole(data.role) || 'Jugador';
 
     if(rolPersistente && user && (rolPersistente === 'Superadmin' || rolPersistente === 'Administrador' || rolPersistente === 'Colaborador')){
-      const resincronizado = await intentarResincronizarClaims(user, rolPersistente);
-      if(resincronizado){
+      const resincronizacion = await intentarResincronizarClaims(user, rolPersistente);
+      if(resincronizacion.ok){
         try{
           const tokenActualizado = await user.getIdTokenResult(true);
           const claimsActualizados = tokenActualizado?.claims || {};
@@ -648,6 +655,8 @@ async function getUserRole(user){
         }catch(syncErr){
           console.warn('Se intentó revalidar claims luego de resincronizar, pero falló la lectura del token', syncErr);
         }
+      }else if(resincronizacion.reason){
+        console.warn('La resincronización automática no se pudo completar', resincronizacion.reason);
       }
     }
 
@@ -720,8 +729,8 @@ async function getRoleConsistencyDiagnosis(user, options = {}){
       const claimsCompatiblesConRol = claimIncluyeRol(claims, userDocRole);
       if(!claimsCompatiblesConRol){
         if(allowClaimsResync && isPrivilegedRole(userDocRole)){
-          const resincronizado = await intentarResincronizarClaims(user, userDocRole);
-          if(resincronizado){
+          const resincronizacion = await intentarResincronizarClaims(user, userDocRole);
+          if(resincronizacion.ok){
             try{
               const tokenActualizado = await user.getIdTokenResult(true);
               const claimsActualizados = tokenActualizado?.claims || {};
@@ -735,6 +744,18 @@ async function getRoleConsistencyDiagnosis(user, options = {}){
               }
             }catch(syncErr){
               console.warn('No se pudo validar claims luego de resincronización automática en diagnóstico de rol', syncErr);
+            }
+          }else{
+            const configMessage = buildResyncFailureMessage(resincronizacion.reason);
+            if(configMessage){
+              return {
+                ok: false,
+                code: 'INCOMPLETE_BACKEND_CONFIG',
+                claimsRole,
+                userDocRole,
+                syncFailureReason: resincronizacion.reason,
+                message: configMessage
+              };
             }
           }
         }
@@ -768,7 +789,14 @@ async function getRoleConsistencyDiagnosis(user, options = {}){
 }
 
 function resolverApiBaseParaClaims(){
-  if(!hasWindow()) return '';
+  if(!hasWindow()){
+    return {
+      ok: false,
+      code: 'NO_WINDOW',
+      apiBase: '',
+      source: null
+    };
+  }
   const configuredEndpoint =
     typeof window.UPLOAD_ENDPOINT === 'string' && window.UPLOAD_ENDPOINT.trim()
       ? window.UPLOAD_ENDPOINT.trim()
@@ -779,18 +807,25 @@ function resolverApiBaseParaClaims(){
       : '';
   const endpoint = configuredEndpoint || runtimeEndpoint;
   if(endpoint){
-    return endpoint.replace(/\/upload\/?$/, '');
+    return {
+      ok: true,
+      code: null,
+      apiBase: endpoint.replace(/\/upload\/?$/, ''),
+      source: configuredEndpoint ? 'UPLOAD_ENDPOINT' : 'runtime.uploadEndpoint'
+    };
   }
-  const origin = window.location?.origin;
-  if(origin){
-    return origin;
-  }
-  return '';
+  return {
+    ok: false,
+    code: 'MISSING_UPLOAD_ENDPOINT',
+    apiBase: '',
+    source: null
+  };
 }
 
 
 function getAdminApiBase(){
-  return resolverApiBaseParaClaims();
+  const resolution = resolverApiBaseParaClaims();
+  return resolution.ok ? resolution.apiBase : '';
 }
 
 function getOrCreateSuperadminDeviceId(){
@@ -880,13 +915,21 @@ function startAdminSessionWatcher(){
 
 
 async function intentarResincronizarClaims(user, roleExpected){
-  if(!user || !roleExpected || !hasWindow() || typeof fetch !== 'function') return false;
-  const apiBase = resolverApiBaseParaClaims();
-  if(!apiBase) return false;
+  if(!user || !roleExpected || !hasWindow() || typeof fetch !== 'function'){
+    return { ok: false, reason: 'INVALID_INPUT', status: null };
+  }
+  const apiBaseResolution = resolverApiBaseParaClaims();
+  if(!apiBaseResolution.ok){
+    return {
+      ok: false,
+      reason: apiBaseResolution.code || 'INCOMPLETE_BACKEND_CONFIG',
+      status: null
+    };
+  }
 
   try{
     const token = await user.getIdToken(true);
-    const response = await fetch(`${apiBase}/syncClaims`, {
+    const response = await fetch(`${apiBaseResolution.apiBase}/syncClaims`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -896,12 +939,12 @@ async function intentarResincronizarClaims(user, roleExpected){
     });
     if(!response.ok){
       console.warn('No se pudo resincronizar custom claims automáticamente', response.status);
-      return false;
+      return { ok: false, reason: `HTTP_${response.status}`, status: response.status };
     }
-    return true;
+    return { ok: true, reason: null, status: response.status };
   }catch(error){
     console.warn('Falló la resincronización automática de custom claims', error);
-    return false;
+    return { ok: false, reason: 'NETWORK_ERROR', status: null };
   }
 }
 
@@ -1108,7 +1151,10 @@ async function verificarRolFuerte(roleExpected = 'Superadmin', options = {}){
   }
 
   try{
-    await intentarResincronizarClaims(user, roleExpected);
+    const resincronizacion = await intentarResincronizarClaims(user, roleExpected);
+    if(!resincronizacion.ok){
+      return { ok: false, reason: resincronizacion.reason || 'CLAIMS_RESYNC_FAILED', claims, user };
+    }
     const tokenPostSync = await user.getIdTokenResult(true);
     const claimsPostSync = tokenPostSync?.claims || {};
     if(claimIncluyeRol(claimsPostSync, roleExpected)){

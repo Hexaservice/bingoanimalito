@@ -97,7 +97,7 @@ Ejemplos:
 
 Si el frontend llama desde un origen no incluido, el backend responderá `403` por CORS.
 
-### `UPLOAD_ENDPOINT` para `/upload`, `/syncClaims`, `/admin/session/*` y billetera (`/wallet/*`)
+### `UPLOAD_ENDPOINT` obligatorio para `/upload`, `/syncClaims`, `/admin/session/*` y billetera (`/wallet/*`)
 
 Ahora el deploy publica `UPLOAD_ENDPOINT` dentro de `public/firebase-config.js` (generado desde `public/firebase-config.template.js`), y `public/js/auth.js` lo reutiliza para construir la base de:
 
@@ -108,7 +108,9 @@ Ahora el deploy publica `UPLOAD_ENDPOINT` dentro de `public/firebase-config.js` 
 
 > Nota técnica: `/wallet/transfer-credits` se valida y ejecuta en backend con Firebase Admin SDK (no como escritura directa del cliente a Firestore).
 
-La recomendación es una de estas dos (evitando que apunte al hosting estático si backend y frontend no comparten origen):
+`UPLOAD_ENDPOINT` es **obligatorio** cuando el frontend usa rutas administrativas (`/syncClaims`, `/admin/session/*`, `/admin/audit/*`) o de billetera (`/wallet/*`). Si falta, `public/js/auth.js` deja la resincronización de claims en estado de configuración incompleta y bloquea ese flujo con un diagnóstico explícito.
+
+La configuración válida es una de estas dos (evitando que apunte al hosting estático si backend y frontend no comparten origen):
 
 1. **Mismo origen**: exponer el backend detrás del mismo dominio del frontend y usar `UPLOAD_ENDPOINT=https://tu-dominio.com/upload`.
 2. **Origen separado**: publicar el backend en otro dominio HTTPS y definir `UPLOAD_ENDPOINT=https://api.tu-dominio.com/upload`.
