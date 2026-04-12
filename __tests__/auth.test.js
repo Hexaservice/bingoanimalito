@@ -278,8 +278,10 @@ describe('auth.js', () => {
     );
   });
 
-  test('getRoleConsistencyDiagnosis muestra diagnóstico explícito cuando falta UPLOAD_ENDPOINT', async () => {
+  test('getRoleConsistencyDiagnosis usa fallback por origin cuando falta UPLOAD_ENDPOINT', async () => {
     setupWindow();
+    window.fetch = jest.fn(async () => ({ ok: false, status: 500 }));
+    global.fetch = window.fetch;
     global.firebase = buildFirebaseMock({ userExists: true, role: 'Superadmin' });
 
     let getRoleConsistencyDiagnosis;
@@ -296,10 +298,13 @@ describe('auth.js', () => {
     await expect(getRoleConsistencyDiagnosis(fakeUser)).resolves.toEqual(
       expect.objectContaining({
         ok: false,
-        code: 'INCOMPLETE_BACKEND_CONFIG',
-        syncFailureReason: 'MISSING_UPLOAD_ENDPOINT',
-        message: 'No se puede resincronizar claims porque falta configuración del backend'
+        code: 'ROLE_MISMATCH',
+        userDocRole: 'Superadmin'
       })
+    );
+    expect(window.fetch).toHaveBeenCalledWith(
+      'https://app.test/syncClaims',
+      expect.objectContaining({ method: 'POST' })
     );
   });
   test('tieneReautenticacionReciente retorna true cuando existe registro reciente en sessionStorage', async () => {
