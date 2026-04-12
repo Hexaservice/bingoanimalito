@@ -205,6 +205,18 @@ node scripts/assignRoleClaims.js \
 
 Ese flujo deja en Authentication los claims `{ role: 'Superadmin', roles: ['Superadmin'], admin: true }` y en Firestore actualiza `users/{email}` con al menos `email`, `role`, `roles`, `admin` y `uid`.
 
+## Checklist operativo para `cantarsorteos.html` (roles sincronizados)
+
+Antes de usar acciones sensibles como **finalizar sorteo** en `cantarsorteos`, validar siempre:
+
+1. El usuario está autenticado y tiene correo válido en Firebase Auth.
+2. Existe el documento `users/{email}` en Firestore.
+3. `users/{email}.role` es uno de los roles operativos permitidos (`Superadmin`, `Administrador` o `Colaborador`).
+4. El rol de claims (`claims.role` o `claims.roles[]`) coincide exactamente con `users/{email}.role`.
+5. Si hay desalineación claims/documento, ejecutar resincronización de claims y volver a iniciar sesión **antes** de operar.
+
+Este repositorio aplica política de seguridad de sincronización estricta: para operaciones privilegiadas no basta con acceso de UI; claims y documento `users/{email}` deben coincidir.
+
 ## Operación: lock de escrituras de premios y excepción segura de acreditación directa
 
 Cuando `Variablesglobales/Parametros.bloquearEscriturasClientePremios == true`, las reglas de Firestore mantienen bloqueadas las escrituras de cliente relacionadas con premios.
