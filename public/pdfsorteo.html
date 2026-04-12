@@ -1126,10 +1126,12 @@
   <script src="js/auth.js"></script>
   <script src="js/notificationCenter.js"></script>
   <script>
-  ensureAuth('Administrador');
+  ensureAuth();
 
   const params = new URLSearchParams(window.location.search);
   const sorteoId = params.get('s');
+  const viewer = (params.get('viewer') || 'admin').toString().trim().toLowerCase();
+  const esViewerJugador = viewer === 'jugador';
   if(!sorteoId){
     alert('No se indicó un sorteo.');
     window.location.href = 'cantarsorteos.html';
@@ -1226,11 +1228,17 @@
     return `#${hexCanal(mezcla(r))}${hexCanal(mezcla(g))}${hexCanal(mezcla(b))}`;
   }
 
-  salirBtn.addEventListener('click', ()=>{ window.location.href = 'cantarsorteos.html'; });
+  salirBtn.addEventListener('click', ()=>{ window.location.href = esViewerJugador ? 'juegoactivo.html' : 'cantarsorteos.html'; });
   if(generarCartonesBtn){ generarCartonesBtn.disabled = true; }
   if(generarCartonesBtn){ generarCartonesBtn.addEventListener('click', manejarGenerarCartones); }
   if(pdfBtn){ pdfBtn.addEventListener('click', generarPDF); }
-  if(pdfListoBtn){ pdfListoBtn.addEventListener('click', confirmarPdfListo); }
+  if(pdfListoBtn){
+    if(esViewerJugador){
+      pdfListoBtn.style.display = 'none';
+    }else{
+      pdfListoBtn.addEventListener('click', confirmarPdfListo);
+    }
+  }
   if(orientacionAceptarBtn){ orientacionAceptarBtn.addEventListener('click', ocultarModalOrientacion); }
   if(orientacionModal){
     orientacionModal.addEventListener('click', (event)=>{
@@ -1604,7 +1612,7 @@
 
   function renderCartones(){
     cartonesGrid.innerHTML = '';
-    pdfListoBtn.style.display = 'none';
+    if(pdfListoBtn){ pdfListoBtn.style.display = 'none'; }
     if(!cartonesData.length){
       cartonesGrid.innerHTML = '<div class="cartones-placeholder">No se encontraron cartones generados para este sorteo.</div>';
       return;
@@ -1761,6 +1769,12 @@
         return;
       }
       sorteoData = sorteoDoc.data();
+      const publicadoJugando = ((sorteoData?.cartonesJugandoPublicados || sorteoData?.pdf || '').toString().trim().toLowerCase() === 'si');
+      if(esViewerJugador && !publicadoJugando){
+        alert('Esta vista aún no está publicada para jugadores.');
+        window.location.href = 'juegoactivo.html';
+        return;
+      }
       nombreEl.textContent = sorteoData.nombre || 'Sorteo';
       tipoTituloEl.textContent = sorteoData.tipo ? sorteoData.tipo : '';
       datoFechaEl.textContent = formatearFechaParaMostrar(sorteoData.fecha || '');
@@ -1778,6 +1792,10 @@
       renderFormas();
       mostrarMensajeCartonesPendientes();
       if(generarCartonesBtn){ generarCartonesBtn.disabled = false; }
+      await cargarCartones();
+      if(esViewerJugador && generarCartonesBtn){
+        generarCartonesBtn.style.display = 'none';
+      }
     } catch (err) {
       console.error('Error cargando datos', err);
       alert('Ocurrió un error cargando la información del sorteo.');
@@ -2004,8 +2022,10 @@
       }
 
       pdf.save(nombreArchivo);
-      if(pdfListoBtn){ pdfListoBtn.style.display = 'block'; pdfListoBtn.disabled = false; }
-      alert('El PDF del sorteo ha sido generado. Descárgalo y luego confirma con "PDF listo".');
+      if(pdfListoBtn && !esViewerJugador){ pdfListoBtn.style.display = 'block'; pdfListoBtn.disabled = false; }
+      alert(esViewerJugador
+        ? 'El PDF de cartones en juego fue generado correctamente.'
+        : 'El PDF del sorteo ha sido generado. Descárgalo y luego confirma con "PDF listo".');
     } catch (err) {
       console.error('Error generando el PDF', err);
       alert('No se pudo generar el PDF del sorteo. Intenta nuevamente.');
@@ -2040,6 +2060,8 @@
       const eliminar = firebase.firestore.FieldValue.delete();
       const payload = {
         pdf: 'si',
+        cartonesJugandoPublicados: 'si',
+        cartonesJugandoPublicadoEn: timestamp,
         pdfActualizadoEn: timestamp,
         pdfUrl: eliminar,
         pdfStoragePath: eliminar

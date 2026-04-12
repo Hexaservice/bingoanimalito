@@ -1930,6 +1930,47 @@
       #panel-botones-formas.flotante .carton-forma-accion {
           width: 100%;
       }
+      .panel-cartones-publicados {
+          display: flex;
+          gap: clamp(6px, 1.4vw, 10px);
+          margin-top: clamp(6px, 1.5vw, 12px);
+          justify-content: center;
+          flex-wrap: wrap;
+      }
+      .panel-cartones-publicados .boton-cartones-publicados {
+          border: 1px solid rgba(15, 23, 42, 0.35);
+          background: linear-gradient(180deg, rgba(255,255,255,0.95), rgba(226,232,240,0.96));
+          color: #0f172a;
+          border-radius: 999px;
+          font-size: clamp(0.68rem, 1.9vw, 0.82rem);
+          font-weight: 700;
+          letter-spacing: 0.02em;
+          padding: 4px 12px;
+          min-height: 28px;
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          cursor: pointer;
+      }
+      .panel-cartones-publicados .boton-cartones-publicados:disabled {
+          opacity: 0.55;
+          cursor: not-allowed;
+      }
+      .boton-cartones-publicados .estado-publicado-icono {
+          width: 8px;
+          height: 8px;
+          border-radius: 50%;
+          background: #94a3b8;
+          box-shadow: 0 0 0 rgba(16,185,129,0);
+      }
+      .boton-cartones-publicados.publicado .estado-publicado-icono {
+          background: #10b981;
+          animation: estadoPublicadoPulso 2.1s ease-in-out infinite;
+      }
+      @keyframes estadoPublicadoPulso {
+          0%, 100% { box-shadow: 0 0 0 0 rgba(16,185,129,0); }
+          50% { box-shadow: 0 0 0 6px rgba(16,185,129,0.25); }
+      }
       .panel-botones-formas__envoltorio {
           display: flex;
           flex-direction: column;
@@ -4493,6 +4534,16 @@
         </div>
         <div class="panel-columna-derecha__rejilla panel-columna-derecha__modales">
           <div id="panel-botones-formas" role="region" aria-label="Ganadores por forma"></div>
+          <div class="panel-cartones-publicados" aria-label="Vistas publicadas del sorteo">
+            <button id="cartones-jugando-btn" type="button" class="boton-cartones-publicados" disabled>
+              <span class="estado-publicado-icono" aria-hidden="true"></span>
+              <span>Cartones jugando</span>
+            </button>
+            <button id="cartones-ganadores-btn" type="button" class="boton-cartones-publicados" disabled>
+              <span class="estado-publicado-icono" aria-hidden="true"></span>
+              <span>Cartones ganadores</span>
+            </button>
+          </div>
         </div>
       </div>
     </section>
@@ -4879,6 +4930,8 @@
   const panelSuperiorEl = document.getElementById('panel-superior');
   const cantosPanelEl = document.getElementById('cantos-panel');
   const panelBotonesFormasEl = document.getElementById('panel-botones-formas');
+  const cartonesJugandoBtnEl = document.getElementById('cartones-jugando-btn');
+  const cartonesGanadoresBtnEl = document.getElementById('cartones-ganadores-btn');
   const formasMensajeEl = document.getElementById('formas-mensaje');
   const misCartonesSectionEl = document.getElementById('mis-cartones-section');
   const complementariosAvisoEl = document.getElementById('complementarios-aviso');
@@ -4997,6 +5050,35 @@
   let whatsappLinkCargado = false;
   let whatsappLinkPromesa = null;
   let liveStreamLinkValor = '';
+  function esFlagPublicado(valor){
+    return (valor || '').toString().trim().toLowerCase() === 'si';
+  }
+
+  function abrirVistaCartones(urlBase){
+    if(!activeSorteoId){
+      alert('No hay un sorteo seleccionado.');
+      return;
+    }
+    const destino = new URL(urlBase, window.location.href);
+    destino.searchParams.set('s', activeSorteoId);
+    destino.searchParams.set('viewer', 'jugador');
+    window.location.href = destino.toString();
+  }
+
+  function actualizarBotonesCartonesPublicados(){
+    const publicadoJugando = esFlagPublicado(activeSorteo?.cartonesJugandoPublicados) || esFlagPublicado(activeSorteo?.pdf);
+    const publicadoGanadores = esFlagPublicado(activeSorteo?.cartonesGanadoresPublicados) || esFlagPublicado(activeSorteo?.pdfresul);
+    if(cartonesJugandoBtnEl){
+      cartonesJugandoBtnEl.disabled = !publicadoJugando;
+      cartonesJugandoBtnEl.classList.toggle('publicado', publicadoJugando);
+      cartonesJugandoBtnEl.title = publicadoJugando ? 'Ver cartones en juego' : 'Aún no publicados por administración';
+    }
+    if(cartonesGanadoresBtnEl){
+      cartonesGanadoresBtnEl.disabled = !publicadoGanadores;
+      cartonesGanadoresBtnEl.classList.toggle('publicado', publicadoGanadores);
+      cartonesGanadoresBtnEl.title = publicadoGanadores ? 'Ver cartones ganadores' : 'Aún no publicados por administración';
+    }
+  }
 
   function obtenerTotalColumnasResultado(){
     return Math.max(cantosColumnasLoteria.length, 4);
@@ -10049,6 +10131,7 @@
       }
       alternarVisibilidadEncabezadoSorteo(false);
       actualizarTituloFinalizadoBtn();
+      actualizarBotonesCartonesPublicados();
       return;
     }
     if(!activeSorteo){
@@ -10060,6 +10143,7 @@
         sorteoDetallesEl.innerHTML='';
       }
       actualizarTituloFinalizadoBtn();
+      actualizarBotonesCartonesPublicados();
       return;
     }
     alternarVisibilidadEncabezadoSorteo(true);
@@ -10111,6 +10195,7 @@
       sorteoDetallesEl.innerHTML=partes.join(' ');
     }
     actualizarTituloFinalizadoBtn();
+    actualizarBotonesCartonesPublicados();
   }
 
   function renderCantos(){
@@ -10553,8 +10638,8 @@
     const sorteoActivoLocal = (typeof activeSorteo !== 'undefined' && activeSorteo) ? activeSorteo : null;
     const estadoSorteoActual = ((sorteoActivoLocal?.estado || '').toString().trim().toLowerCase());
     const premiosEngineEnabled = typeof premiosEngineV2Enabled === 'boolean' ? premiosEngineV2Enabled : true;
-    if(estadoSorteoActual && estadoSorteoActual !== 'finalizado'){
-      alert('Solo puedes acreditar premios cuando el sorteo esté Finalizado (422).');
+    if(estadoSorteoActual && estadoSorteoActual !== 'jugando' && estadoSorteoActual !== 'finalizado'){
+      alert('Solo puedes acreditar premios cuando el sorteo esté Jugando o Finalizado (422).');
       return;
     }
     if(!premiosEngineEnabled){
@@ -11406,6 +11491,12 @@
       }
       window.location.href='jugarcartones.html';
     });
+  }
+  if(cartonesJugandoBtnEl){
+    cartonesJugandoBtnEl.addEventListener('click',()=>abrirVistaCartones('pdfsorteo.html'));
+  }
+  if(cartonesGanadoresBtnEl){
+    cartonesGanadoresBtnEl.addEventListener('click',()=>abrirVistaCartones('pdfresultados.html'));
   }
   if(modalSimulacionJugarBtn){
     modalSimulacionJugarBtn.addEventListener('click',registrarSimulacionSorteoActual);
@@ -12485,6 +12576,7 @@
       sorteoManualSeleccionadoId=null;
       activeSorteo=null;
       activeSorteoId=null;
+      actualizarBotonesCartonesPublicados();
       ganadoresBloqueadosPorForma = new Map();
       cierresPremiosPorForma = new Map();
       locksGanadoresListos = false;
@@ -12515,6 +12607,7 @@
     const cambio=activeSorteoId!==elegido.id;
     activeSorteo=elegido;
     activeSorteoId=elegido.id;
+    actualizarBotonesCartonesPublicados();
     cargarLoteriasActivasSorteo(activeSorteo);
     actualizarHeader();
     suscribirSimulacionSorteo(activeSorteoId);
@@ -12697,6 +12790,7 @@
       reiniciarAlertaFormasSinGanadores();
       activeSorteo={id:info.id,...data};
       activeSorteoId=info.id;
+      actualizarBotonesCartonesPublicados();
       ganadoresBloqueadosPorForma = new Map();
       cierresPremiosPorForma = new Map();
       locksGanadoresListos = false;
