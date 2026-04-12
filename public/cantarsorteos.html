@@ -2094,7 +2094,7 @@
     return window.EstadosPagoPremio.estaFinalizado(valor);
   }
 
-  const premiosEngineV2Enabled = false;
+  const premiosEngineV2Enabled = true;
 
   const { obtenerLoteriasAsignadas, normalizarMiniaturaLoteria } = window.SorteoDataAdapters;
 
@@ -6919,22 +6919,44 @@
       const datos = docRef.data() || {};
       const { estado: pdfEstadoNormalizado } = sincronizarDatosPdf(datos);
 
-      if(pdfEstadoNormalizado === 'no'){
-        try {
-          const destinoUrl = new URL('pdfsorteo.html', window.location.href);
-          destinoUrl.searchParams.set('s', currentSorteoId);
-          window.location.assign(destinoUrl.toString());
-        } catch (err) {
-          const fallback = `pdfsorteo.html?s=${encodeURIComponent(currentSorteoId)}`;
-          window.location.href = fallback;
+      const estaPublicado = pdfEstadoNormalizado === 'si'
+        || (datos.cartonesJugandoPublicados || '').toString().trim().toLowerCase() === 'si';
+      if(!estaPublicado){
+        const confirmarPublicacion = await preguntarAccionEstado('¿Confirmas que deseas PUBLICAR la ventana de cartones en juego para los jugadores?');
+        if(!confirmarPublicacion) return;
+        const timestamp = firebase.firestore.FieldValue.serverTimestamp();
+        const payloadPublicacion = {
+          pdf: 'si',
+          cartonesJugandoPublicados: 'si',
+          cartonesJugandoPublicadoEn: timestamp,
+          pdfActualizadoEn: timestamp
+        };
+        await Promise.all([
+          db.collection('sorteos').doc(currentSorteoId).set(payloadPublicacion, { merge: true }),
+          db.collection('cantarsorteos').doc(currentSorteoId).set(payloadPublicacion, { merge: true })
+        ]);
+        currentSorteoData = { ...currentSorteoData, ...payloadPublicacion };
+        const indiceSorteo = sorteos.findIndex(s=>s && s.id === currentSorteoId);
+        if(indiceSorteo >= 0){
+          sorteos[indiceSorteo] = { ...sorteos[indiceSorteo], ...payloadPublicacion };
         }
-        return;
+        sincronizarDatosPdf({ ...datos, ...payloadPublicacion });
       }
 
-      alert('Ya se ha confirmado la descarga del archivo PDF de sellado de este sorteo');
-    } catch (error) {
+      } catch (error) {
       console.error('Error consultando el estado del PDF', error);
       alert('Ocurrió un error al consultar el estado del documento PDF.');
+      return;
+    }
+
+    try {
+      const destinoUrl = new URL('pdfsorteo.html', window.location.href);
+      destinoUrl.searchParams.set('s', currentSorteoId);
+      destinoUrl.searchParams.set('viewer', 'admin');
+      window.location.assign(destinoUrl.toString());
+    } catch (err) {
+      const fallback = `pdfsorteo.html?s=${encodeURIComponent(currentSorteoId)}&viewer=admin`;
+      window.location.href = fallback;
     }
   }
 
@@ -6949,10 +6971,11 @@
     try {
       const destinoUrl = new URL('pdfsorteo.html', window.location.href);
       destinoUrl.searchParams.set('s', currentSorteoId);
+      destinoUrl.searchParams.set('viewer', 'admin');
       window.location.assign(destinoUrl.toString());
     } catch (error) {
       console.error('No se pudo abrir la ventana de PDF del sorteo', error);
-      const fallback = `pdfsorteo.html?s=${encodeURIComponent(currentSorteoId)}`;
+      const fallback = `pdfsorteo.html?s=${encodeURIComponent(currentSorteoId)}&viewer=admin`;
       try {
         window.location.assign(fallback);
       } catch (fallbackError) {
@@ -7012,8 +7035,9 @@
       return;
     }
     const pdfEstado = (currentSorteoData.pdf || '').toString().toLowerCase();
-    if(pdfEstado !== 'si'){
-      alert('Aún no has generado el pdf de las jugadas, antes de cantar las jugadas debes generar, descargar y compartir el pdf de cierre de jugadas');
+    const publicadoJugando = (currentSorteoData.cartonesJugandoPublicados || '').toString().toLowerCase();
+    if(pdfEstado !== 'si' && publicadoJugando !== 'si'){
+      alert('Debes publicar primero "Cartones jugando" (botón DPF) antes de poner el sorteo en Jugando.');
       return;
     }
 
@@ -7595,9 +7619,10 @@
     try {
       const destinoUrl = new URL('pdfresultados.html', window.location.href);
       destinoUrl.searchParams.set('s', currentSorteoId);
+      destinoUrl.searchParams.set('viewer', 'admin');
       window.location.assign(destinoUrl.toString());
     } catch (error) {
-      const fallback = `pdfresultados.html?s=${encodeURIComponent(currentSorteoId)}`;
+      const fallback = `pdfresultados.html?s=${encodeURIComponent(currentSorteoId)}&viewer=admin`;
       try {
         window.location.assign(fallback);
       } catch (fallbackError) {
