@@ -7262,6 +7262,64 @@
     }
   }
 
+  function enmascararEmailParaLog(email){
+    const limpio = normalizarEmail(email || '');
+    if(!limpio || !limpio.includes('@')) return 'sin-email';
+    const [usuario, dominio] = limpio.split('@');
+    const prefijo = usuario.slice(0, 2);
+    return `${prefijo || '*'}***@${dominio}`;
+  }
+
+  function mapearErrorFinalizacionFirestore(error){
+    const code = (error?.code || '').toString().trim().toLowerCase();
+    const mensajesPorCodigo = {
+      'permission-denied': {
+        tipo: 'permisos',
+        titulo: 'Permiso operativo insuficiente',
+        mensajeUI: 'No tienes permisos operativos para finalizar este sorteo; valida rol en users/{email} y sincronización de claims.'
+      },
+      'failed-precondition': {
+        tipo: 'precondicion',
+        titulo: 'Precondición no cumplida',
+        mensajeUI: 'No se pudo finalizar porque cambió el estado del sorteo o faltan datos requeridos. Refresca y valida condiciones antes de reintentar.'
+      },
+      unavailable: {
+        tipo: 'disponibilidad',
+        titulo: 'Servicio temporalmente no disponible',
+        mensajeUI: 'Firestore no está disponible en este momento. Espera unos segundos y vuelve a intentar.'
+      },
+      'deadline-exceeded': {
+        tipo: 'timeout',
+        titulo: 'Tiempo de espera agotado',
+        mensajeUI: 'La finalización tardó más de lo esperado. Verifica conexión y vuelve a intentar.'
+      },
+      aborted: {
+        tipo: 'concurrencia',
+        titulo: 'Conflicto de concurrencia',
+        mensajeUI: 'Otro proceso actualizó el sorteo al mismo tiempo. Refresca la vista e inténtalo nuevamente.'
+      },
+      unauthenticated: {
+        tipo: 'sesion',
+        titulo: 'Sesión expirada',
+        mensajeUI: 'Tu sesión venció. Cierra sesión, vuelve a ingresar y reintenta finalizar.'
+      }
+    };
+    const base = mensajesPorCodigo[code] || {
+      tipo: 'desconocido',
+      titulo: 'Error de finalización',
+      mensajeUI: 'No fue posible finalizar el sorteo en este momento. Reintenta y, si persiste, contacta soporte.'
+    };
+    return { code: code || 'desconocido', ...base };
+  }
+
+  function registrarTelemetriaFinalizacion(nombreEvento, payload = {}){
+    if(typeof window.trackEvent === 'function'){
+      window.trackEvent(nombreEvento, payload);
+    } else {
+      console.info(`[telemetria] ${nombreEvento}`, payload);
+    }
+  }
+
   async function finalizarSorteo(){
     if(!currentSorteoId || !currentSorteoData){
       alert('Selecciona un sorteo primero.');
@@ -7282,8 +7340,26 @@
     }
     const confirmar = await preguntarAccionEstado(mensajeConfirmacion);
     if(!confirmar) return;
+    const usuarioActual = auth?.currentUser || null;
+    const contextoSeguroBase = {
+      sorteoId: currentSorteoId || 'sin-sorteo',
+      estadoActual: diagnostico.estadoActual || obtenerEstadoActualNormalizado() || 'desconocido',
+      diagnosticoFinalizacion: {
+        puedeFinalizar: !!diagnostico.puedeFinalizar,
+        todasConGanador: !!diagnostico.todasConGanador,
+        resultadosCompletos: !!diagnostico.resultadosCompletos,
+        totalFormasSinGanador: Array.isArray(diagnostico.formasSinGanador) ? diagnostico.formasSinGanador.length : 0
+      },
+      usuario: enmascararEmailParaLog(usuarioActual?.email || '')
+    };
+    registrarTelemetriaFinalizacion('cantarsorteos_finalizacion_intento', contextoSeguroBase);
     const permisoEfectivo = await validarPermisoEfectivoFinalizarSorteo();
     if(!permisoEfectivo.permitido){
+      registrarTelemetriaFinalizacion('cantarsorteos_finalizacion_fallida', {
+        ...contextoSeguroBase,
+        motivo: 'permiso-operativo',
+        codigo: 'permission-denied'
+      });
       mostrarAvisoSimple(permisoEfectivo.mensaje, 'Permiso operativo insuficiente');
       return;
     }
@@ -7301,9 +7377,31 @@
         : 'Sorteo finalizado correctamente.';
       finalizarBtn.classList.remove('attention');
       conservarLoteriasCacheEnSorteoActual();
+      registrarTelemetriaFinalizacion('cantarsorteos_finalizacion_exitosa', {
+        ...contextoSeguroBase,
+        acumuladoRegistrado: !!resumenAcumulado?.montoCreditos,
+        montoAcumulado: Number(resumenAcumulado?.montoCreditos || 0)
+      });
     } catch (error) {
-      console.error('Error finalizando sorteo', error);
-      mostrarAvisoSimple('No fue posible finalizar el sorteo en este momento.', 'Error de finalización');
+      const diagnosticoActual = obtenerDiagnosticoFinalizacion();
+      const errorFinalizacion = mapearErrorFinalizacionFirestore(error);
+      const contextoSeguroError = {
+        ...contextoSeguroBase,
+        estadoActual: diagnosticoActual.estadoActual || contextoSeguroBase.estadoActual,
+        diagnosticoFinalizacion: {
+          puedeFinalizar: !!diagnosticoActual.puedeFinalizar,
+          todasConGanador: !!diagnosticoActual.todasConGanador,
+          resultadosCompletos: !!diagnosticoActual.resultadosCompletos,
+          totalFormasSinGanador: Array.isArray(diagnosticoActual.formasSinGanador) ? diagnosticoActual.formasSinGanador.length : 0
+        },
+        codigo: errorFinalizacion.code
+      };
+      console.error('Error finalizando sorteo', contextoSeguroError, error);
+      registrarTelemetriaFinalizacion('cantarsorteos_finalizacion_fallida', {
+        ...contextoSeguroError,
+        tipoError: errorFinalizacion.tipo
+      });
+      mostrarAvisoSimple(errorFinalizacion.mensajeUI, errorFinalizacion.titulo);
     }
   }
 
