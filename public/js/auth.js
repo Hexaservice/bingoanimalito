@@ -695,7 +695,8 @@ async function getRoleConsistencyDiagnosis(user, options = {}){
     }
     const userDocRole = normalizeRole(doc.data()?.role) || 'Jugador';
     if(isPrivilegedRole(claimsRole) || isPrivilegedRole(userDocRole)){
-      if(!claimsRole || !roleEquals(claimsRole, userDocRole)){
+      const claimsCompatiblesConRol = claimIncluyeRol(claims, userDocRole);
+      if(!claimsCompatiblesConRol){
         const result = {
           ok: false,
           code: 'ROLE_MISMATCH',
@@ -711,7 +712,7 @@ async function getRoleConsistencyDiagnosis(user, options = {}){
     return {
       ok: true,
       code: null,
-      claimsRole,
+      claimsRole: claimsRole || (claimIncluyeRol(claims, userDocRole) ? userDocRole : null),
       userDocRole
     };
   }catch(error){
