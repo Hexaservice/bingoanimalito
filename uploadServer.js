@@ -19,6 +19,7 @@ const {
 } = require('./public/js/billeteraIdentity.js');
 
 const requiredEnv = ['GOOGLE_APPLICATION_CREDENTIALS', 'FIREBASE_STORAGE_BUCKET'];
+const PREMIOS_ENGINE_V2_ENABLED = false;
 
 function getMissingRequiredEnv(env = process.env) {
   return requiredEnv.filter((name) => !env[name]);
@@ -398,6 +399,20 @@ function normalizeNumber(value) {
 
 function normalizePendingPrizeState(value) {
   return normalizeString(value, 40).toLowerCase();
+}
+
+function buildPremiosEngineDisabledResponse({ action, sorteoId = '', status = 409 } = {}) {
+  return {
+    statusCode: status,
+    payload: {
+      error: `La acción ${action || 'premios'} está deshabilitada porque premiosEngineV2Enabled=false.`,
+      code: 'PREMIOS_ENGINE_V2_DISABLED',
+      premiosEngineV2Enabled: PREMIOS_ENGINE_V2_ENABLED,
+      action: action || 'premios',
+      sorteoId: normalizeString(sorteoId, 120) || '',
+      idempotente: true
+    }
+  };
 }
 
 function getLegacyDirectPrizeRefFromPendingRef(premioRef) {
@@ -1531,6 +1546,11 @@ app.post('/admin/purge-sorteo', verificarToken, async (req, res) => {
 });
 
 async function acreditarPremioEventoHandler(req, res) {
+  if (!PREMIOS_ENGINE_V2_ENABLED) {
+    const disabled = buildPremiosEngineDisabledResponse({ action: 'acreditar-premio-evento', status: 409 });
+    return res.status(disabled.statusCode).json(disabled.payload);
+  }
+
   const premioId = normalizeString(req.body?.premioId, 320).toLowerCase();
   const eventoGanadorId = normalizeString(req.body?.eventoGanadorId, 320);
   const billeteraId = normalizeString(
@@ -1617,6 +1637,17 @@ async function acreditarPremioEventoHandler(req, res) {
         error: 'No se pudo determinar el sorteoId del premio pendiente a acreditar.'
       });
     }
+    const sorteoSnap = await db.collection('sorteos').doc(sorteoId).get();
+    const estadoSorteo = normalizeString(sorteoSnap.data()?.estado, 40).toLowerCase();
+    if (estadoSorteo !== 'finalizado') {
+      return res.status(422).json({
+        error: 'Solo se permite acreditar premios cuando el sorteo está en estado Finalizado.',
+        code: 'SORTEO_NO_FINALIZADO',
+        premiosEngineV2Enabled: PREMIOS_ENGINE_V2_ENABLED,
+        sorteoId,
+        estadoSorteo: estadoSorteo || 'desconocido'
+      });
+    }
 
     const acreditadoPor = normalizeString(req.user?.email, 200) || 'sistema:acreditar-premio-evento';
     const result = await reconcileSinglePendingPrize({
@@ -1667,6 +1698,10 @@ app.post('/admin/generar-premios-pendientes-directos-oficiales', verificarToken,
   if (!sorteoId) {
     return res.status(400).json({ error: 'sorteoId es obligatorio' });
   }
+  if (!PREMIOS_ENGINE_V2_ENABLED) {
+    const disabled = buildPremiosEngineDisabledResponse({ action: 'generar-premios-pendientes-directos-oficiales', sorteoId, status: 409 });
+    return res.status(disabled.statusCode).json(disabled.payload);
+  }
 
   try {
     const summary = await generatePendingDirectPrizesFromOfficialResults({
@@ -1693,6 +1728,10 @@ app.post('/admin/reconciliar-premios-pendientes-directos', verificarToken, async
 
   if (!sorteoId) {
     return res.status(400).json({ error: 'sorteoId es obligatorio' });
+  }
+  if (!PREMIOS_ENGINE_V2_ENABLED) {
+    const disabled = buildPremiosEngineDisabledResponse({ action: 'reconciliar-premios-pendientes-directos', sorteoId, status: 409 });
+    return res.status(disabled.statusCode).json(disabled.payload);
   }
 
   try {

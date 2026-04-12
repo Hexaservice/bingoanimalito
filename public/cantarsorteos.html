@@ -2094,6 +2094,8 @@
     return window.EstadosPagoPremio.estaFinalizado(valor);
   }
 
+  const premiosEngineV2Enabled = false;
+
   const { obtenerLoteriasAsignadas, normalizarMiniaturaLoteria } = window.SorteoDataAdapters;
 
   let sorteos = [];
@@ -7302,9 +7304,20 @@
   }
 
   async function generarPremiosPendientesDirectosOficiales(sorteoId){
+    const premiosEngineEnabled = typeof premiosEngineV2Enabled === 'boolean' ? premiosEngineV2Enabled : false;
     const sorteoSeguro = (sorteoId || '').toString().trim();
     if(!sorteoSeguro){
       return { ok: false, omitido: true, motivo: 'sorteo_id_vacio', resumen: { creados: 0, duplicados: 0, evaluados: 0 } };
+    }
+    if(!premiosEngineEnabled){
+      return {
+        ok: false,
+        omitido: true,
+        idempotente: true,
+        statusCode: 409,
+        motivo: 'premios_engine_v2_disabled',
+        resumen: { creados: 0, duplicados: 0, evaluados: 0 }
+      };
     }
     const currentUser = auth?.currentUser || null;
     if(!currentUser){
@@ -7376,6 +7389,17 @@
     forzar = false,
     contexto = 'sin_contexto'
   } = {}){
+    const premiosEngineEnabled = typeof premiosEngineV2Enabled === 'boolean' ? premiosEngineV2Enabled : false;
+    if(!premiosEngineEnabled){
+      return {
+        ok: false,
+        omitido: true,
+        idempotente: true,
+        statusCode: 409,
+        motivo: 'premios_engine_v2_disabled',
+        resumen: { creados: 0, duplicados: 0, evaluados: 0 }
+      };
+    }
     const estadoActual = obtenerEstadoActualNormalizado();
     if(estadoActual !== 'jugando' && estadoActual !== 'finalizado') return null;
     if(!currentSorteoId) return null;
@@ -7499,29 +7523,21 @@
           errorConflicto.code = 'failed-precondition';
           throw errorConflicto;
         }
-        transaction.update(ref, { estado: 'Finalizado' });
+        transaction.update(ref, {
+          estado: 'Finalizado',
+          finalizacionAuditoria: {
+            origen: 'cantarsorteos/finalizacion-segura',
+            operador: (adminActual?.email || auth?.currentUser?.email || '').toString().trim() || 'desconocido',
+            fechaIso: new Date().toISOString(),
+            premiosEngineV2Enabled
+          }
+        });
       });
       conservarLoteriasCacheEnSorteoActual();
-      try{
-        const resultadoPremiosDirectos = await generarPremiosPendientesDirectosOficiales(currentSorteoId);
-        const resumen = resultadoPremiosDirectos?.resumen || { creados: 0, duplicados: 0, evaluados: 0 };
-        const mensajeResumen = `Premios directos oficiales: creados ${resumen.creados}, duplicados ${resumen.duplicados}, evaluados ${resumen.evaluados}.`;
-        if(resultadoPremiosDirectos?.idempotente){
-          mostrarAvisoSimple(`${mensajeResumen} El proceso fue idempotente (ya existían registros previos).`, 'Premios directos oficiales');
-        } else {
-          mostrarAvisoSimple(mensajeResumen, 'Premios directos oficiales');
-        }
-      }catch(errorPremiosDirectos){
-        console.warn('No se pudo generar premios pendientes directos oficiales durante la finalización', {
-          sorteoId: currentSorteoId || '',
-          errorCode: (errorPremiosDirectos?.code || '').toString().trim(),
-          errorMessage: (errorPremiosDirectos?.message || '').toString().trim()
-        });
-        mostrarAvisoSimple(
-          'El sorteo se finalizó, pero no se pudo completar la generación automática de premios directos oficiales. Puedes reintentar desde PDF de resultados o Centro de Pagos.',
-          'Aviso operativo'
-        );
-      }
+      mostrarAvisoSimple(
+        'Finalización segura aplicada: pagos y acreditaciones automáticas deshabilitadas por premiosEngineV2Enabled=false.',
+        'Motor de premios deshabilitado'
+      );
       mensajeEl.textContent = estadoAcumulado?.pendiente
         ? 'Sorteo finalizado correctamente. Acumulado pendiente de gestión administrativa.'
         : 'Sorteo finalizado correctamente.';

@@ -785,6 +785,7 @@
 
     const dbRef = ()=>firebase.firestore();
     const authInstance = ()=>firebase.auth();
+    const premiosEngineV2Enabled = false;
 
     const filtrosColaboradores = { gmail:'', creditos:'', tipo:'' };
     const filtrosPremios = { jugador:'', fecha:'', estado:'' };
@@ -824,6 +825,17 @@
     const formatNumberEntero = new Intl.NumberFormat('es-ES', { maximumFractionDigits: 0, minimumFractionDigits: 0 });
     let firebaseReadyPromiseCentro = null;
     const cpAdminDistribucion = window.CentroPagosAdminDistribucion || {};
+
+    function cpConstruirRespuestaEngineDeshabilitado(action = 'premios'){
+      return {
+        ok: false,
+        status: 409,
+        code: 'PREMIOS_ENGINE_V2_DISABLED',
+        action,
+        idempotente: true,
+        premiosEngineV2Enabled
+      };
+    }
 
     function normalizarConteoTecnico(valor){
       const numero = Number(valor);
@@ -872,6 +884,9 @@
     }
 
     async function reconciliarPremiosPendientesDirectosSorteo(sorteoId){
+      if(!premiosEngineV2Enabled){
+        return cpConstruirRespuestaEngineDeshabilitado('reconciliar-premios-pendientes-directos');
+      }
       const sorteoSeguro = (sorteoId || '').toString().trim();
       if(!sorteoSeguro) return null;
       const cacheKey = `sorteo:${sorteoSeguro}`;
@@ -966,6 +981,10 @@
 
     async function cpGenerarSolicitudesManual(){
       if(generacionSolicitudesEnCurso) return;
+      if(!premiosEngineV2Enabled){
+        alert('Generación deshabilitada: premiosEngineV2Enabled=false. No se crearán solicitudes de premios/pagos.');
+        return;
+      }
       const sorteoId = cpObtenerSorteoIdObjetivo();
       if(!sorteoId){
         alert('Debes seleccionar un sorteo para generar pagos.');
@@ -2852,6 +2871,9 @@
     }
 
     async function acreditarPremioEnFirestore(enRegistro){
+      if(!premiosEngineV2Enabled){
+        throw new Error('PREMIOS_ENGINE_V2_DISABLED: acreditarPremioEnFirestore deshabilitado por bandera global.');
+      }
       const db = dbRef();
       const premioRef = db.collection('PremiosSorteos').doc(enRegistro.id);
       const creditos = Math.max(0, Number(enRegistro.creditos) || 0);
@@ -2979,6 +3001,9 @@
     }
 
     async function acreditarPago(enRegistro){
+      if(!premiosEngineV2Enabled){
+        throw new Error('PREMIOS_ENGINE_V2_DISABLED: acreditarPago deshabilitado por bandera global.');
+      }
       const db = dbRef();
       if(!enRegistro.billetera) return null;
       const creditos = Number(enRegistro.creditos) || 0;
@@ -3004,6 +3029,10 @@
 
     async function procesarPremiosJugadores(ids){
       if(!ids.length) return;
+      if(!premiosEngineV2Enabled){
+        alert('Proceso deshabilitado: premiosEngineV2Enabled=false. No se acreditarán premios.');
+        return;
+      }
       await initServerTime();
       const sorteosActualizados = new Set();
       const errores = [];
@@ -3049,6 +3078,10 @@
 
     async function aprobarPagos(ids){
       if(!ids.length) return;
+      if(!premiosEngineV2Enabled){
+        alert('Proceso deshabilitado: premiosEngineV2Enabled=false. No se aprobarán pagos administrativos.');
+        return;
+      }
       const db = dbRef();
       await initServerTime();
       const sorteosActualizados = new Set();
@@ -3229,6 +3262,10 @@
       }
       const botonGenerarSolicitudes = document.getElementById('cp-generar-solicitudes');
       if(botonGenerarSolicitudes){
+        botonGenerarSolicitudes.disabled = !premiosEngineV2Enabled;
+        botonGenerarSolicitudes.title = premiosEngineV2Enabled
+          ? 'Generar solicitudes de pagos'
+          : 'Deshabilitado por premiosEngineV2Enabled=false';
         botonGenerarSolicitudes.addEventListener('click', async()=>{
           await cpGenerarSolicitudesManual();
           cpRenderResumenMontos(cpObtenerSorteoIdObjetivo());
@@ -3241,8 +3278,10 @@
 
       const premiosAprobarBtn = document.getElementById('premios-aprobar');
       if(premiosAprobarBtn){
-        premiosAprobarBtn.disabled = false;
-        premiosAprobarBtn.title = 'Procesar premios seleccionados';
+        premiosAprobarBtn.disabled = !premiosEngineV2Enabled;
+        premiosAprobarBtn.title = premiosEngineV2Enabled
+          ? 'Procesar premios seleccionados'
+          : 'Deshabilitado por premiosEngineV2Enabled=false';
         premiosAprobarBtn.addEventListener('click', async()=>{
           const seleccion = obtenerSeleccion('tabla-premios');
           if(!seleccion.length){ alert('Selecciona al menos un registro.'); return; }
@@ -3258,6 +3297,13 @@
           await archivarRegistros(seleccion, 'premios');
           cpRenderResumenMontos(cpObtenerSorteoIdObjetivo());
         });
+      }
+      const pagosAprobarBtn = document.getElementById('pagos-aprobar');
+      if(pagosAprobarBtn){
+        pagosAprobarBtn.disabled = !premiosEngineV2Enabled;
+        pagosAprobarBtn.title = premiosEngineV2Enabled
+          ? 'Procesar pagos seleccionados'
+          : 'Deshabilitado por premiosEngineV2Enabled=false';
       }
       document.getElementById('pagos-aprobar').addEventListener('click', async()=>{
         const seleccion = obtenerSeleccion('tabla-pagos');
