@@ -5547,6 +5547,8 @@
   const CONDUCTO_EMPUJE_RETARDO = 220;
   let cantoColorMap = new Map();
   let formasSinGanadoresAlertaClave = '';
+  let acumuladoFormasSinGanadorActual = null;
+  let acumuladoFormasSinGanadorUnsub = null;
   let celebracionModalActiva = false;
   let modalSinPremioActiva = false;
   let modalSegundoLugarActiva = false;
@@ -6782,6 +6784,7 @@
 
   function reiniciarAlertaFormasSinGanadores(){
     formasSinGanadoresAlertaClave = '';
+    acumuladoFormasSinGanadorActual = null;
     cerrarModalFormasSinGanadores();
   }
 
@@ -6799,54 +6802,70 @@
     return 'sin identificar';
   }
 
-  function mostrarModalFormasSinGanadores(formas){
+  function mostrarModalFormasSinGanadores(formas, montoTotal = 0){
+    if(!modalFormasSinGanadoresEl || !modalFormasSinGanadoresListaEl) return;
     if(!Array.isArray(formas) || !formas.length) return;
-    const mensaje = formas
-      .map(forma=>`No hay ganadores para la Forma ${obtenerEtiquetaFormaSinGanador(forma)}`)
-      .join(' · ');
-    if(formasMensajeEl){
-      formasMensajeEl.textContent = mensaje;
-    } else {
-      console.info(mensaje);
-    }
-    cerrarModalFormasSinGanadores();
+    modalFormasSinGanadoresListaEl.innerHTML = '';
+    formas.forEach(forma=>{
+      const fila = document.createElement('article');
+      fila.className = 'modal-formas-sin-item';
+      const nombre = obtenerEtiquetaFormaSinGanador(forma);
+      const monto = Number(forma?.montoCreditos ?? forma?.monto ?? 0);
+      fila.innerHTML = `<div class="modal-formas-sin-nombre">Forma ${nombre}</div><div class="modal-formas-sin-monto">${formatearCreditos(Math.max(0, monto))} créditos acumulados</div>`;
+      modalFormasSinGanadoresListaEl.appendChild(fila);
+    });
+    const resumen = document.createElement('div');
+    resumen.className = 'modal-formas-sin-total';
+    resumen.textContent = `Total acumulado para próximos sorteos: ${formatearCreditos(Math.max(0, Number(montoTotal) || 0))} créditos`;
+    modalFormasSinGanadoresListaEl.appendChild(resumen);
+    modalFormasSinGanadoresEl.classList.add('activa');
+    modalFormasSinGanadoresEl.setAttribute('aria-hidden','false');
+    modalFormasSinGanadoresAceptarBtn?.focus({ preventScroll: true });
+    playGameAudioEvent(AUDIO_EVENTS.MODAL_OPEN, { priority: 2 });
   }
 
-  function evaluarFormasSinGanadores(totalCantos){
-    if(!haySorteoJugando){
+  function detenerSuscripcionAcumuladoFormasSinGanador(){
+    if(typeof acumuladoFormasSinGanadorUnsub === 'function'){
+      acumuladoFormasSinGanadorUnsub();
+    }
+    acumuladoFormasSinGanadorUnsub = null;
+    acumuladoFormasSinGanadorActual = null;
+  }
+
+  function evaluarFormasSinGanadores(){
+    const estadoSorteo = (activeSorteo?.estado || activeSorteo?.estadoSorteo || '').toString().trim().toLowerCase();
+    const esFinalizado = estadoSorteo === 'finalizado';
+    const acumulado = acumuladoFormasSinGanadorActual;
+    const formas = Array.isArray(acumulado?.formas) ? acumulado.formas : [];
+    if(!esFinalizado || !formas.length){
       formasSinGanadoresAlertaClave = '';
       cerrarModalFormasSinGanadores();
       return;
     }
-    if(totalCantos < 75 || !Array.isArray(formasActivas) || !formasActivas.length){
-      formasSinGanadoresAlertaClave = '';
-      cerrarModalFormasSinGanadores();
-      return;
-    }
-    const sinGanadores = formasActivas.filter(forma=>{
-      const idxNumero = Number(forma?.idx);
-      if(!Number.isFinite(idxNumero)) return false;
-      const registro = cartonesGanadoresPorForma.get(idxNumero);
-      const total = Array.isArray(registro?.cartones) ? registro.cartones.length : 0;
-      return total === 0;
-    });
-    if(!sinGanadores.length){
-      formasSinGanadoresAlertaClave = '';
-      cerrarModalFormasSinGanadores();
-      return;
-    }
-    const clave = sinGanadores
-      .map(forma=>{
-        const idxNumero = Number(forma?.idx);
-        const idxTexto = Number.isFinite(idxNumero) ? `#${idxNumero}` : (forma?.idx ?? '').toString().trim();
-        const nombreBase = obtenerEtiquetaFormaSinGanador(forma).toLowerCase();
-        return `${idxTexto}|${nombreBase}`;
-      })
-      .sort()
-      .join('||');
+    const clave = `${activeSorteoId || ''}::${formas.map(item=>`${item?.idx}:${Number(item?.montoCreditos || 0)}`).join('|')}::${Number(acumulado?.montoCreditos || 0)}`;
     if(clave && clave === formasSinGanadoresAlertaClave) return;
     formasSinGanadoresAlertaClave = clave;
-    mostrarModalFormasSinGanadores(sinGanadores);
+    mostrarModalFormasSinGanadores(formas, Number(acumulado?.montoCreditos || 0));
+  }
+
+  function suscribirAcumuladoFormasSinGanador(sorteoId){
+    detenerSuscripcionAcumuladoFormasSinGanador();
+    const id = (sorteoId || '').toString().trim();
+    if(!id || !db) return;
+    acumuladoFormasSinGanadorUnsub = db.collection('cantarsorteos').doc(id).onSnapshot(doc=>{
+      const data = doc.exists ? (doc.data() || {}) : {};
+      const acumulado = data?.acumuladoFormas;
+      if(acumulado && typeof acumulado === 'object' && acumulado.estado === 'registrado'){
+        acumuladoFormasSinGanadorActual = acumulado;
+      }else{
+        acumuladoFormasSinGanadorActual = null;
+      }
+      evaluarFormasSinGanadores();
+    }, error=>{
+      console.warn('No se pudo escuchar acumulados de formas sin ganador.', error);
+      acumuladoFormasSinGanadorActual = null;
+      evaluarFormasSinGanadores();
+    });
   }
 
   function actualizarAlturaCartonWrapper(wrapper){
@@ -12468,7 +12487,7 @@
     actualizarMensajeAvisoComplementarios(totalCantos);
     cerrarAvisoComplementarios();
     evaluarMensajeSinPremio(estadoAnterior);
-    evaluarFormasSinGanadores(totalCantos);
+    evaluarFormasSinGanadores();
   }
 
   function suscribirCantos(){
@@ -12559,6 +12578,7 @@
     actualizarSinSorteoUI();
     if(!lista.length){
       suscribirSimulacionSorteo(null);
+      detenerSuscripcionAcumuladoFormasSinGanador();
       if(manualBingoUnsub){ manualBingoUnsub(); manualBingoUnsub = null; }
       manualBingoEstado = null;
       manualConfirmacionLocalPendiente = false;
@@ -12607,6 +12627,7 @@
     cargarLoteriasActivasSorteo(activeSorteo);
     actualizarHeader();
     suscribirSimulacionSorteo(activeSorteoId);
+    suscribirAcumuladoFormasSinGanador(activeSorteoId);
     suscribirManualBingo();
     if(cambio){
       locksGanadoresListos = false;
@@ -12795,6 +12816,7 @@
       cargarLoteriasActivasSorteo(activeSorteo);
       actualizarHeader();
       suscribirSimulacionSorteo(activeSorteoId);
+      suscribirAcumuladoFormasSinGanador(activeSorteoId);
       suscribirManualBingo();
       precargarLocksGanadoresRemotos(activeSorteoId);
       todasFormasConGanadores=false;

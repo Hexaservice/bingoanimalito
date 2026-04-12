@@ -5094,7 +5094,8 @@
       const fila=document.createElement('article');
       fila.className='ganadores-alerta-item';
       fila.style.setProperty('--ganador-alerta-color',item.color||'#0b7a28');
-      fila.innerHTML=`<div class="forma">${item.forma}</div><div class="alias">Alias: ${item.alias||'Sin alias'}</div><div class="detalle">Cartón: ${item.carton} · Tipo: ${item.tipo}</div>`;
+      const totalAlias = Number(item.totalAlias || 0);
+      fila.innerHTML=`<div class="forma">${item.forma}</div><div class="alias">Alias: ${item.alias||'Sin alias'}</div><div class="detalle">Cartón: ${item.carton} · Tipo: ${item.tipo}</div><div class="detalle">Premio total del alias: ${formatearNumero(totalAlias)} créditos</div>`;
       ganadoresAlertaListaEl.appendChild(fila);
     });
     ganadoresAlertaModalEl.classList.add('activa');
@@ -5123,6 +5124,22 @@
     return resumen;
   }
 
+  function calcularTotalesAliasGanadores(){
+    const totales = new Map();
+    cartonesGanadoresPorForma.forEach((registro, indice)=>{
+      const forma = registro?.forma || obtenerResumenForma(indice) || null;
+      const ganadores = Array.isArray(registro?.cartones) ? registro.cartones : [];
+      if(!forma || !ganadores.length) return;
+      const premioIndividual = obtenerCreditosPorGanador(forma, ganadores.length);
+      ganadores.forEach(carton=>{
+        const alias = (carton?.alias || '').toString().trim() || 'Sin alias';
+        const acumuladoActual = Number(totales.get(alias) || 0);
+        totales.set(alias, acumuladoActual + premioIndividual);
+      });
+    });
+    return totales;
+  }
+
   function revisarGanadoresNuevos({ mapaPrevio, longitudAnterior, longitudActual, esPrimerProcesamiento }){
     const anterior = Number(longitudAnterior) || 0;
     const actual = Number(longitudActual) || 0;
@@ -5130,6 +5147,7 @@
     const nuevos = [];
     const detallesGanadoresNuevos = [];
     const formasNuevas = new Set();
+    const totalesAlias = calcularTotalesAliasGanadores();
     cartonesGanadoresPorForma.forEach((registro, indice)=>{
       const idxNumero = Number(indice);
       if(!Number.isFinite(idxNumero)) return;
@@ -5149,12 +5167,14 @@
             return (a?.id||'').localeCompare(b?.id||'');
           });
           ganadoresOrdenados.forEach(carton=>{
+            const alias = (carton?.alias || '').toString().trim() || 'Sin alias';
             detallesGanadoresNuevos.push({
               forma:nombreForma,
               color:colorForma,
-              alias:carton?.alias || 'Sin alias',
+              alias,
               carton:formatearNumeroCarton(carton),
-              tipo:normalizarTipoCarton(carton).toUpperCase()
+              tipo:normalizarTipoCarton(carton).toUpperCase(),
+              totalAlias: Number(totalesAlias.get(alias) || 0)
             });
           });
           marcarFormaGanadoraNotificada(currentSorteoId, idxNumero);
@@ -5855,6 +5875,30 @@
     return obtenerTotalResultadosCargados() >= requeridos;
   }
 
+  function obtenerDiagnosticoFinalizacion(){
+    const estadoActual = obtenerEstadoActualNormalizado();
+    const formasSinGanador = obtenerFormasSinGanador();
+    const totalFormasSinGanador = formasSinGanador.length;
+    const todasConGanador = totalFormasSinGanador === 0;
+    const resultadosCompletos = resultadosCompletosLoterias();
+    const puedeFinalizar = estadoActual === 'jugando' && (todasConGanador || resultadosCompletos);
+    let motivoBloqueo = '';
+    if(estadoActual !== 'jugando'){
+      motivoBloqueo = 'El sorteo debe estar en estado Jugando para finalizar.';
+    }else if(!todasConGanador && !resultadosCompletos){
+      const faltantes = Math.max(0, obtenerTotalResultadosRequeridos() - obtenerTotalResultadosCargados());
+      motivoBloqueo = `Aún faltan resultados por cargar para poder finalizar sin ganadores en algunas formas (${faltantes} bloques pendientes).`;
+    }
+    return {
+      estadoActual,
+      todasConGanador,
+      resultadosCompletos,
+      puedeFinalizar,
+      formasSinGanador,
+      motivoBloqueo
+    };
+  }
+
   function obtenerFormasSinGanador(){
     const sinGanador = [];
     formasActivas.forEach(forma=>{
@@ -5869,18 +5913,18 @@
     return sinGanador;
   }
 
-  async function registrarAcumuladoFormasSinGanador(){
+  async function registrarAcumuladoFormasSinGanador(formasSinGanadorParam = null){
     if(!db || !currentSorteoId) return { ok: true };
     if(!resultadosCompletosLoterias()) return { ok: true };
 
     try {
-      const formasSinGanador = obtenerFormasSinGanador();
+      const formasSinGanador = Array.isArray(formasSinGanadorParam)
+        ? formasSinGanadorParam
+        : obtenerFormasSinGanador();
       if(!formasSinGanador.length) return { ok: true };
       const montoAcumulado = formasSinGanador.reduce((acc, item)=>acc + Math.max(0, Number(obtenerCreditosForma(item.forma)) || 0), 0);
       if(montoAcumulado <= 0) return { ok: true };
       const sorteoAcumuladoRef = db.collection('cantarsorteos').doc(currentSorteoId);
-      const acumuladoSnap = await sorteoAcumuladoRef.get();
-      if(acumuladoSnap.exists && acumuladoSnap.data()?.acumuladoFormas?.estado === 'registrado') return { ok: true };
 
       const marcasTiempo = {
         creadoEn: getServerTimestamp() || getPreciseTimestamp(),
@@ -5895,33 +5939,51 @@
         estado: 'registrado',
         montoCreditos: montoAcumulado,
         formas: formasDetalladas,
+        movimientoContable: {
+          cuentaOrigen: `sorteos/${currentSorteoId}/premios_no_asignados`,
+          cuentaDestino: 'acumulados/disponible_global',
+          creditosTransferidos: montoAcumulado
+        },
         origen: 'cantarsorteos/finalizacion',
         ...marcasTiempo
       };
       const sorteoNombreActual = obtenerNombreSorteoActual();
-      const loteAcumulado = db.batch();
-      loteAcumulado.set(sorteoAcumuladoRef, {
-        acumuladoFormas: {
-          ...detalleAcumulado
+      const acumuladosCol = db.collection('acumulados');
+      await db.runTransaction(async tx=>{
+        const acumuladoSnap = await tx.get(sorteoAcumuladoRef);
+        if(acumuladoSnap.exists && acumuladoSnap.data()?.acumuladoFormas?.estado === 'registrado'){
+          return;
         }
-      }, { merge: true });
-      formasDetalladas.forEach(formaDetalle=>{
-        const acumuladoFormaRef = db.collection('acumulados').doc();
-        loteAcumulado.set(acumuladoFormaRef, {
-          sorteoOrigenId: currentSorteoId,
-          sorteoOrigenNombre: sorteoNombreActual,
-          formaIdx: formaDetalle.idx,
-          formaNombre: formaDetalle.nombre,
-          montoOriginal: formaDetalle.montoCreditos,
-          montoDisponible: formaDetalle.montoCreditos,
-          montoTransferido: 0,
-          estado: 'DISPONIBLE',
-          transferencias: [],
-          creadoEn: marcasTiempo.creadoEn,
-          actualizadoEn: marcasTiempo.actualizadoEn
+        tx.set(sorteoAcumuladoRef, {
+          acumuladoFormas: {
+            ...detalleAcumulado
+          }
         }, { merge: true });
+        formasDetalladas.forEach(formaDetalle=>{
+          const acumuladoFormaId = `${currentSorteoId}__f${String(formaDetalle.idx).padStart(2,'0')}`;
+          const acumuladoFormaRef = acumuladosCol.doc(acumuladoFormaId);
+          tx.set(acumuladoFormaRef, {
+            id: acumuladoFormaId,
+            sorteoOrigenId: currentSorteoId,
+            sorteoOrigenNombre: sorteoNombreActual,
+            formaIdx: formaDetalle.idx,
+            formaNombre: formaDetalle.nombre,
+            montoOriginal: formaDetalle.montoCreditos,
+            montoDisponible: formaDetalle.montoCreditos,
+            montoTransferido: 0,
+            estado: 'DISPONIBLE',
+            contabilidad: {
+              cuentaOrigen: `sorteos/${currentSorteoId}/formas/${formaDetalle.idx}`,
+              cuentaDestino: `acumulados/${acumuladoFormaId}`,
+              creditosEntrada: formaDetalle.montoCreditos,
+              creditosSalida: 0
+            },
+            transferencias: [],
+            creadoEn: marcasTiempo.creadoEn,
+            actualizadoEn: marcasTiempo.actualizadoEn
+          }, { merge: false });
+        });
       });
-      await loteAcumulado.commit();
 
       mostrarAvisoSimple(
         `Acumulado de ${formatearNumero(montoAcumulado)} créditos registrado en la colección de acumulados.`,
@@ -6007,7 +6069,11 @@
     sellarBtn.disabled = estado !== 'activo';
     pdfBtn.disabled = estado !== 'sellado';
     jugarBtn.disabled = estado !== 'sellado' || pdfEstado !== 'si';
-    finalizarBtn.disabled = estado !== 'jugando';
+    const diagnosticoFinalizacion = obtenerDiagnosticoFinalizacion();
+    finalizarBtn.disabled = !diagnosticoFinalizacion.puedeFinalizar;
+    finalizarBtn.title = diagnosticoFinalizacion.puedeFinalizar
+      ? 'Finalizar sorteo'
+      : (diagnosticoFinalizacion.motivoBloqueo || 'El sorteo no cumple condiciones para finalizar');
     if(resultadoBtn){
       resultadoBtn.disabled = !esFinalizado;
     }
@@ -7123,10 +7189,39 @@
       alert('Selecciona un sorteo primero.');
       return;
     }
-    mostrarAvisoSimple(
-      'La lógica de finalización de sorteos está temporalmente deshabilitada para su reconstrucción.',
-      'Finalización en mantenimiento'
-    );
+    const diagnostico = obtenerDiagnosticoFinalizacion();
+    if(!diagnostico.puedeFinalizar){
+      mostrarAvisoSimple(diagnostico.motivoBloqueo || 'El sorteo aún no cumple las condiciones para finalizar.', 'Finalización bloqueada');
+      return;
+    }
+    const nombre = obtenerNombreSorteoActual();
+    const totalSinGanadores = diagnostico.formasSinGanador.length;
+    let mensajeConfirmacion = `¿Deseas finalizar el sorteo ${nombre}?`;
+    if(diagnostico.todasConGanador){
+      mensajeConfirmacion += ' Ya hay ganadores en todas las formas y no es necesario completar la carga total de resultados.';
+    }else if(diagnostico.resultadosCompletos && totalSinGanadores > 0){
+      mensajeConfirmacion += ` Se registrarán acumulados para ${totalSinGanadores} forma(s) sin ganadores.`;
+    }
+    const confirmar = await preguntarAccionEstado(mensajeConfirmacion);
+    if(!confirmar) return;
+    try {
+      let resumenAcumulado = null;
+      if(diagnostico.resultadosCompletos && totalSinGanadores > 0){
+        resumenAcumulado = await registrarAcumuladoFormasSinGanador(diagnostico.formasSinGanador);
+      }
+      await db.collection('sorteos').doc(currentSorteoId).update({
+        estado: 'Finalizado',
+        finalizadoEn: getServerTimestamp() || getPreciseTimestamp()
+      });
+      mensajeEl.textContent = resumenAcumulado?.montoCreditos
+        ? `Sorteo finalizado. Se registró un acumulado de ${formatearNumero(resumenAcumulado.montoCreditos)} créditos.`
+        : 'Sorteo finalizado correctamente.';
+      finalizarBtn.classList.remove('attention');
+      conservarLoteriasCacheEnSorteoActual();
+    } catch (error) {
+      console.error('Error finalizando sorteo', error);
+      mostrarAvisoSimple('No fue posible finalizar el sorteo en este momento.', 'Error de finalización');
+    }
   }
 
   function abrirPdfResultados(){
