@@ -8,6 +8,7 @@
     "start": "node uploadServer.js",
     "cron": "node cronActualizarEstadosSorteos.js",
     "assign-role": "node scripts/assignRoleClaims.js",
+    "backfill:operational-claims": "node scripts/backfillOperationalClaims.js",
     "backfill:alias-lower": "node scripts/backfillAliasLower.js",
     "test:coverage": "jest --coverage",
     "reconciliar-premios": "node scripts/reconciliarPremiosPendientes.js",
