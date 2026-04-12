@@ -7214,6 +7214,16 @@
   }
 
   async function validarPermisoEfectivoFinalizarSorteo(){
+    const authFlags = (typeof window !== 'undefined' && window) ? window : {};
+    if(authFlags.__AUTH_SENSITIVE_OPS_BLOCKED__){
+      const diagnostico = authFlags.__AUTH_ROLE_CONSISTENCY__ || {};
+      return {
+        permitido: false,
+        mensaje: diagnostico?.message
+          ? `Modo restringido activo: ${diagnostico.message}`
+          : 'Modo restringido activo: las operaciones sensibles están bloqueadas hasta sincronizar el rol operativo.'
+      };
+    }
     const user = auth?.currentUser || null;
     if(!user){
       return {
