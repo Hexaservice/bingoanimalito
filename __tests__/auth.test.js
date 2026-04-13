@@ -297,8 +297,8 @@ describe('auth.js', () => {
 
     await expect(getRoleConsistencyDiagnosis(fakeUser)).resolves.toEqual(
       expect.objectContaining({
-        ok: false,
-        code: 'ROLE_MISMATCH',
+        ok: true,
+        code: 'USER_DOC_ROLE_FALLBACK',
         userDocRole: 'Superadmin'
       })
     );

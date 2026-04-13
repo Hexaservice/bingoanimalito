@@ -445,10 +445,10 @@ function normalizeOperationalRole(value) {
   if (normalized === 'superadmin' || normalized === 'super administrador' || normalized === 'super-administrador') {
     return 'Superadmin';
   }
-  if (normalized === 'administrador' || normalized === 'admin') {
+  if (normalized === 'administrador' || normalized === 'administradores' || normalized === 'admin') {
     return 'Administrador';
   }
-  if (normalized === 'colaborador') {
+  if (normalized === 'colaborador' || normalized === 'colaboradores') {
     return 'Colaborador';
   }
   if (normalized === 'jugador' || normalized === 'player') {

@@ -19,8 +19,8 @@ function normalizeRole(role){
   const limpio = role.trim().toLowerCase();
   if(!limpio) return null;
   if(limpio === 'superadmin' || limpio === 'super administrador' || limpio === 'super-administrador') return 'Superadmin';
-  if(limpio === 'administrador' || limpio === 'admin') return 'Administrador';
-  if(limpio === 'colaborador') return 'Colaborador';
+  if(limpio === 'administrador' || limpio === 'administradores' || limpio === 'admin') return 'Administrador';
+  if(limpio === 'colaborador' || limpio === 'colaboradores') return 'Colaborador';
   if(limpio === 'jugador' || limpio === 'player') return 'Jugador';
   return role.trim();
 }
@@ -739,6 +739,7 @@ async function getRoleConsistencyDiagnosis(user, options = {}){
     if(isPrivilegedRole(claimsRole) || isPrivilegedRole(userDocRole)){
       const claimsCompatiblesConRol = claimIncluyeRol(claims, userDocRole);
       if(!claimsCompatiblesConRol){
+        const claimsSinRolOperativo = !claimsTieneRolOperativo(claims);
         if(allowClaimsResync && isPrivilegedRole(userDocRole)){
           const resincronizacion = await intentarResincronizarClaims(user, userDocRole);
           if(resincronizacion.ok){
@@ -769,6 +770,14 @@ async function getRoleConsistencyDiagnosis(user, options = {}){
               };
             }
           }
+        }
+        if(claimsSinRolOperativo && isPrivilegedRole(userDocRole)){
+          return {
+            ok: true,
+            code: 'USER_DOC_ROLE_FALLBACK',
+            claimsRole: null,
+            userDocRole
+          };
         }
         const result = {
           ok: false,
@@ -1152,6 +1161,14 @@ function claimIncluyeRol(claims, role){
   if(claims.admin === true) return true;
   if(roleEquals(claims.role, role)) return true;
   if(Array.isArray(claims.roles) && claims.roles.some(claimRole => roleEquals(claimRole, role))) return true;
+  return false;
+}
+
+function claimsTieneRolOperativo(claims){
+  if(!claims || typeof claims !== 'object') return false;
+  if(claims.admin === true) return true;
+  if(normalizeRole(claims.role)) return true;
+  if(Array.isArray(claims.roles) && claims.roles.map(normalizeRole).some(Boolean)) return true;
   return false;
 }
 
