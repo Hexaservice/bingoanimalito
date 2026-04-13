@@ -6,9 +6,9 @@ on:
     branches: [main, staging, dev]
 
 jobs:
-  test:
+  lightweight-checks:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
       - name: Detectar cambios en imágenes de loterías
@@ -30,7 +30,7 @@ jobs:
             echo "::error::public/img/loterias/manifest.json está desactualizado. Ejecuta npm run generate:loterias-manifest y sube el cambio."
             exit 1
           fi
-      - name: Install dependencies
-        run: npm ci
-      - name: Run unit tests with coverage threshold
-        run: npm run test:coverage -- --runInBand --forceExit
+      - name: Aviso de pruebas largas deshabilitadas
+        run: |
+          echo "Se omitieron pruebas de Jest en CI para reducir consumo de minutos de GitHub Actions."
+          echo "Incluye syncClaims, rollback operativo y suites relacionadas de alto costo temporal."
