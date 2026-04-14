@@ -135,7 +135,7 @@ describe('juegoactivo.html - registrarPremiosPendientes deshabilitado en cliente
 });
 
 describe('juegoactivo.html - acreditarPremioAhora cuando premio ya está acreditado', () => {
-  test('reemplaza el botón por Cerrar sin mostrar alerta de premio pendiente', async () => {
+  test('remueve el botón de acreditación sin mostrar alerta de premio pendiente', async () => {
     const html = fs.readFileSync('public/juegoactivo.html', 'utf8');
     const fnAcreditar = extraerFuncion(html, 'acreditarPremioAhora');
 
@@ -195,9 +195,10 @@ describe('juegoactivo.html - acreditarPremioAhora cuando premio ya está acredit
     }, button);
 
     expect(dom.window.document.body.contains(linea)).toBe(true);
+    const botonAcreditar = dom.window.document.querySelector('.boton-acreditar-ahora');
+    expect(botonAcreditar).toBeNull();
     const botonCerrar = dom.window.document.querySelector('.boton-cerrar-forma');
-    expect(botonCerrar).not.toBeNull();
-    expect(botonCerrar.textContent).toBe('Cerrar');
+    expect(botonCerrar).toBeNull();
     expect(cerrarModalCelebracionSiSinPendientes).not.toHaveBeenCalled();
     expect(alertMock).not.toHaveBeenCalled();
     expect(warnMock).not.toHaveBeenCalled();

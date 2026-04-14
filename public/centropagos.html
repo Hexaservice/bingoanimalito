@@ -622,6 +622,7 @@
       <option value="">Selecciona un sorteo</option>
     </select>
     <button id="cp-generar-solicitudes" class="btn-pagos-pendientes" type="button">GENERAR PAGOS</button>
+    <button id="cp-acreditar-premios" class="btn-pagos-pendientes" type="button">ACREDITAR PREMIOS</button>
   </div>
   <div id="cp-resumen-montos" aria-live="polite"></div>
   <section class="section" id="premios-section">
@@ -883,7 +884,7 @@
       return (window.location?.origin || '').replace(/\/+$/,'');
     }
 
-    async function reconciliarPremiosPendientesDirectosSorteo(sorteoId){
+    async function reconciliarPremiosPendientesDirectosSorteo(sorteoId, { force = false } = {}){
       if(!premiosEngineV2Enabled){
         return cpConstruirRespuestaEngineDeshabilitado('reconciliar-premios-pendientes-directos');
       }
@@ -891,7 +892,7 @@
       if(!sorteoSeguro) return null;
       const cacheKey = `sorteo:${sorteoSeguro}`;
       const registroCache = reconciliacionPremiosCache.get(cacheKey);
-      if(registroCache && (Date.now() - registroCache.ts) < 60000){
+      if(!force && registroCache && (Date.now() - registroCache.ts) < 60000){
         return registroCache.respuesta || null;
       }
       const usuario = authInstance().currentUser;
@@ -918,6 +919,67 @@
       const data = await resp.json();
       reconciliacionPremiosCache.set(cacheKey, { ts: Date.now(), respuesta: data });
       return data;
+    }
+
+    async function cpAcreditarPremiosPendientesManual(){
+      if(!premiosEngineV2Enabled){
+        alert('Acreditación deshabilitada: premiosEngineV2Enabled=false.');
+        return;
+      }
+      const sorteoId = cpObtenerSorteoIdObjetivo();
+      if(!sorteoId){
+        alert('Debes seleccionar un sorteo para acreditar premios pendientes.');
+        return;
+      }
+      const sorteoData = await cpResolverDataSorteo(sorteoId);
+      const estadoSorteo = (sorteoData?.estado || '').toString().trim().toLowerCase();
+      if(estadoSorteo !== 'finalizado'){
+        alert('Solo puedes acreditar premios pendientes cuando el sorteo está FINALIZADO.');
+        return;
+      }
+      const nombreSorteo = cpResolverNombreSorteo({
+        sorteoId,
+        sorteoNombre: sorteoData?.nombre || sorteoData?.nombreSorteo || ''
+      }) || sorteoId;
+      const confirmar = window.confirm(
+        `Se acreditarán todos los premios pendientes del sorteo ${nombreSorteo}.\n` +
+        'Los premios ya acreditados se omitirán.\n\n¿Deseas continuar?'
+      );
+      if(!confirmar) return;
+
+      const btn = document.getElementById('cp-acreditar-premios');
+      const textoOriginal = btn?.textContent || 'ACREDITAR PREMIOS';
+      try{
+        if(btn){
+          btn.disabled = true;
+          btn.textContent = 'Acreditando...';
+        }
+        const resultado = await reconciliarPremiosPendientesDirectosSorteo(sorteoId, { force: true });
+        await Promise.all([
+          cargarPremios(),
+          reconciliarIndicadorPagos()
+        ]);
+        cpRenderResumenMontos(cpObtenerSorteoIdObjetivo());
+        const revisados = Number(resultado?.revisados) || 0;
+        const acreditados = Number(resultado?.acreditados) || 0;
+        const omitidos = Number(resultado?.omitidos) || 0;
+        const errores = Number(resultado?.errores) || 0;
+        alert(
+          `Acreditación finalizada para ${nombreSorteo}.\n` +
+          `Revisados: ${revisados}\n` +
+          `Acreditados: ${acreditados}\n` +
+          `Omitidos: ${omitidos}\n` +
+          `Errores: ${errores}`
+        );
+      }catch(err){
+        console.error('No se pudo acreditar premios pendientes del sorteo', sorteoId, err);
+        alert('No se pudieron acreditar los premios pendientes. Revisa la consola para más detalle.');
+      }finally{
+        if(btn){
+          btn.disabled = false;
+          btn.textContent = textoOriginal;
+        }
+      }
     }
 
     async function cpResolverDataSorteo(sorteoId){
@@ -3262,6 +3324,16 @@
         botonGenerarSolicitudes.addEventListener('click', async()=>{
           await cpGenerarSolicitudesManual();
           cpRenderResumenMontos(cpObtenerSorteoIdObjetivo());
+        });
+      }
+      const botonAcreditarPremios = document.getElementById('cp-acreditar-premios');
+      if(botonAcreditarPremios){
+        botonAcreditarPremios.disabled = !premiosEngineV2Enabled;
+        botonAcreditarPremios.title = premiosEngineV2Enabled
+          ? 'Acreditar de forma masiva los premios pendientes del sorteo finalizado'
+          : 'Deshabilitado por premiosEngineV2Enabled=false';
+        botonAcreditarPremios.addEventListener('click', async()=>{
+          await cpAcreditarPremiosPendientesManual();
         });
       }
 

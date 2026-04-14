@@ -10457,13 +10457,6 @@
       botonAcreditar.dataset.premioClave = (detalle?.clavePendiente || construirClavePremioPendiente(detalle) || '').toString();
       botonAcreditar.addEventListener('click',()=>acreditarPremioAhora(detalle, botonAcreditar));
       linea.appendChild(botonAcreditar);
-    }else if(mostrarCerrar){
-      const botonCerrar = document.createElement('button');
-      botonCerrar.type = 'button';
-      botonCerrar.className = 'boton-cerrar-forma';
-      botonCerrar.textContent = 'Cerrar';
-      botonCerrar.addEventListener('click',()=>cerrarSeccionCelebracionGanador(botonCerrar));
-      linea.appendChild(botonCerrar);
     }
     return linea;
   }
@@ -10796,14 +10789,7 @@
         botonEl?.closest('.celebracion-linea')?.remove();
         cerrarModalCelebracionSiSinPendientes();
       }else if(premioYaAcreditado){
-        if(botonEl){
-          const botonCerrar = document.createElement('button');
-          botonCerrar.type = 'button';
-          botonCerrar.className = 'boton-cerrar-forma';
-          botonCerrar.textContent = 'Cerrar';
-          botonCerrar.addEventListener('click',()=>cerrarSeccionCelebracionGanador(botonCerrar));
-          botonEl.replaceWith(botonCerrar);
-        }
+        botonEl?.remove();
       }else if(premioYaNoDisponible && botonEl){
         console.warn('Premio pendiente no encontrado para acreditar', {
           billeteraId,
