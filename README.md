@@ -144,6 +144,17 @@ Checklist rápido de validación en producción:
 | Transferir créditos (`POST /wallet/transfer-credits`) | Backend (`uploadServer.js` + Admin SDK) | No, porque la transacción la ejecuta el backend | Sí |
 | Escribir premios/acreditaciones directo desde cliente a Firestore | Cliente (SDK web) | Sí, cuando el lock está activo se bloquea según reglas | No |
 | Acreditación directa controlada sobre `Billetera/{email}` (excepción de reglas) | Cliente (SDK web, con validaciones de reglas) | Sí, solo permitida la mutación puntual definida en reglas | No |
+| Acreditación de premios y actualización de `premiosPendientesDirectos` | Backend (`uploadServer.js` + Admin SDK) | No, la escritura ocurre como sistema | Sí, usando endpoints backend autenticados |
+
+### Contrato actualizado de acreditación de premios (backend 100%)
+
+A partir de este cambio, el contrato operativo para premios es:
+
+1. **Cliente solicita**: el frontend solo consulta `Billetera/{email}/premiosPendientesDirectos` para UX y dispara la solicitud al backend.
+2. **Backend acredita**: únicamente procesos con `isSystemRequest()` pueden crear/actualizar/eliminar en `Billetera/{email}` y `premiosPendientesDirectos` cuando el lock de producción está activo.
+3. **Sin excepción cliente para acreditación directa**: se elimina la excepción de reglas que permitía al dueño acreditar saldo/cartones directamente sobre Firestore.
+
+Este contrato reduce superficie de fraude y centraliza trazabilidad de acreditaciones en backend.
 
 ### Checklist operativo explícito para `/wallet/transfer-credits`
 

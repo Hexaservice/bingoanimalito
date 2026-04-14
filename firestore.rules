@@ -65,66 +65,6 @@ service cloud.firestore {
         && get(/databases/$(database)/documents/Variablesglobales/Parametros).data.bloquearEscriturasClientePremios == true;
     }
 
-    function allowedPlayerDirectPrizeAccreditationKeys() {
-      return ['creditos', 'CartonesGratis', 'cartonesGratis'];
-    }
-
-    function isPlayerDirectPrizeAccreditationUpdate(email) {
-      let walletDiff = request.resource.data.diff(resource.data);
-      let currentCredits = resource.data.creditos is number ? resource.data.creditos : 0;
-      let nextCredits = request.resource.data.creditos is number ? request.resource.data.creditos : currentCredits;
-      let currentFreeCards = resource.data.CartonesGratis is number
-        ? resource.data.CartonesGratis
-        : (resource.data.cartonesGratis is number ? resource.data.cartonesGratis : 0);
-      let nextFreeCardsA = request.resource.data.CartonesGratis is number
-        ? request.resource.data.CartonesGratis
-        : currentFreeCards;
-      let nextFreeCardsB = request.resource.data.cartonesGratis is number
-        ? request.resource.data.cartonesGratis
-        : currentFreeCards;
-      return isOwner(email)
-        && walletDiff.changedKeys().hasOnly(allowedPlayerDirectPrizeAccreditationKeys())
-        && walletDiff.changedKeys().hasAny(['creditos', 'CartonesGratis', 'cartonesGratis'])
-        && nextCredits >= currentCredits
-        && nextFreeCardsA >= currentFreeCards
-        && nextFreeCardsB >= currentFreeCards
-        && nextFreeCardsA == nextFreeCardsB;
-    }
-
-    function hasPendingPrizeCreateShape() {
-      return request.resource.data.keys().hasOnly([
-          'premioId',
-          'clavePendiente',
-          'idx',
-          'nombre',
-          'creditos',
-          'cartonesGratis',
-          'cartonLabel',
-          'color',
-          'sorteoId',
-          'estado',
-          'origen',
-          'creadoEn'
-        ])
-        && request.resource.data.premioId is string
-        && request.resource.data.sorteoId is string
-        && request.resource.data.estado == 'pendiente'
-        && request.resource.data.creditos is number
-        && request.resource.data.creditos >= 0
-        && request.resource.data.cartonesGratis is number
-        && request.resource.data.cartonesGratis >= 0
-        && request.resource.data.origen is string;
-    }
-
-    function hasPendingPrizeAccreditationMutationShape() {
-      let diff = request.resource.data.diff(resource.data);
-      return diff.changedKeys().hasOnly(['estado', 'acreditadoEn', 'acreditadoPor', 'origen'])
-        && request.resource.data.estado == 'acreditado'
-        && request.resource.data.acreditadoPor is string
-        && request.resource.data.origen is string
-        && (resource.data.estado == 'pendiente' || !('estado' in resource.data));
-    }
-
     function blockedUserFields() {
       return ['role', 'disabled', 'contrasenasu', 'emailVerified', 'customClaims', 'uid'];
     }
@@ -174,16 +114,13 @@ service cloud.firestore {
     match /Billetera/{email} {
       allow read: if isAdmin() || isOwner(email);
       allow create, update: if isSystemRequest()
-        || (isPlayerDirectPrizeAccreditationUpdate(email))
         || (!isProductionLockEnabled() && (isAdmin() || isOwner(email) || isPrivilegedOperator()));
       allow delete: if isAdmin();
 
       match /premiosPendientesDirectos/{premioId} {
         allow read: if isAdmin() || isOwner(email);
         allow create: if isSystemRequest();
-        allow update: if isSystemRequest()
-          || (isOwner(email) && hasPendingPrizeAccreditationMutationShape());
-        allow delete: if isSystemRequest() || isAdmin();
+        allow update, delete: if isSystemRequest();
       }
     }
 
