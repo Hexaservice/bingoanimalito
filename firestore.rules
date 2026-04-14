@@ -137,7 +137,9 @@ service cloud.firestore {
       allow read: if isAdmin() || (isSignedIn() && resource.data.IDbilletera == request.auth.token.email);
       allow create: if isSystemRequest()
         || (!isProductionLockEnabled() && (isAdmin()
-          || (isSignedIn() && request.resource.data.IDbilletera == request.auth.token.email)
+          || (isSignedIn()
+            && request.resource.data.IDbilletera == request.auth.token.email
+            && request.resource.data.tipotrans != 'premio')
           || (isPrivilegedOperator() && request.resource.data.tipotrans == 'premio')));
       allow update: if isSystemRequest()
         || (!isProductionLockEnabled() && (isAdmin()
