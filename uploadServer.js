@@ -20,6 +20,7 @@ const {
 
 const requiredEnv = ['GOOGLE_APPLICATION_CREDENTIALS', 'FIREBASE_STORAGE_BUCKET'];
 const PREMIOS_ENGINE_V2_ENABLED = String(process.env.PREMIOS_ENGINE_V2_ENABLED || 'false').trim().toLowerCase() === 'true';
+const PREMIOS_PAGOS_DIRECTOS_MIRROR_ENABLED = String(process.env.PREMIOS_PAGOS_DIRECTOS_MIRROR_ENABLED || 'false').trim().toLowerCase() === 'true';
 
 function getMissingRequiredEnv(env = process.env) {
   return requiredEnv.filter((name) => !env[name]);
@@ -701,6 +702,7 @@ function buildPremiosEngineDisabledResponse({ action, sorteoId = '', status = 40
 }
 
 function getLegacyDirectPrizeRefFromPendingRef(premioRef) {
+  if (!PREMIOS_PAGOS_DIRECTOS_MIRROR_ENABLED) return null;
   const billeteraRef = premioRef?.parent?.parent;
   if (!billeteraRef || typeof billeteraRef.collection !== 'function') return null;
   return billeteraRef.collection('premiosPagosdirectos').doc(premioRef.id);
@@ -1128,7 +1130,9 @@ async function generatePendingDirectPrizesFromOfficialResults({
       const premioId = buildOfficialPendingPrizeId(eventoGanadorId);
       const billeteraRef = db.collection('Billetera').doc(billeteraId);
       const premioRef = billeteraRef.collection('premiosPendientesDirectos').doc(premioId);
-      const premioLegacyRef = billeteraRef.collection('premiosPagosdirectos').doc(premioId);
+      const premioLegacyRef = PREMIOS_PAGOS_DIRECTOS_MIRROR_ENABLED
+        ? billeteraRef.collection('premiosPagosdirectos').doc(premioId)
+        : null;
 
       const [premioSnap, duplicatedByEventSnap] = await Promise.all([
         premioRef.get(),
@@ -1175,10 +1179,14 @@ async function generatePendingDirectPrizesFromOfficialResults({
         generadoPor: normalizeString(generadoPor, 160),
         ganadorLockCerradoEn: lockValue?.cerradoEn || null
       };
-      await Promise.all([
-        premioRef.set(payloadPremioPendiente, { merge: false }),
-        premioLegacyRef.set(payloadPremioPendiente, { merge: true })
-      ]);
+      if (premioLegacyRef) {
+        await Promise.all([
+          premioRef.set(payloadPremioPendiente, { merge: false }),
+          premioLegacyRef.set(payloadPremioPendiente, { merge: true })
+        ]);
+      } else {
+        await premioRef.set(payloadPremioPendiente, { merge: false });
+      }
       creados += 1;
       console.info('[premios-directos-oficiales][control]', {
         sorteoId: normalizedSorteoId,

@@ -9,6 +9,8 @@ jest.mock('firebase-admin', () => ({
   auth: jest.fn(() => ({ verifyIdToken: jest.fn() }))
 }));
 
+const ORIGINAL_PREMIOS_PAGOS_DIRECTOS_MIRROR_ENABLED = process.env.PREMIOS_PAGOS_DIRECTOS_MIRROR_ENABLED;
+process.env.PREMIOS_PAGOS_DIRECTOS_MIRROR_ENABLED = 'true';
 const {
   buildOfficialPendingPrizeId,
   computeWinnerPrizeAmounts,
@@ -130,6 +132,14 @@ function createDbDouble({
 }
 
 describe('generatePendingDirectPrizesFromOfficialResults', () => {
+  afterAll(() => {
+    if (ORIGINAL_PREMIOS_PAGOS_DIRECTOS_MIRROR_ENABLED === undefined) {
+      delete process.env.PREMIOS_PAGOS_DIRECTOS_MIRROR_ENABLED;
+      return;
+    }
+    process.env.PREMIOS_PAGOS_DIRECTOS_MIRROR_ENABLED = ORIGINAL_PREMIOS_PAGOS_DIRECTOS_MIRROR_ENABLED;
+  });
+
   test('redondea a 6 decimales los montos de premio cuando hay reparto', () => {
     const result = computeWinnerPrizeAmounts({
       valorPremio: 100,
@@ -171,6 +181,26 @@ describe('generatePendingDirectPrizesFromOfficialResults', () => {
     expect(second.duplicados).toBe(1);
     expect(premiosPendientes.size).toBe(1);
     expect(premiosLegacy.size).toBe(1);
+  });
+
+  test('no escribe espejo legacy cuando el flag temporal está desactivado', async () => {
+    process.env.PREMIOS_PAGOS_DIRECTOS_MIRROR_ENABLED = 'false';
+    jest.resetModules();
+    const { generatePendingDirectPrizesFromOfficialResults: generateWithoutMirror } = require('../uploadServer.js');
+    const { db, premiosPendientes, premiosLegacy } = createDbDouble();
+
+    const first = await generateWithoutMirror({
+      db,
+      sorteoId: 'SRT-OF-1',
+      generadoPor: 'admin@test.com'
+    });
+
+    expect(first.creados).toBe(1);
+    expect(premiosPendientes.size).toBe(1);
+    expect(premiosLegacy.size).toBe(0);
+
+    process.env.PREMIOS_PAGOS_DIRECTOS_MIRROR_ENABLED = 'true';
+    jest.resetModules();
   });
 
   test('buildOfficialPendingPrizeId es determinístico para idempotencia', () => {
