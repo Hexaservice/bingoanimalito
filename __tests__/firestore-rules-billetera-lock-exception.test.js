@@ -22,6 +22,12 @@ describe('firestore.rules - billetera y subcolección premiosPendientesDirectos'
     expect(rules).not.toContain('hasPendingPrizeAccreditationMutationShape()');
   });
 
+  test('premios ledger permite lectura dueño/admin y escritura exclusiva del sistema', () => {
+    expect(rules).toContain('match /premiosLedger/{premioId}');
+    expect(rules).toContain('allow read: if isAdmin() || isOwner(email);');
+    expect(rules).toContain('allow create, update, delete: if isSystemRequest();');
+  });
+
   test('transacciones impide que jugador cree tipotrans premio por cliente', () => {
     expect(rules).toContain("&& request.resource.data.tipotrans != 'premio')");
     expect(rules).toContain("|| (isPrivilegedOperator() && request.resource.data.tipotrans == 'premio'))");

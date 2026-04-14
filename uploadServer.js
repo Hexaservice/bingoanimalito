@@ -747,6 +747,8 @@ async function reconcileSinglePendingPrize({
       eventoGanadorId || premioData.eventoGanadorId,
       320
     );
+    const idx = Number.isFinite(Number(premioData.idx)) ? Number(premioData.idx) : null;
+    const nombre = normalizeString(premioData.nombre, 200);
     const creditos = Math.max(0, normalizeNumber(premioData.creditos));
     const cartones = Math.max(
       0,
@@ -757,18 +759,50 @@ async function reconcileSinglePendingPrize({
       .collection('transacciones')
       .where('premioId', '==', premioId)
       .limit(1);
+    const billeteraRef = premioDoc.ref.parent.parent;
     const legacyPremioRef = getLegacyDirectPrizeRefFromPendingRef(premioDoc.ref);
+    const ledgerRef = billeteraRef.collection('premiosLedger').doc(premioId);
 
-    const [walletSnap, transaccionIdSnap, transaccionPorPremioSnap] = await Promise.all([
-      tx.get(premioDoc.ref.parent.parent),
+    const [walletSnap, transaccionIdSnap, transaccionPorPremioSnap, ledgerSnap] = await Promise.all([
+      tx.get(billeteraRef),
       tx.get(transaccionRef),
-      tx.get(transaccionPorPremioQuery)
+      tx.get(transaccionPorPremioQuery),
+      tx.get(ledgerRef)
     ]);
 
+    const ledgerData = ledgerSnap.exists ? ledgerSnap.data() || {} : {};
+    const ledgerEstado = normalizePendingPrizeState(ledgerData.estado || '');
     const transaccionExistente = transaccionIdSnap.exists || !transaccionPorPremioSnap.empty;
-    const yaAcreditado = estadoActual === 'acreditado';
+    const yaAcreditado = estadoActual === 'acreditado' || ledgerEstado === 'acreditado';
+    const transaccionIdLedger = normalizeString(
+      ledgerData.transaccionId,
+      320
+    ) || (transaccionIdSnap.exists ? transaccionId : null);
+    const ledgerPayloadBase = {
+      premioId,
+      eventoGanadorId: eventoGanadorIdPremio || null,
+      sorteoId,
+      idx,
+      nombre: nombre || null,
+      creditos,
+      cartonesGratis: cartones
+    };
 
     if (yaAcreditado || transaccionExistente) {
+      tx.set(
+        ledgerRef,
+        {
+          ...ledgerPayloadBase,
+          estado: 'acreditado',
+          acreditadoEn: premioData.acreditadoEn
+            || ledgerData.acreditadoEn
+            || admin.firestore.FieldValue.serverTimestamp(),
+          acreditadoPor: premioData.acreditadoPor || ledgerData.acreditadoPor || acreditadoPor,
+          origen: premioData.origen || ledgerData.origen || origen,
+          transaccionId: transaccionIdLedger
+        },
+        { merge: true }
+      );
       if (!yaAcreditado) {
         tx.set(
           premioDoc.ref,
@@ -806,7 +840,6 @@ async function reconcileSinglePendingPrize({
       return { status: 'omitido', reason: 'estado_no_pendiente', premioId };
     }
 
-    const billeteraRef = premioDoc.ref.parent.parent;
     const billeteraData = walletSnap.exists ? walletSnap.data() || {} : {};
     const saldoActual = normalizeNumber(billeteraData.creditos);
     const cartonesActuales = normalizeNumber(
@@ -833,6 +866,18 @@ async function reconcileSinglePendingPrize({
         eventoGanadorId: eventoGanadorIdPremio || null,
         reconciliadoEn: admin.firestore.FieldValue.serverTimestamp(),
         reconciliadoPor: acreditadoPor
+      },
+      { merge: true }
+    );
+    tx.set(
+      ledgerRef,
+      {
+        ...ledgerPayloadBase,
+        estado: 'acreditado',
+        acreditadoEn: admin.firestore.FieldValue.serverTimestamp(),
+        acreditadoPor,
+        origen,
+        transaccionId
       },
       { merge: true }
     );
