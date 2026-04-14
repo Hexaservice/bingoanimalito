@@ -315,22 +315,19 @@ Antes de usar acciones sensibles como **finalizar sorteo** en `cantarsorteos`, v
 
 Este repositorio aplica política de seguridad de sincronización estricta: para operaciones privilegiadas no basta con acceso de UI; claims y documento `users/{email}` deben coincidir.
 
-## Operación: lock de escrituras de premios y excepción segura de acreditación directa
+## Operación: lock de escrituras de premios (sin excepción cliente de acreditación)
 
 Cuando `Variablesglobales/Parametros.bloquearEscriturasClientePremios == true`, las reglas de Firestore mantienen bloqueadas las escrituras de cliente relacionadas con premios.
 
 Importante: ese lock aplica a escrituras directas iniciadas desde cliente (SDK web). No bloquea transacciones internas del backend ejecutadas con Firebase Admin SDK.
 
-Excepción controlada en `Billetera/{email}`:
+Regla vigente:
 
-- El dueño del documento (`isOwner(email)`) puede ejecutar **únicamente** una mutación de acreditación directa de premio pendiente.
-- Esa mutación está restringida a:
-  - actualización de `creditos`,
-  - actualización de `CartonesGratis` o `cartonesGratis`,
-  - eliminación de **exactamente una** entrada en `premiosPendientesDirectos`.
-- No se permiten altas/cambios de contenido dentro de `premiosPendientesDirectos`, ni cambios en otros campos sensibles o no previstos.
+- No existe excepción cliente para acreditar premios en `Billetera/{email}` cuando el lock está activo.
+- El cliente (jugador u operador) debe invocar endpoints backend autenticados para acreditar (`/acreditarPremioEvento` y reconciliación de cierre en CentroPagos).
+- La escritura final de saldo, estado de premio y transacción contable ocurre por backend con Firebase Admin SDK.
 
-En resumen: con lock activo, el cliente no recupera permisos generales de escritura; solo se habilita esta acreditación puntual y validada por reglas.
+En resumen: con lock activo, el cliente no recupera permisos de escritura de premios; la acreditación es backend-first.
 
 ## Convención oficial de reparto por ganador (backend + frontend)
 
