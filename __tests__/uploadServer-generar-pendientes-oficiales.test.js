@@ -11,6 +11,7 @@ jest.mock('firebase-admin', () => ({
 
 const {
   buildOfficialPendingPrizeId,
+  computeWinnerPrizeAmounts,
   generatePendingDirectPrizesFromOfficialResults
 } = require('../uploadServer.js');
 
@@ -129,6 +130,17 @@ function createDbDouble({
 }
 
 describe('generatePendingDirectPrizesFromOfficialResults', () => {
+  test('redondea a 6 decimales los montos de premio cuando hay reparto', () => {
+    const result = computeWinnerPrizeAmounts({
+      valorPremio: 100,
+      cartonesGratis: 2
+    }, 3);
+
+    expect(result).toEqual({
+      creditos: 33.333333,
+      cartonesGratis: 0.666667
+    });
+  });
   test('crea premios pendientes solo desde lock oficial y evita duplicados por eventoGanadorId', async () => {
     const { db, premiosPendientes, premiosLegacy } = createDbDouble();
 

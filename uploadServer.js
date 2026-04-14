@@ -19,7 +19,7 @@ const {
 } = require('./public/js/billeteraIdentity.js');
 
 const requiredEnv = ['GOOGLE_APPLICATION_CREDENTIALS', 'FIREBASE_STORAGE_BUCKET'];
-const PREMIOS_ENGINE_V2_ENABLED = false;
+const PREMIOS_ENGINE_V2_ENABLED = String(process.env.PREMIOS_ENGINE_V2_ENABLED || 'false').trim().toLowerCase() === 'true';
 
 function getMissingRequiredEnv(env = process.env) {
   return requiredEnv.filter((name) => !env[name]);
