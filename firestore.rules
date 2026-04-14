@@ -122,6 +122,11 @@ service cloud.firestore {
         allow create: if isSystemRequest();
         allow update, delete: if isSystemRequest();
       }
+
+      match /premiosLedger/{premioId} {
+        allow read: if isAdmin() || isOwner(email);
+        allow create, update, delete: if isSystemRequest();
+      }
     }
 
     match /Variablesglobales/{docId} {

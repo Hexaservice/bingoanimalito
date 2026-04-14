@@ -43,6 +43,7 @@ function createFirestoreDouble({
     },
     billetera: { creditos: 200, CartonesGratis: 4 },
     transacciones: new Map(),
+    premiosLedger: new Map(),
     adminAudit: []
   };
 
@@ -180,6 +181,10 @@ function createFirestoreDouble({
           state.premio = { ...state.premio, ...payload };
           return;
         }
+        if (target?.__kind === 'premiosLedger-doc') {
+          state.premiosLedger.set(target.id, payload);
+          return;
+        }
         if (target?.__kind === 'transaccion-ref') {
           state.transacciones.set(target.id, payload);
         }
@@ -226,7 +231,7 @@ describe('endpoint /acreditarPremioEvento', () => {
     process.env.PREMIOS_ENGINE_V2_ENABLED = 'true';
     const admin = require('firebase-admin');
     const { acreditarPremioEventoHandler } = require('../uploadServer.js');
-    const { db } = createFirestoreDouble({ estadoSorteo: estado, estadoPremioInicial: 'pendiente' });
+    const { db, state } = createFirestoreDouble({ estadoSorteo: estado, estadoPremioInicial: 'pendiente' });
     admin.firestore.mockReturnValue(db);
 
     const req = {
@@ -248,6 +253,11 @@ describe('endpoint /acreditarPremioEvento', () => {
       resultado: 'acreditado',
       idempotente: false,
       premioId: 'ppd_123'
+    }));
+    expect(state.premiosLedger.get('ppd_123')).toEqual(expect.objectContaining({
+      premioId: 'ppd_123',
+      estado: 'acreditado',
+      sorteoId: 'sorteo-1'
     }));
   });
 
@@ -288,6 +298,46 @@ describe('endpoint /acreditarPremioEvento', () => {
     expect(state.billetera.creditos).toBe(saldoTrasPrimera);
     expect(state.transacciones.size).toBe(transaccionesTrasPrimera);
     expect(state.transacciones.size).toBe(1);
+    expect(state.premiosLedger.size).toBe(1);
+    expect(state.premiosLedger.get('ppd_123')).toEqual(expect.objectContaining({
+      estado: 'acreditado',
+      transaccionId: expect.any(String)
+    }));
+  });
+
+  test('jugador puede acreditar durante sorteo en estado jugando (solo su billetera)', async () => {
+    process.env.PREMIOS_ENGINE_V2_ENABLED = 'true';
+    const admin = require('firebase-admin');
+    const { acreditarPremioEventoHandler } = require('../uploadServer.js');
+    const { db, state } = createFirestoreDouble({
+      estadoSorteo: 'jugando',
+      estadoPremioInicial: 'pendiente',
+      userDocData: { uid: 'uid-jugador', IDbilletera: 'ganador@example.com', email: 'ganador@example.com' }
+    });
+    admin.firestore.mockReturnValue(db);
+
+    const req = {
+      body: {
+        premioId: 'ppd_123',
+        sorteoId: 'sorteo-1'
+      },
+      headers: {},
+      user: { uid: 'uid-jugador', email: 'ganador@example.com', authScope: 'jugador' }
+    };
+    const res = makeRes();
+
+    await acreditarPremioEventoHandler(req, res);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toEqual(expect.objectContaining({
+      resultado: 'acreditado',
+      idempotente: false,
+      premioId: 'ppd_123'
+    }));
+    expect(state.premiosLedger.get('ppd_123')).toEqual(expect.objectContaining({
+      premioId: 'ppd_123',
+      estado: 'acreditado'
+    }));
   });
 
   test('jugador autenticado sin email verificable responde 401', async () => {
