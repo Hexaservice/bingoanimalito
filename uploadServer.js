@@ -1925,6 +1925,12 @@ async function acreditarPremioEventoHandler(req, res) {
     const isPlayerScopedCall = req.user?.authScope === 'jugador';
     const userEmail = normalizeString(req.user?.email, 200).toLowerCase();
     const userUid = normalizeString(req.user?.uid, 200);
+    if (isPlayerScopedCall && !userEmail) {
+      return res.status(401).json({
+        error: 'El jugador autenticado no incluye email verificable.',
+        code: 'JUGADOR_EMAIL_REQUERIDO'
+      });
+    }
     let resolvedPlayerWalletId = '';
     if (isPlayerScopedCall) {
       const userDoc = await db.collection('users').doc(userEmail).get();
