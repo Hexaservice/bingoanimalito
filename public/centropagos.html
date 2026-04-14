@@ -389,6 +389,23 @@
       font-family: Calibri, Arial, sans-serif;
       text-align: left;
     }
+    #cp-resumen-reconciliacion {
+      max-width: 1280px;
+      margin: 0 auto 8px;
+      padding: 8px;
+      border-radius: 12px;
+      background: rgba(255,255,255,0.9);
+      border: 1px solid rgba(28,123,67,0.3);
+      box-sizing: border-box;
+      font-family: Calibri, Arial, sans-serif;
+      text-align: left;
+      color: #176437;
+      line-height: 1.35;
+      font-size: 0.86rem;
+    }
+    #cp-resumen-reconciliacion.oculto {
+      display: none;
+    }
     .cp-kpis-globales {
       display: grid;
       grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -582,6 +599,10 @@
         margin: 0 0 6px;
         padding: 6px;
       }
+      #cp-resumen-reconciliacion {
+        margin: 0 0 6px;
+        padding: 6px;
+      }
       .cp-kpis-globales {
         gap: 6px;
       }
@@ -623,6 +644,7 @@
     </select>
     <button id="cp-procesar-premios-pagos" class="btn-pagos-pendientes" type="button">PROCESAR PREMIOS Y PAGOS</button>
   </div>
+  <div id="cp-resumen-reconciliacion" class="oculto" aria-live="polite"></div>
   <div id="cp-resumen-montos" aria-live="polite"></div>
   <section class="section" id="premios-section">
     <div class="section-header">
@@ -786,6 +808,11 @@
     const dbRef = ()=>firebase.firestore();
     const authInstance = ()=>firebase.auth();
     const premiosEngineV2Enabled = true;
+    const configAppCentroPagos = (window.__APP_CONFIG__ && typeof window.__APP_CONFIG__ === 'object') ? window.__APP_CONFIG__ : {};
+    const premiosLegacyFlowEnabled = Boolean(
+      window.__CENTROPAGOS_ENABLE_LEGACY_PREMIOS_FLOW__ === true
+      || configAppCentroPagos.centroPagosLegacyPremiosFlow === true
+    );
 
     const filtrosColaboradores = { gmail:'', creditos:'', tipo:'' };
     const filtrosPremios = { jugador:'', fecha:'', estado:'' };
@@ -835,6 +862,32 @@
         idempotente: true,
         premiosEngineV2Enabled
       };
+    }
+
+    function cpRenderResumenReconciliacion(resultado = null, { fuente = 'api', sorteoNombre = '' } = {}){
+      const contenedor = document.getElementById('cp-resumen-reconciliacion');
+      if(!contenedor) return;
+      if(!resultado){
+        contenedor.classList.add('oculto');
+        contenedor.innerHTML = '';
+        return;
+      }
+      const revisados = Number(resultado?.revisados) || 0;
+      const acreditados = Number(resultado?.acreditados) || 0;
+      const omitidos = Number(resultado?.omitidos) || 0;
+      const errores = Number(resultado?.errores) || 0;
+      const etiquetaFuente = fuente === 'legacy' ? 'Legacy (rollback temporal)' : 'Reconciliación directa';
+      const nombreSorteo = (sorteoNombre || cpObtenerSorteoIdObjetivo() || '').toString().trim();
+      const sello = new Date().toLocaleString('es-ES', { dateStyle: 'short', timeStyle: 'medium' });
+      contenedor.innerHTML =
+        `<strong>Último cierre de premios</strong> · ${escapeHtml(etiquetaFuente)}<br>` +
+        `${nombreSorteo ? `Sorteo: <strong>${escapeHtml(nombreSorteo)}</strong><br>` : ''}` +
+        `Revisados: <strong>${formatNumberEntero.format(revisados)}</strong> · ` +
+        `Acreditados: <strong>${formatNumberEntero.format(acreditados)}</strong> · ` +
+        `Omitidos: <strong>${formatNumberEntero.format(omitidos)}</strong> · ` +
+        `Errores: <strong>${formatNumberEntero.format(errores)}</strong><br>` +
+        `<span style="opacity:.8;">Actualizado: ${escapeHtml(sello)}</span>`;
+      contenedor.classList.remove('oculto');
     }
 
     function normalizarConteoTecnico(valor){
@@ -953,12 +1006,24 @@
           btn.disabled = true;
           btn.textContent = 'Acreditando...';
         }
-        const resultado = await reconciliarPremiosPendientesDirectosSorteo(sorteoId, { force: true });
+        let resultado = null;
+        let fuenteResumen = 'api';
+        if(premiosLegacyFlowEnabled){
+          const pendientesSorteo = premiosActivos
+            .filter(registro => String(registro?.sorteoId || '').trim() === sorteoId)
+            .map(registro => registro.id)
+            .filter(Boolean);
+          resultado = await procesarPremiosJugadoresLegacy(pendientesSorteo, { mostrarAlertas: false });
+          fuenteResumen = 'legacy';
+        } else {
+          resultado = await reconciliarPremiosPendientesDirectosSorteo(sorteoId, { force: true });
+        }
         await Promise.all([
           cargarPremios(),
           reconciliarIndicadorPagos()
         ]);
         cpRenderResumenMontos(cpObtenerSorteoIdObjetivo());
+        cpRenderResumenReconciliacion(resultado, { fuente: fuenteResumen, sorteoNombre: nombreSorteo });
         const revisados = Number(resultado?.revisados) || 0;
         const acreditados = Number(resultado?.acreditados) || 0;
         const omitidos = Number(resultado?.omitidos) || 0;
@@ -3100,18 +3165,24 @@
       return nuevoSaldo;
     }
 
-    async function procesarPremiosJugadores(ids){
-      if(!ids.length) return;
+    async function procesarPremiosJugadoresLegacy(ids, { mostrarAlertas = true } = {}){
+      if(!ids.length){
+        return { revisados: 0, acreditados: 0, omitidos: 0, errores: 0 };
+      }
       if(!premiosEngineV2Enabled){
-        alert('Proceso deshabilitado: premiosEngineV2Enabled=false. No se acreditarán premios.');
-        return;
+        if(mostrarAlertas){
+          alert('Proceso deshabilitado: premiosEngineV2Enabled=false. No se acreditarán premios.');
+        }
+        return { revisados: 0, acreditados: 0, omitidos: 0, errores: 0 };
       }
       await initServerTime();
       const sorteosActualizados = new Set();
       const errores = [];
-      let procesados = 0;
+      let revisados = 0;
+      let acreditados = 0;
       let omitidos = 0;
       for(const id of ids){
+        revisados += 1;
         const registro = premiosMapa.get(id);
         if(!registro){
           console.warn('Premio no encontrado', id);
@@ -3124,7 +3195,7 @@
         }
         try {
           await acreditarPremioEnFirestore(registro);
-          procesados += 1;
+          acreditados += 1;
           if(registro.sorteoId){
             sorteosActualizados.add(registro.sorteoId);
           }
@@ -3140,13 +3211,15 @@
           console.warn('No se pudo actualizar el indicador de pagos tras aprobar premios', errIndicador);
         }
       }
-      if(errores.length){
-        alert(`Se procesaron ${procesados} premio(s). ${errores.length} registro(s) no se pudieron procesar.`);
-        return;
+      const resumen = { revisados, acreditados, omitidos, errores: errores.length };
+      if(mostrarAlertas && errores.length){
+        alert(`Se procesaron ${acreditados} premio(s). ${errores.length} registro(s) no se pudieron procesar.`);
+        return resumen;
       }
-      if(procesados > 0 || omitidos > 0){
-        alert(`Proceso finalizado. Premios procesados: ${procesados}. Registros omitidos: ${omitidos}.`);
+      if(mostrarAlertas && (acreditados > 0 || omitidos > 0)){
+        alert(`Proceso finalizado. Premios procesados: ${acreditados}. Registros omitidos: ${omitidos}.`);
       }
+      return resumen;
     }
 
     async function aprobarPagos(ids){
@@ -3352,12 +3425,10 @@
       if(premiosAprobarBtn){
         premiosAprobarBtn.disabled = !premiosEngineV2Enabled;
         premiosAprobarBtn.title = premiosEngineV2Enabled
-          ? 'Procesar premios seleccionados'
+          ? 'Ejecuta el cierre de premios del sorteo por reconciliación directa'
           : 'Deshabilitado por premiosEngineV2Enabled=false';
         premiosAprobarBtn.addEventListener('click', async()=>{
-          const seleccion = obtenerSeleccion('tabla-premios');
-          if(!seleccion.length){ alert('Selecciona al menos un registro.'); return; }
-          await procesarPremiosJugadores(seleccion);
+          await cpAcreditarPremiosPendientesManual();
           cpRenderResumenMontos(cpObtenerSorteoIdObjetivo());
         });
       }
