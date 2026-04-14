@@ -537,8 +537,18 @@ function getMissingWinnerForms(sorteoData = {}) {
     : {};
   return activeForms.filter((forma) => {
     const lockEntry = lock[String(forma.idx)];
-    return !(lockEntry && Array.isArray(lockEntry.cartonClaves) && lockEntry.cartonClaves.length > 0);
+    const cartonClaves = normalizeUniqueWinnerKeys(lockEntry?.cartonClaves);
+    return cartonClaves.length === 0;
   });
+}
+
+function normalizeUniqueWinnerKeys(rawKeys) {
+  if (!Array.isArray(rawKeys)) return [];
+  return Array.from(new Set(
+    rawKeys
+      .map((item) => normalizeString(item, 220))
+      .filter(Boolean)
+  ));
 }
 
 function buildFinalizationContract({ sorteoData = {}, cantosData = {} } = {}) {
@@ -551,7 +561,7 @@ function buildFinalizationContract({ sorteoData = {}, cantosData = {} } = {}) {
     : (Array.isArray(sorteoData?.loteriasAsignadas) ? sorteoData.loteriasAsignadas : []);
   const requiredResults = computeRequiredResultBlocks(loterias);
   const loadedResults = computeLoadedResultBlocks(cantosData?.resultadosPorCelda);
-  const resultsComplete = requiredResults > 0 && loadedResults >= requiredResults;
+  const resultsComplete = requiredResults === 0 || loadedResults >= requiredResults;
   const permitted = estado === 'jugando' && (allFormsHaveWinners || resultsComplete);
 
   if (estado !== 'jugando') {
@@ -993,9 +1003,7 @@ async function generatePendingDirectPrizesFromOfficialResults({
   for (const [idxRaw, lockValue] of Object.entries(lockRaw)) {
     const formaIdx = Number(idxRaw);
     if (!Number.isFinite(formaIdx)) continue;
-    const cartonClaves = Array.isArray(lockValue?.cartonClaves)
-      ? lockValue.cartonClaves.map((item) => normalizeString(item, 220)).filter(Boolean)
-      : [];
+    const cartonClaves = normalizeUniqueWinnerKeys(lockValue?.cartonClaves);
     if (!cartonClaves.length) continue;
     bloqueadosTotales += cartonClaves.length;
 

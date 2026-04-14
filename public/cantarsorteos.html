@@ -5871,7 +5871,7 @@
 
   function resultadosCompletosLoterias(){
     const requeridos = obtenerTotalResultadosRequeridos();
-    if(requeridos <= 0) return false;
+    if(requeridos <= 0) return true;
     return obtenerTotalResultadosCargados() >= requeridos;
   }
 

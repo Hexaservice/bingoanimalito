@@ -10453,7 +10453,7 @@
       const botonAcreditar = document.createElement('button');
       botonAcreditar.type = 'button';
       botonAcreditar.className = 'boton-acreditar-ahora';
-      botonAcreditar.textContent = 'Acreditar Ahora';
+      botonAcreditar.textContent = 'Acreditar ahora';
       botonAcreditar.dataset.premioClave = (detalle?.clavePendiente || construirClavePremioPendiente(detalle) || '').toString();
       botonAcreditar.addEventListener('click',()=>acreditarPremioAhora(detalle, botonAcreditar));
       linea.appendChild(botonAcreditar);
@@ -10510,7 +10510,6 @@
     const lista=Array.isArray(detalles)?detalles.filter(Boolean):[];
     if(!lista.length) return;
     modalCelebracionListaEl.innerHTML='';
-    const sorteoFinalizado = ((activeSorteo?.estado || '').toString().toLowerCase()==='finalizado');
     lista.forEach(detalle=>{
       const estadoPremio = (detalle?.estado || '').toString().trim().toLowerCase();
       const premioPendienteDetectado = detalle?.documentoPendienteReal === true
@@ -10518,7 +10517,6 @@
         || estadoPremio === 'pendiente';
       const mostrarAcreditar = !esSimulacion
         && !detalle?.perdido
-        && !sorteoFinalizado
         && premiosEngineV2Enabled
         && premioPendienteDetectado;
       modalCelebracionListaEl.appendChild(crearLineaCelebracionGanador(detalle, { mostrarAcreditar }));

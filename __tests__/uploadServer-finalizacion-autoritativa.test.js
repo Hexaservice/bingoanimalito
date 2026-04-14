@@ -35,6 +35,27 @@ describe('finalización autoritativa de sorteo', () => {
     expect(contrato.detalle.bloquesResultadosPendientes).toBeGreaterThan(0);
   });
 
+  test('permite finalizar cuando no hay bloques de resultados requeridos y no hay ganadores', () => {
+    const { buildFinalizationContract } = require('../uploadServer.js');
+
+    const contrato = buildFinalizationContract({
+      sorteoData: {
+        estado: 'Jugando',
+        formas: [{ idx: 1, nombre: 'Linea' }],
+        ganadoresBloqueadosPorForma: {},
+        loterias: []
+      },
+      cantosData: {
+        resultadosPorCelda: {}
+      }
+    });
+
+    expect(contrato.permitido).toBe(true);
+    expect(contrato.detalle.resultadosCompletos).toBe(true);
+    expect(contrato.detalle.totalResultadosRequeridos).toBe(0);
+    expect(contrato.detalle.totalFormasSinGanador).toBe(1);
+  });
+
   test('serializa concurrencia: solo la primera finalización cambia estado', async () => {
     jest.resetModules();
     const { executeAuthoritativeSorteoFinalization } = require('../uploadServer.js');
