@@ -10679,10 +10679,6 @@
     ].filter(Boolean)));
     const billeteraId = billeteraIds[0] || '';
     const sorteoIdDetalle = (detalle?.sorteoId || activeSorteoId || '').toString();
-    const premioIdsCandidatos = premiosPendientesIdsApi?.construirClavesCandidatasPremioPendiente?.({
-      ...detalle,
-      sorteoId: sorteoIdDetalle
-    }) || [];
     if(!billeteraId) return;
     acreditandoPremioAhora = true;
     if(botonEl){
@@ -10690,64 +10686,7 @@
       botonEl.textContent = 'Acreditando...';
     }
     try{
-      let premioRef = null;
-      let premioIdUsado = '';
-      let billeteraIdPremio = billeteraId;
-
-      for(const billeteraCandidata of billeteraIds){
-        const premiosCollectionRef = db.collection('Billetera').doc(billeteraCandidata).collection('premiosPendientesDirectos');
-        for(const candidato of premioIdsCandidatos){
-          const referencia = premiosCollectionRef.doc(candidato);
-          const snap = await referencia.get();
-          if(snap.exists){
-            premioRef = referencia;
-            premioIdUsado = candidato;
-            billeteraIdPremio = billeteraCandidata;
-            break;
-          }
-        }
-        if(premioRef) break;
-      }
-
-      if(!premioRef){
-        const eventoGanadorId = (detalle?.eventoGanadorId || '').toString().trim();
-        if(eventoGanadorId){
-          for(const billeteraCandidata of billeteraIds){
-            const premiosCollectionRef = db.collection('Billetera').doc(billeteraCandidata).collection('premiosPendientesDirectos');
-            const eventoSnap = await premiosCollectionRef
-              .where('eventoGanadorId','==',eventoGanadorId)
-              .limit(1)
-              .get();
-            if(!eventoSnap.empty){
-              premioRef = eventoSnap.docs[0].ref;
-              premioIdUsado = eventoSnap.docs[0].id;
-              billeteraIdPremio = billeteraCandidata;
-              break;
-            }
-          }
-        }
-      }
-      if(!premioRef){
-        const cartonClave = (detalle?.cartonClaveGanador || '').toString().trim().toLowerCase();
-        const idx = Number(detalle?.idx);
-        if(sorteoIdDetalle && cartonClave && Number.isFinite(idx)){
-          for(const billeteraCandidata of billeteraIds){
-            const premiosCollectionRef = db.collection('Billetera').doc(billeteraCandidata).collection('premiosPendientesDirectos');
-            const claveSnap = await premiosCollectionRef
-              .where('sorteoId','==',sorteoIdDetalle)
-              .where('idx','==',idx)
-              .where('cartonClaveGanador','==',cartonClave)
-              .limit(1)
-              .get();
-            if(!claveSnap.empty){
-              premioRef = claveSnap.docs[0].ref;
-              premioIdUsado = claveSnap.docs[0].id;
-              billeteraIdPremio = billeteraCandidata;
-              break;
-            }
-          }
-        }
-      }
+      const billeteraIdPremio = billeteraId;
       const resolverBaseAcreditacion = ()=>{
         const normalizar = (valor='')=>String(valor||'').trim().replace(/\/+$/,'');
         if(typeof getAdminApiBase === 'function'){
@@ -10770,9 +10709,8 @@
       }
       const token = await user.getIdToken(true);
       const eventoGanadorId = (detalle?.eventoGanadorId || '').toString().trim();
-      const premioId = premioIdUsado || premioRef?.id || '';
-      if(!premioId && !eventoGanadorId){
-        throw new Error('No hay premioId ni eventoGanadorId para acreditar premio pendiente.');
+      if(!eventoGanadorId){
+        throw new Error('No hay eventoGanadorId para acreditar premio pendiente.');
       }
       const res = await fetch(`${apiBase}/acreditarPremioEvento`, {
         method: 'POST',
@@ -10781,7 +10719,7 @@
           Authorization: `Bearer ${token}`
         },
         body: JSON.stringify({
-          premioId,
+          premioId: '',
           eventoGanadorId: eventoGanadorId || null,
           billeteraId: billeteraIdPremio || billeteraId || '',
           sorteoId: (detalle?.sorteoId || activeSorteoId || '').toString(),
@@ -10815,8 +10753,7 @@
           billeteraId,
           billeteraIdsCandidatas: billeteraIds,
           billeteraIdPremio,
-          premioId: premioIdUsado,
-          premioIdsCandidatos,
+          premioId: '',
           sorteoId: (detalle?.sorteoId || activeSorteoId || '').toString(),
           idx: Number(detalle?.idx) || 0,
           cartonLabel: (detalle?.cartonLabel || '').toString(),

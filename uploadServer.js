@@ -1953,25 +1953,52 @@ async function acreditarPremioEventoHandler(req, res) {
     }
     const billeteraObjetivo = isPlayerScopedCall ? resolvedPlayerWalletId : billeteraId;
 
-    const premioDocRef = (() => {
-      const normalizedPremioId = premioId || buildOfficialPendingPrizeId(eventoGanadorId);
-      if (billeteraObjetivo && normalizedPremioId) {
-        return db
+    let premioDoc = null;
+    if (billeteraObjetivo && eventoGanadorId) {
+      const premioCanonicalId = buildOfficialPendingPrizeId(eventoGanadorId);
+      if (premioCanonicalId) {
+        const canonicalSnap = await db
           .collection('Billetera')
           .doc(billeteraObjetivo)
           .collection('premiosPendientesDirectos')
-          .doc(normalizedPremioId);
+          .doc(premioCanonicalId)
+          .get();
+        if (canonicalSnap.exists) premioDoc = canonicalSnap;
       }
-      return null;
-    })();
-
-    let premioDoc = null;
-    if (premioDocRef) {
-      const premioSnap = await premioDocRef.get();
-      if (premioSnap.exists) premioDoc = premioSnap;
+      if (!premioDoc) {
+        const premioByEventoWalletSnap = await db
+          .collection('Billetera')
+          .doc(billeteraObjetivo)
+          .collection('premiosPendientesDirectos')
+          .where('eventoGanadorId', '==', eventoGanadorId)
+          .limit(2)
+          .get();
+        if (premioByEventoWalletSnap.size > 1) {
+          return res.status(409).json({
+            error: 'Se encontraron múltiples premios pendientes para el evento indicado en la billetera del jugador.',
+            eventoGanadorId,
+            billeteraId: billeteraObjetivo
+          });
+        }
+        if (!premioByEventoWalletSnap.empty) {
+          premioDoc = premioByEventoWalletSnap.docs[0];
+        }
+      }
     }
 
-    if (!premioDoc && eventoGanadorId) {
+    if (!premioDoc && billeteraObjetivo && premioId) {
+      const premioByWalletRef = db
+        .collection('Billetera')
+        .doc(billeteraObjetivo)
+        .collection('premiosPendientesDirectos')
+        .doc(premioId);
+      const premioByWalletSnap = await premioByWalletRef.get();
+      if (premioByWalletSnap.exists) {
+        premioDoc = premioByWalletSnap;
+      }
+    }
+
+    if (!premioDoc && !isPlayerScopedCall && eventoGanadorId) {
       const premioByEventoSnap = await db
         .collectionGroup('premiosPendientesDirectos')
         .where('eventoGanadorId', '==', eventoGanadorId)

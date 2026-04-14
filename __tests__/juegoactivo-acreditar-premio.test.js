@@ -284,6 +284,7 @@ describe('juegoactivo.html - acreditarPremioAhora cuando premio ya está acredit
 
     await context.acreditarPremioAhora({
       clavePendiente: 'clave-acreditada',
+      eventoGanadorId: 'SRT-1__f5__usr:jugador@test.com::num:3',
       sorteoId: 'SRT-1',
       idx: 5,
       cartonLabel: 'Cartón 003'
@@ -300,49 +301,19 @@ describe('juegoactivo.html - acreditarPremioAhora cuando premio ya está acredit
   });
 });
 
-describe('juegoactivo.html - acreditarPremioAhora con busqueda por eventoGanadorId', () => {
-  test('encuentra y acredita premio pendiente aunque la clave candidata no coincida', async () => {
+describe('juegoactivo.html - acreditarPremioAhora con contrato por eventoGanadorId', () => {
+  test('acredita enviando eventoGanadorId sin búsquedas legacy en cliente', async () => {
     const html = fs.readFileSync('public/juegoactivo.html', 'utf8');
     const fnAcreditar = extraerFuncion(html, 'acreditarPremioAhora');
 
     const dom = new JSDOM('<div id="root"><div class="celebracion-linea"><button class="boton-acreditar-ahora">Acreditar Ahora</button></div></div>');
     const button = dom.window.document.querySelector('button');
 
-    const premioRefEncontrado = { __tipo: 'premioRefEncontrado' };
-    const premioRefInexistente = { __tipo: 'premioRefInexistente', get: async () => ({ exists: false }) };
-    const whereEventoGet = jest.fn(async () => ({
-      empty: false,
-      docs: [{ id: 'ppd_hash_real', ref: premioRefEncontrado }]
-    }));
-    const whereEventoLimit = jest.fn(() => ({ get: whereEventoGet }));
-    const whereEvento = jest.fn(() => ({ limit: whereEventoLimit }));
-
-    const collectionRef = {
-      doc: () => premioRefInexistente,
-      where: (field, op, value) => {
-        if (field === 'eventoGanadorId' && op === '==' && value === 'SRT-1__f2__usr:jugador@test.com::num:7') {
-          return { limit: whereEventoLimit };
-        }
-        return {
-          where: () => ({ limit: () => ({ get: async () => ({ empty: true, docs: [] }) }) }),
-          limit: () => ({ get: async () => ({ empty: true, docs: [] }) })
-        };
-      }
-    };
-
     const context = {
       activeSorteoId: 'SRT-1',
       acreditandoPremioAhora: false,
-      premiosPendientesIdsApi: {
-        construirClavesCandidatasPremioPendiente: () => ['clave-vieja-inexistente']
-      },
-      db: {
-        collection: () => ({
-          doc: () => ({
-            collection: () => collectionRef
-          })
-        })
-      },
+      premiosPendientesIdsApi: {},
+      db: {},
       auth: { currentUser: { getIdToken: jest.fn(async () => 'token-ok') } },
       usuarioActual: { email: 'Jugador@Test.com' },
       cerrarModalCelebracionSiSinPendientes: jest.fn(),
@@ -374,7 +345,6 @@ describe('juegoactivo.html - acreditarPremioAhora con busqueda por eventoGanador
 
     expect(context.alert).not.toHaveBeenCalled();
     expect(context.cerrarModalCelebracionSiSinPendientes).toHaveBeenCalled();
-    expect(whereEventoLimit).toHaveBeenCalledWith(1);
     expect(context.fetch).toHaveBeenCalledWith(
       'https://api.demo.com/acreditarPremioEvento',
       expect.objectContaining({
@@ -384,5 +354,11 @@ describe('juegoactivo.html - acreditarPremioAhora con busqueda por eventoGanador
         })
       })
     );
+    const requestBody = JSON.parse(context.fetch.mock.calls[0][1].body);
+    expect(requestBody).toEqual(expect.objectContaining({
+      premioId: '',
+      eventoGanadorId: 'SRT-1__f2__usr:jugador@test.com::num:7',
+      billeteraId: 'jugador@test.com'
+    }));
   });
 });

@@ -151,8 +151,10 @@ Checklist rápido de validación en producción:
 A partir de este cambio, el contrato operativo para premios es:
 
 1. **Cliente solicita**: el frontend solo consulta `Billetera/{email}/premiosPendientesDirectos` para UX y dispara la solicitud al backend.
-2. **Backend acredita**: únicamente procesos con `isSystemRequest()` pueden crear/actualizar/eliminar en `Billetera/{email}` y `premiosPendientesDirectos` cuando el lock de producción está activo.
-3. **Sin excepción cliente para acreditación directa**: se elimina la excepción de reglas que permitía al dueño acreditar saldo/cartones directamente sobre Firestore.
+2. **Identificador funcional único**: para acreditar un premio se usa `eventoGanadorId` como identificador funcional; `premioId` queda como identificador interno/compatibilidad.
+3. **Resolución backend prioritaria**: `/acreditarPremioEvento` intenta resolver primero por `eventoGanadorId` + billetera del jugador autenticado (cuando aplica), y luego usa fallback por `premioId`.
+4. **Backend acredita**: únicamente procesos con `isSystemRequest()` pueden crear/actualizar/eliminar en `Billetera/{email}` y `premiosPendientesDirectos` cuando el lock de producción está activo.
+5. **Sin excepción cliente para acreditación directa**: se elimina la excepción de reglas que permitía al dueño acreditar saldo/cartones directamente sobre Firestore.
 
 Este contrato reduce superficie de fraude y centraliza trazabilidad de acreditaciones en backend.
 
