@@ -34,7 +34,7 @@ function extraerFuncion(html, nombre) {
 }
 
 describe('juegoactivo.html - acreditarPremioAhora cuando no hay premio pendiente', () => {
-  test('no remueve la línea visual ni cierra modal, muestra mensaje y permite reintento', async () => {
+  test('no remueve la línea visual ni cierra modal, muestra mensaje y permite reintento solo si backend responde PREMIO_NO_EXISTE', async () => {
     const html = fs.readFileSync('public/juegoactivo.html', 'utf8');
     const fnAcreditar = extraerFuncion(html, 'acreditarPremioAhora');
 
@@ -46,6 +46,15 @@ describe('juegoactivo.html - acreditarPremioAhora cuando no hay premio pendiente
     const warnMock = jest.fn();
     const cerrarModalCelebracionSiSinPendientes = jest.fn();
 
+    const queryVacio = {
+      where: () => queryVacio,
+      limit: () => ({ get: async () => ({ empty: true, docs: [] }) })
+    };
+    const collectionRef = {
+      doc: () => ({ __tipo: 'premioRef', get: async () => ({ exists: false }) }),
+      where: () => queryVacio
+    };
+
     const context = {
       activeSorteoId: 'SRT-1',
       acreditandoPremioAhora: false,
@@ -55,7 +64,7 @@ describe('juegoactivo.html - acreditarPremioAhora cuando no hay premio pendiente
       db: {
         collection: () => ({
           doc: () => ({
-            collection: () => ({ doc: () => ({ __tipo: 'premioRef', get: async () => ({ exists: false }) }) }),
+            collection: () => collectionRef,
             __tipo: 'billeteraRef'
           })
         }),
@@ -75,8 +84,19 @@ describe('juegoactivo.html - acreditarPremioAhora cuando no hay premio pendiente
           return cb(tx);
         }
       },
+      auth: { currentUser: { getIdToken: jest.fn(async () => 'token-ok') } },
       usuarioActual: { email: 'jugador@test.com' },
       cerrarModalCelebracionSiSinPendientes,
+      fetch: jest.fn(async () => ({
+        ok: false,
+        status: 404,
+        json: async () => ({ code: 'PREMIO_NO_EXISTE' })
+      })),
+      window: {
+        UPLOAD_ENDPOINT: 'https://api.demo.com/upload',
+        location: { origin: 'https://app.demo.com' },
+        __APP_CONFIG__: {}
+      },
       alert: alertMock,
       console: { warn: warnMock },
       firebase: { firestore: { FieldValue: { serverTimestamp: () => 'TS' } } }
@@ -87,6 +107,7 @@ describe('juegoactivo.html - acreditarPremioAhora cuando no hay premio pendiente
 
     await context.acreditarPremioAhora({
       clavePendiente: 'clave-inexistente',
+      eventoGanadorId: 'SRT-1__f1__usr:jugador@test.com::num:1',
       sorteoId: 'SRT-1',
       idx: 1,
       cartonLabel: 'Cartón 001'
@@ -97,6 +118,10 @@ describe('juegoactivo.html - acreditarPremioAhora cuando no hay premio pendiente
     expect(button.textContent).toBe('Acreditar Ahora');
     expect(cerrarModalCelebracionSiSinPendientes).not.toHaveBeenCalled();
     expect(alertMock).toHaveBeenCalledWith('No se encontró el premio pendiente para acreditar. Recarga e intenta de nuevo.');
+    expect(context.fetch).toHaveBeenCalledWith(
+      'https://api.demo.com/acreditarPremioEvento',
+      expect.objectContaining({ method: 'POST' })
+    );
     expect(warnMock).toHaveBeenCalledWith(
       'Premio pendiente no encontrado para acreditar',
       expect.objectContaining({
@@ -107,6 +132,82 @@ describe('juegoactivo.html - acreditarPremioAhora cuando no hay premio pendiente
         cartonLabel: 'Cartón 001'
       })
     );
+  });
+});
+
+describe('juegoactivo.html - acreditarPremioAhora sin premio local pero acreditado por backend', () => {
+  test('acredita usando eventoGanadorId aunque no exista premioRef local', async () => {
+    const html = fs.readFileSync('public/juegoactivo.html', 'utf8');
+    const fnAcreditar = extraerFuncion(html, 'acreditarPremioAhora');
+
+    const dom = new JSDOM('<div id="root"><div class="celebracion-linea"><button class="boton-acreditar-ahora">Acreditar Ahora</button></div></div>');
+    const button = dom.window.document.querySelector('button');
+    const linea = dom.window.document.querySelector('.celebracion-linea');
+
+    const queryVacio = {
+      where: () => queryVacio,
+      limit: () => ({ get: async () => ({ empty: true, docs: [] }) })
+    };
+    const collectionRef = {
+      doc: () => ({ get: async () => ({ exists: false }) }),
+      where: () => queryVacio
+    };
+
+    const context = {
+      activeSorteoId: 'SRT-1',
+      acreditandoPremioAhora: false,
+      premiosPendientesIdsApi: {
+        construirClavesCandidatasPremioPendiente: () => ['clave-inexistente']
+      },
+      db: {
+        collection: () => ({
+          doc: () => ({
+            collection: () => collectionRef
+          })
+        })
+      },
+      auth: { currentUser: { getIdToken: jest.fn(async () => 'token-ok') } },
+      usuarioActual: { email: 'jugador@test.com' },
+      cerrarModalCelebracionSiSinPendientes: jest.fn(),
+      fetch: jest.fn(async () => ({
+        ok: true,
+        json: async () => ({ resultado: 'acreditado' })
+      })),
+      window: {
+        UPLOAD_ENDPOINT: 'https://api.demo.com/upload',
+        location: { origin: 'https://app.demo.com' },
+        __APP_CONFIG__: {}
+      },
+      alert: jest.fn(),
+      console: { warn: jest.fn() },
+      firebase: { firestore: { FieldValue: { serverTimestamp: () => 'TS' } } }
+    };
+
+    vm.createContext(context);
+    vm.runInContext(fnAcreditar, context);
+
+    await context.acreditarPremioAhora({
+      clavePendiente: 'clave-inexistente',
+      eventoGanadorId: 'SRT-1__f3__usr:jugador@test.com::num:9',
+      sorteoId: 'SRT-1',
+      idx: 3,
+      cartonClaveGanador: 'usr:jugador@test.com::num:9',
+      cartonLabel: 'Cartón 0009'
+    }, button);
+
+    expect(dom.window.document.body.contains(linea)).toBe(false);
+    expect(context.cerrarModalCelebracionSiSinPendientes).toHaveBeenCalled();
+    expect(context.alert).not.toHaveBeenCalled();
+    expect(context.fetch).toHaveBeenCalledWith(
+      'https://api.demo.com/acreditarPremioEvento',
+      expect.objectContaining({
+        method: 'POST',
+        body: expect.stringContaining('"premioId":""')
+      })
+    );
+    const requestBody = JSON.parse(context.fetch.mock.calls[0][1].body);
+    expect(requestBody.eventoGanadorId).toBe('SRT-1__f3__usr:jugador@test.com::num:9');
+    expect(requestBody.billeteraId).toBe('jugador@test.com');
   });
 });
 
