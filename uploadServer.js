@@ -2042,8 +2042,21 @@ app.post('/admin/reconciliar-premios-pendientes-directos', verificarToken, async
   }
 
   try {
+    const db = admin.firestore();
+    const sorteoSnap = await db.collection('sorteos').doc(sorteoId).get();
+    const estadoSorteo = normalizeString(sorteoSnap.data()?.estado, 40).toLowerCase();
+    if (estadoSorteo !== 'finalizado') {
+      return res.status(422).json({
+        error: 'Solo se permite acreditar premios pendientes cuando el sorteo está en estado Finalizado.',
+        code: 'SORTEO_NO_FINALIZADO',
+        sorteoId,
+        estadoSorteo: estadoSorteo || 'desconocido',
+        premiosEngineV2Enabled: PREMIOS_ENGINE_V2_ENABLED
+      });
+    }
+
     const resultado = await reconcilePendingPrizesBySorteo({
-      db: admin.firestore(),
+      db,
       sorteoId,
       pageSize,
       acreditadoPor: normalizeString(req.user?.email, 200) || 'sistema:reconciliacion',
