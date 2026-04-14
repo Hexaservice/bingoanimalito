@@ -207,4 +207,118 @@ describe('reconciliación de premios pendientes directos', () => {
       premioId: 'ppd_duplicado'
     }));
   });
+
+
+  test('reconcilePendingPrizesBySorteo procesa solo premios pendientes no acreditados', async () => {
+    const { reconcilePendingPrizesBySorteo } = require('../uploadServer.js');
+
+    const makePremioDoc = ({ id, estado, creditos, cartonesGratis }) => {
+      const billeteraRef = {
+        __kind: `wallet-${id}`,
+        id: `${id}@example.com`,
+        collection: jest.fn((name) => ({
+          doc: (docId) => ({ __kind: `${name}-doc-${id}`, id: docId })
+        }))
+      };
+      const premioRef = {
+        __kind: `premio-${id}`,
+        id,
+        parent: { parent: billeteraRef }
+      };
+      return {
+        id,
+        ref: premioRef,
+        __state: {
+          sorteoId: 'SRT-9',
+          estado,
+          creditos,
+          cartonesGratis,
+          billetera: { creditos: 10, CartonesGratis: 1 }
+        }
+      };
+    };
+
+    const pendienteDoc = makePremioDoc({ id: 'ppd_pendiente', estado: 'pendiente', creditos: 5, cartonesGratis: 1 });
+    const acreditadoDoc = makePremioDoc({ id: 'ppd_acreditado', estado: 'acreditado', creditos: 8, cartonesGratis: 2 });
+    const docs = [pendienteDoc, acreditadoDoc];
+
+    const txById = new Map();
+    const txGet = async (target) => {
+      const owner = docs.find((doc) => doc.ref === target || doc.ref.parent.parent === target);
+      if (owner && owner.ref === target) {
+        return { exists: true, data: () => ({ ...owner.__state }) };
+      }
+      if (owner && owner.ref.parent.parent === target) {
+        return { exists: true, data: () => ({ ...owner.__state.billetera }) };
+      }
+      if (target && target.__kind === 'transaccion-ref') {
+        return { exists: txById.has(target.id), data: () => txById.get(target.id) };
+      }
+      if (target && target.__kind === 'query-by-premio') {
+        const hasTx = Array.from(txById.values()).some((tx) => tx.premioId === target.premioId);
+        return hasTx ? { empty: false, docs: [{ id: 'tx-existente' }] } : { empty: true, docs: [] };
+      }
+      return { exists: false, empty: true, docs: [] };
+    };
+
+    const db = {
+      collectionGroup: jest.fn(() => ({
+        where: jest.fn().mockReturnThis(),
+        orderBy: jest.fn().mockReturnThis(),
+        limit: jest.fn().mockReturnThis(),
+        startAfter: jest.fn().mockReturnThis(),
+        get: jest.fn()
+          .mockResolvedValueOnce({ empty: false, docs, size: docs.length })
+          .mockResolvedValueOnce({ empty: true, docs: [], size: 0 })
+      })),
+      collection: jest.fn((name) => {
+        if (name === 'transacciones') {
+          return {
+            doc: jest.fn((id) => ({ __kind: 'transaccion-ref', id })),
+            where: jest.fn((_f, _o, premioId) => ({
+              limit: jest.fn(() => ({ __kind: 'query-by-premio', premioId }))
+            }))
+          };
+        }
+        return {};
+      }),
+      runTransaction: jest.fn(async (cb) => cb({
+        get: jest.fn(txGet),
+        set: jest.fn((target, payload) => {
+          const owner = docs.find((doc) => doc.ref === target || target?.__kind === `premiosPagosdirectos-doc-${doc.id}`);
+          if (owner && (owner.ref === target || target?.__kind === `premiosPagosdirectos-doc-${owner.id}`)) {
+            owner.__state = { ...owner.__state, ...payload };
+            return;
+          }
+          const walletOwner = docs.find((doc) => doc.ref.parent.parent === target);
+          if (walletOwner) {
+            walletOwner.__state.billetera = { ...walletOwner.__state.billetera, ...payload };
+            return;
+          }
+          if (target?.__kind === 'transaccion-ref') {
+            txById.set(target.id, payload);
+          }
+        })
+      }))
+    };
+
+    const result = await reconcilePendingPrizesBySorteo({
+      db,
+      sorteoId: 'SRT-9',
+      pageSize: 50,
+      acreditadoPor: 'ops@test.com',
+      origen: 'reconciliacion-test'
+    });
+
+    expect(result).toEqual({
+      sorteoId: 'SRT-9',
+      revisados: 2,
+      acreditados: 1,
+      omitidos: 1,
+      errores: 0
+    });
+    expect(pendienteDoc.__state.estado).toBe('acreditado');
+    expect(acreditadoDoc.__state.billetera.creditos).toBe(10);
+    expect(txById.size).toBe(1);
+  });
 });
