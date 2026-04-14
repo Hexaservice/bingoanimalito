@@ -388,6 +388,43 @@ async function verificarOperadorPrivilegiado(req, res, next) {
   }
 }
 
+async function verificarOperadorPrivilegiadoOJugadorAcreditacion(req, res, next) {
+  const authHeader = req.headers.authorization || '';
+  const match = authHeader.match(/^Bearer (.+)$/);
+  if (!match) {
+    return res.status(401).json({ error: 'No autorizado' });
+  }
+
+  let decoded;
+  try {
+    decoded = await admin.auth().verifyIdToken(match[1]);
+  } catch (e) {
+    console.error('Error verificando token', e);
+    return res.status(401).json({ error: 'Token inválido' });
+  }
+
+  const email = normalizeString(decoded?.email, 200).toLowerCase();
+  if (!email) {
+    return res.status(401).json({ error: 'Token sin correo asociado' });
+  }
+
+  try {
+    const doc = await admin.firestore().collection('users').doc(email).get();
+    const role = normalizeOperationalRole(doc.exists ? doc.data()?.role : null) || 'Jugador';
+    const isOperador = ['Superadmin', 'Administrador', 'Colaborador'].includes(role);
+    req.user = {
+      uid: normalizeString(decoded?.uid, 200),
+      email,
+      role,
+      authScope: isOperador ? 'operador' : 'jugador'
+    };
+    return next();
+  } catch (e) {
+    console.error('Error obteniendo el rol del usuario', e);
+    return res.status(500).json({ error: 'Error verificando permisos', message: e.message });
+  }
+}
+
 async function verificarOperadorFinalizacion(req, res, next) {
   const authHeader = req.headers.authorization || '';
   const match = authHeader.match(/^Bearer (.+)$/);
@@ -760,7 +797,7 @@ async function reconcileSinglePendingPrize({
           );
         }
       }
-      return { status: 'omitido', reason: 'ya_acreditado', premioId };
+      return { status: 'omitido', reason: yaAcreditado ? 'ya_acreditado' : 'premio_duplicado', premioId };
     }
 
     if (estadoActual !== 'pendiente') {
@@ -1268,6 +1305,25 @@ async function resolveWalletDocInTransaction({ tx, db, context }) {
   const fallbackRef = db.collection('Billetera').doc(fallbackWalletId);
   const fallbackSnap = await tx.get(fallbackRef);
   return { ref: fallbackRef, snap: fallbackSnap, usedWalletId: fallbackWalletId };
+}
+
+async function resolveWalletIdForAuthenticatedUser({ db, email, uid, extraCandidates = [] }) {
+  const context = buildWalletResolutionContext({
+    email,
+    uid,
+    extraCandidates
+  });
+  const candidates = Array.from(new Set([
+    normalizeIdentityValue(context?.canonicalEmail, 160).toLowerCase(),
+    ...(Array.isArray(context?.billeteraCandidates) ? context.billeteraCandidates : [])
+  ].filter(Boolean)));
+  for (const candidate of candidates) {
+    const snap = await db.collection('Billetera').doc(candidate).get();
+    if (snap.exists) {
+      return candidate;
+    }
+  }
+  return normalizeIdentityValue(context?.billeteraId || context?.canonicalEmail, 160).toLowerCase();
 }
 
 async function resolveWinnerIdentity({
@@ -1866,12 +1922,37 @@ async function acreditarPremioEventoHandler(req, res) {
   const db = admin.firestore();
 
   try {
+    const isPlayerScopedCall = req.user?.authScope === 'jugador';
+    const userEmail = normalizeString(req.user?.email, 200).toLowerCase();
+    const userUid = normalizeString(req.user?.uid, 200);
+    let resolvedPlayerWalletId = '';
+    if (isPlayerScopedCall) {
+      const userDoc = await db.collection('users').doc(userEmail).get();
+      const userData = userDoc.exists ? (userDoc.data() || {}) : {};
+      resolvedPlayerWalletId = await resolveWalletIdForAuthenticatedUser({
+        db,
+        email: userEmail,
+        uid: userUid,
+        extraCandidates: [
+          normalizeString(userData?.uid, 200),
+          normalizeString(userData?.IDbilletera, 200)
+        ]
+      });
+      if (!resolvedPlayerWalletId) {
+        return res.status(403).json({
+          error: 'No se pudo resolver la billetera del jugador autenticado.',
+          code: 'JUGADOR_BILLETERA_NO_RESUELTA'
+        });
+      }
+    }
+    const billeteraObjetivo = isPlayerScopedCall ? resolvedPlayerWalletId : billeteraId;
+
     const premioDocRef = (() => {
       const normalizedPremioId = premioId || buildOfficialPendingPrizeId(eventoGanadorId);
-      if (billeteraId && normalizedPremioId) {
+      if (billeteraObjetivo && normalizedPremioId) {
         return db
           .collection('Billetera')
-          .doc(billeteraId)
+          .doc(billeteraObjetivo)
           .collection('premiosPendientesDirectos')
           .doc(normalizedPremioId);
       }
@@ -1921,8 +2002,18 @@ async function acreditarPremioEventoHandler(req, res) {
     if (!premioDoc || !premioDoc.exists) {
       return res.status(404).json({
         error: 'No se encontró el premio pendiente directo solicitado.',
+        code: 'PREMIO_NO_EXISTE',
         premioId: premioId || null,
         eventoGanadorId: eventoGanadorId || null
+      });
+    }
+
+    const premioBilleteraId = normalizeString(premioDoc.ref?.parent?.parent?.id, 160).toLowerCase();
+    if (isPlayerScopedCall && premioBilleteraId !== billeteraObjetivo) {
+      return res.status(403).json({
+        error: 'El premio no pertenece a la billetera del jugador autenticado.',
+        code: 'PREMIO_NO_PERTENECE_JUGADOR',
+        billeteraId: billeteraObjetivo
       });
     }
 
@@ -1935,10 +2026,10 @@ async function acreditarPremioEventoHandler(req, res) {
     }
     const sorteoSnap = await db.collection('sorteos').doc(sorteoId).get();
     const estadoSorteo = normalizeString(sorteoSnap.data()?.estado, 40).toLowerCase();
-    if (estadoSorteo !== 'finalizado') {
+    if (!['jugando', 'finalizado'].includes(estadoSorteo)) {
       return res.status(422).json({
-        error: 'Solo se permite acreditar premios cuando el sorteo está en estado Finalizado.',
-        code: 'SORTEO_NO_FINALIZADO',
+        error: 'Solo se permite acreditar premios cuando el sorteo está en estado Jugando o Finalizado.',
+        code: 'ESTADO_SORTEO_INVALIDO',
         premiosEngineV2Enabled: PREMIOS_ENGINE_V2_ENABLED,
         sorteoId,
         estadoSorteo: estadoSorteo || 'desconocido'
@@ -1969,7 +2060,7 @@ async function acreditarPremioEventoHandler(req, res) {
       premioId: result?.premioId || normalizeString(premioDoc.id, 320).toLowerCase(),
       eventoGanadorId: normalizeString(eventoGanadorId || premioData.eventoGanadorId, 320) || null,
       sorteoId,
-      billeteraId: premioDoc.ref?.parent?.parent?.id || billeteraId || null,
+      billeteraId: premioBilleteraId || billeteraObjetivo || null,
       acreditadoPor,
       origen
     });
@@ -1983,7 +2074,7 @@ async function acreditarPremioEventoHandler(req, res) {
         creditos: result.creditos,
         cartones: result.cartones,
         eventoGanadorId: result.eventoGanadorId || normalizeString(eventoGanadorId || premioData.eventoGanadorId, 320) || null,
-        billeteraId: premioDoc.ref?.parent?.parent?.id || billeteraId || null
+        billeteraId: premioBilleteraId || billeteraObjetivo || null
       });
     }
 
@@ -1995,7 +2086,34 @@ async function acreditarPremioEventoHandler(req, res) {
         idempotente: true,
         premioId: result.premioId || normalizeString(premioDoc.id, 320).toLowerCase(),
         eventoGanadorId: normalizeString(eventoGanadorId || premioData.eventoGanadorId, 320) || null,
-        billeteraId: premioDoc.ref?.parent?.parent?.id || billeteraId || null
+        billeteraId: premioBilleteraId || billeteraObjetivo || null
+      });
+    }
+
+    if (result?.reason === 'premio_duplicado') {
+      return res.status(409).json({
+        error: 'El premio ya tiene una transacción previa y se marcó como acreditado sin duplicar saldo.',
+        code: 'PREMIO_DUPLICADO',
+        idempotente: true,
+        premioId: result.premioId || normalizeString(premioDoc.id, 320).toLowerCase(),
+        eventoGanadorId: normalizeString(eventoGanadorId || premioData.eventoGanadorId, 320) || null,
+        billeteraId: premioBilleteraId || billeteraObjetivo || null
+      });
+    }
+
+    if (result?.reason === 'estado_no_pendiente') {
+      return res.status(409).json({
+        error: 'El premio no está en estado pendiente y no puede acreditarse.',
+        code: 'PREMIO_ESTADO_INVALIDO',
+        detalle: result || null
+      });
+    }
+
+    if (result?.reason === 'premio_no_existe') {
+      return res.status(404).json({
+        error: 'No se encontró el premio pendiente directo solicitado.',
+        code: 'PREMIO_NO_EXISTE',
+        detalle: result || null
       });
     }
 
@@ -2012,7 +2130,7 @@ async function acreditarPremioEventoHandler(req, res) {
   }
 }
 
-app.post('/acreditarPremioEvento', verificarOperadorPrivilegiado, acreditarPremioEventoHandler);
+app.post('/acreditarPremioEvento', verificarOperadorPrivilegiadoOJugadorAcreditacion, acreditarPremioEventoHandler);
 
 app.post('/admin/finalizar-sorteo', verificarOperadorFinalizacion, async (req, res) => {
   const sorteoId = normalizeString(req.body?.sorteoId, 120);
