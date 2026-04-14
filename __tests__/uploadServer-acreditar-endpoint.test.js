@@ -227,7 +227,7 @@ describe('endpoint /acreditarPremioEvento', () => {
     }));
   });
 
-  test.each(['jugando', 'finalizado'])('permite acreditar cuando el sorteo está en estado %s', async (estado) => {
+  test.each(['jugando', 'finalizado', 'activo', 'activa', 'en_juego', 'en-juego'])('permite acreditar cuando el sorteo está en estado %s', async (estado) => {
     process.env.PREMIOS_ENGINE_V2_ENABLED = 'true';
     const admin = require('firebase-admin');
     const { acreditarPremioEventoHandler } = require('../uploadServer.js');

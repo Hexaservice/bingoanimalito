@@ -10656,10 +10656,13 @@
   async function acreditarPremioAhora(detalle, botonEl=null){
     if(acreditandoPremioAhora || !db || !usuarioActual) return;
     const sorteoActivoLocal = (typeof activeSorteo !== 'undefined' && activeSorteo) ? activeSorteo : null;
-    const estadoSorteoActual = ((sorteoActivoLocal?.estado || '').toString().trim().toLowerCase());
+    const estadoSorteoActualRaw = ((sorteoActivoLocal?.estado || '').toString().trim().toLowerCase());
+    const estadoSorteoActual = ['activo', 'activa', 'en_juego', 'en-juego'].includes(estadoSorteoActualRaw)
+      ? 'jugando'
+      : estadoSorteoActualRaw;
     const premiosEngineEnabled = typeof premiosEngineV2Enabled === 'boolean' ? premiosEngineV2Enabled : true;
     if(estadoSorteoActual && estadoSorteoActual !== 'jugando' && estadoSorteoActual !== 'finalizado'){
-      alert('Solo puedes acreditar premios cuando el sorteo esté Jugando o Finalizado (422).');
+      alert('Solo puedes acreditar premios cuando el sorteo esté Activo/Jugando o Finalizado (422).');
       return;
     }
     if(!premiosEngineEnabled){
