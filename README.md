@@ -158,6 +158,25 @@ A partir de este cambio, el contrato operativo para premios es:
 
 Este contrato reduce superficie de fraude y centraliza trazabilidad de acreditaciones en backend.
 
+### Ventana de seguridad temporal para desactivar/activar espejo legacy de premios directos
+
+Para retirar la doble escritura sobre `Billetera/{email}/premiosPagosdirectos` sin perder capacidad de rollback inmediato, `uploadServer.js` usa el flag runtime:
+
+- `PREMIOS_PAGOS_DIRECTOS_MIRROR_ENABLED=false` (valor por defecto): **solo** escribe en `premiosPendientesDirectos`.
+- `PREMIOS_PAGOS_DIRECTOS_MIRROR_ENABLED=true`: reactiva temporalmente la escritura espejo en `premiosPagosdirectos` durante la ventana de seguridad/migración.
+
+#### Rollback operativo específico (alto riesgo de premios/billetera)
+
+1. Si aparece impacto en acreditación/reconciliación, activar de inmediato:
+
+```bash
+PREMIOS_PAGOS_DIRECTOS_MIRROR_ENABLED=true
+```
+
+2. Reiniciar backend `uploadServer.js` para tomar la variable.
+3. Verificar en logs de `premios-directos-oficiales` y reconciliación que vuelva a existir la escritura espejo legacy.
+4. Criterio de abortar deploy sugerido: aumento sostenido de errores de acreditación (`status=error`) o discrepancias entre pendiente/acreditado durante los primeros 15 minutos post-deploy.
+
 ### Checklist operativo explícito para `/wallet/transfer-credits`
 
 Antes de validar “transferencia rota”, ejecutar este checklist en orden:

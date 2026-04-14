@@ -9,7 +9,18 @@ jest.mock('firebase-admin', () => ({
   auth: jest.fn(() => ({ verifyIdToken: jest.fn() }))
 }));
 
+const ORIGINAL_PREMIOS_PAGOS_DIRECTOS_MIRROR_ENABLED = process.env.PREMIOS_PAGOS_DIRECTOS_MIRROR_ENABLED;
+process.env.PREMIOS_PAGOS_DIRECTOS_MIRROR_ENABLED = 'true';
+
 describe('reconciliación de premios pendientes directos', () => {
+  afterAll(() => {
+    if (ORIGINAL_PREMIOS_PAGOS_DIRECTOS_MIRROR_ENABLED === undefined) {
+      delete process.env.PREMIOS_PAGOS_DIRECTOS_MIRROR_ENABLED;
+      return;
+    }
+    process.env.PREMIOS_PAGOS_DIRECTOS_MIRROR_ENABLED = ORIGINAL_PREMIOS_PAGOS_DIRECTOS_MIRROR_ENABLED;
+  });
+
   test('buildReconciledPrizeTransactionId genera IDs determinísticos', () => {
     const { buildReconciledPrizeTransactionId } = require('../uploadServer.js');
 
@@ -135,6 +146,69 @@ describe('reconciliación de premios pendientes directos', () => {
     expect(result.status).toBe('acreditado');
     const targets = tx.set.mock.calls.map(([target]) => target?.__kind || target?.id || '');
     expect(targets).toContain('premiosPagosdirectos-doc');
+  });
+
+  test('reconcileSinglePendingPrize no actualiza legacy si el flag de espejo está desactivado', async () => {
+    process.env.PREMIOS_PAGOS_DIRECTOS_MIRROR_ENABLED = 'false';
+    jest.resetModules();
+    const { reconcileSinglePendingPrize } = require('../uploadServer.js');
+
+    const premioRef = {
+      id: 'ppd_sin_espejo',
+      parent: {
+        parent: {
+          id: 'ganador@example.com',
+          collection: jest.fn((name) => ({
+            doc: (id) => ({ __kind: `${name}-doc`, id })
+          }))
+        }
+      }
+    };
+    const premioDoc = { id: 'ppd_sin_espejo', ref: premioRef };
+    const premioSnap = {
+      exists: true,
+      data: () => ({ sorteoId: 'SRT-9', estado: 'pendiente', creditos: 5, cartonesGratis: 1 })
+    };
+    const queryByPremio = { __kind: 'query-by-premio' };
+    const tx = {
+      get: jest.fn(async (target) => {
+        if (target === premioRef) return premioSnap;
+        if (target === premioRef.parent.parent) return { exists: true, data: () => ({ creditos: 100, CartonesGratis: 3 }) };
+        if (target && target.__kind === 'transaccion-ref') return { exists: false };
+        if (target === queryByPremio) return { empty: true, docs: [] };
+        return { exists: false, empty: true, docs: [] };
+      }),
+      set: jest.fn()
+    };
+    const db = {
+      collection: jest.fn((name) => {
+        if (name === 'transacciones') {
+          return {
+            doc: jest.fn(() => ({ __kind: 'transaccion-ref' })),
+            where: jest.fn(() => ({
+              limit: jest.fn(() => queryByPremio)
+            }))
+          };
+        }
+        return {};
+      }),
+      runTransaction: jest.fn(async (cb) => cb(tx))
+    };
+
+    const result = await reconcileSinglePendingPrize({
+      db,
+      premioDoc,
+      sorteoId: 'SRT-9',
+      acreditadoPor: 'admin@test.com',
+      origen: 'manual'
+    });
+
+    expect(result.status).toBe('acreditado');
+    const targets = tx.set.mock.calls.map(([target]) => target?.__kind || target?.id || '');
+    expect(targets).not.toContain('premiosPagosdirectos-doc');
+
+    process.env.PREMIOS_PAGOS_DIRECTOS_MIRROR_ENABLED = 'true';
+    jest.resetModules();
   });
 
   test('reconcileSinglePendingPrize marca premio_duplicado cuando existe transacción previa sin volver a acreditar saldo', async () => {
