@@ -474,6 +474,14 @@ function normalizePendingPrizeState(value) {
   return normalizeString(value, 40).toLowerCase();
 }
 
+function normalizeSorteoEstadoForAcreditacion(value) {
+  const estado = normalizeString(value, 40).toLowerCase();
+  if (['activo', 'activa', 'en_juego', 'en-juego'].includes(estado)) {
+    return 'jugando';
+  }
+  return estado;
+}
+
 const MAX_FILAS_RESULTADOS = 13;
 const ROLES_OPERATIVOS_FINALIZACION = new Set(['Superadmin', 'Administrador', 'Colaborador']);
 
@@ -2111,7 +2119,7 @@ async function acreditarPremioEventoHandler(req, res) {
       });
     }
     const sorteoSnap = await db.collection('sorteos').doc(sorteoId).get();
-    const estadoSorteo = normalizeString(sorteoSnap.data()?.estado, 40).toLowerCase();
+    const estadoSorteo = normalizeSorteoEstadoForAcreditacion(sorteoSnap.data()?.estado);
     if (!['jugando', 'finalizado'].includes(estadoSorteo)) {
       return res.status(422).json({
         error: 'Solo se permite acreditar premios cuando el sorteo está en estado Jugando o Finalizado.',

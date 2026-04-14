@@ -362,3 +362,46 @@ describe('juegoactivo.html - acreditarPremioAhora con contrato por eventoGanador
     }));
   });
 });
+
+describe('juegoactivo.html - acreditarPremioAhora admite estado activo como jugando', () => {
+  test('permite acreditar cuando el estado del sorteo es activo', async () => {
+    const html = fs.readFileSync('public/juegoactivo.html', 'utf8');
+    const fnAcreditar = extraerFuncion(html, 'acreditarPremioAhora');
+
+    const context = {
+      activeSorteo: { estado: 'activo' },
+      activeSorteoId: 'SRT-1',
+      acreditandoPremioAhora: false,
+      premiosEngineV2Enabled: true,
+      db: {},
+      auth: { currentUser: { getIdToken: jest.fn(async () => 'token-ok') } },
+      usuarioActual: { email: 'jugador@test.com' },
+      cerrarModalCelebracionSiSinPendientes: jest.fn(),
+      fetch: jest.fn(async () => ({
+        ok: true,
+        json: async () => ({ resultado: 'acreditado' })
+      })),
+      window: {
+        UPLOAD_ENDPOINT: 'https://api.demo.com/upload',
+        location: { origin: 'https://app.demo.com' },
+        __APP_CONFIG__: {}
+      },
+      alert: jest.fn(),
+      console: { warn: jest.fn() },
+      firebase: { firestore: { FieldValue: { serverTimestamp: () => 'TS' } } }
+    };
+
+    vm.createContext(context);
+    vm.runInContext(fnAcreditar, context);
+
+    await context.acreditarPremioAhora({
+      eventoGanadorId: 'SRT-1__f1__usr:jugador@test.com::num:1',
+      sorteoId: 'SRT-1'
+    });
+
+    expect(context.alert).not.toHaveBeenCalledWith(
+      'Solo puedes acreditar premios cuando el sorteo esté Activo/Jugando o Finalizado (422).'
+    );
+    expect(context.fetch).toHaveBeenCalled();
+  });
+});
