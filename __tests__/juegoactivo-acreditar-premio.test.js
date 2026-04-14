@@ -156,29 +156,23 @@ describe('juegoactivo.html - acreditarPremioAhora cuando premio ya está acredit
       db: {
         collection: () => ({
           doc: () => ({
-            collection: () => ({ doc: () => ({ __tipo: 'premioRef', get: async () => ({ exists: true }) }) }),
-            __tipo: 'billeteraRef'
+            collection: () => ({ doc: () => ({ __tipo: 'premioRef', id: 'ppd_hash', get: async () => ({ exists: true }) }) })
           })
-        }),
-        runTransaction: async (cb) => {
-          const tx = {
-            get: async (ref) => {
-              if (ref && ref.__tipo === 'premioRef') {
-                return { exists: true, data: () => ({ estado: 'acreditado' }) };
-              }
-              return {
-                exists: true,
-                data: () => ({ creditos: 15, CartonesGratis: 2 })
-              };
-            },
-            set: jest.fn()
-          };
-          return cb(tx);
-        }
+        })
       },
+      auth: { currentUser: { getIdToken: jest.fn(async () => 'token-ok') } },
       usuarioActual: { email: 'jugador@test.com' },
       cerrarModalCelebracionSiSinPendientes,
       document: dom.window.document,
+      fetch: jest.fn(async () => ({
+        ok: true,
+        json: async () => ({ resultado: 'ya_acreditado' })
+      })),
+      window: {
+        UPLOAD_ENDPOINT: 'https://api.demo.com/upload',
+        location: { origin: 'https://app.demo.com' },
+        __APP_CONFIG__: {}
+      },
       alert: alertMock,
       console: { warn: warnMock },
       firebase: { firestore: { FieldValue: { serverTimestamp: () => 'TS' } } }
@@ -235,8 +229,6 @@ describe('juegoactivo.html - acreditarPremioAhora con busqueda por eventoGanador
       }
     };
 
-    const txSetMock = jest.fn();
-
     const context = {
       activeSorteoId: 'SRT-1',
       acreditandoPremioAhora: false,
@@ -246,29 +238,22 @@ describe('juegoactivo.html - acreditarPremioAhora con busqueda por eventoGanador
       db: {
         collection: () => ({
           doc: () => ({
-            collection: () => collectionRef,
-            __tipo: 'billeteraRef'
+            collection: () => collectionRef
           })
-        }),
-        runTransaction: async (cb) => {
-          const tx = {
-            get: async (ref) => {
-              if (ref && ref.__tipo === 'premioRefEncontrado') {
-                return { exists: true, data: () => ({ estado: 'pendiente', creditos: 64, cartonesGratis: 2 }) };
-              }
-              return {
-                exists: true,
-                data: () => ({ creditos: 10, CartonesGratis: 1 })
-              };
-            },
-            set: txSetMock
-          };
-          const result = await cb(tx);
-          return result;
-        }
+        })
       },
+      auth: { currentUser: { getIdToken: jest.fn(async () => 'token-ok') } },
       usuarioActual: { email: 'Jugador@Test.com' },
       cerrarModalCelebracionSiSinPendientes: jest.fn(),
+      fetch: jest.fn(async () => ({
+        ok: true,
+        json: async () => ({ resultado: 'acreditado' })
+      })),
+      window: {
+        UPLOAD_ENDPOINT: 'https://api.demo.com/upload',
+        location: { origin: 'https://app.demo.com' },
+        __APP_CONFIG__: {}
+      },
       alert: jest.fn(),
       console: { warn: jest.fn() },
       firebase: { firestore: { FieldValue: { serverTimestamp: () => 'TS' } } }
@@ -289,14 +274,14 @@ describe('juegoactivo.html - acreditarPremioAhora con busqueda por eventoGanador
     expect(context.alert).not.toHaveBeenCalled();
     expect(context.cerrarModalCelebracionSiSinPendientes).toHaveBeenCalled();
     expect(whereEventoLimit).toHaveBeenCalledWith(1);
-    expect(txSetMock).toHaveBeenCalledWith(
-      expect.objectContaining({ __tipo: 'billeteraRef' }),
+    expect(context.fetch).toHaveBeenCalledWith(
+      'https://api.demo.com/acreditarPremioEvento',
       expect.objectContaining({
-        creditos: 74,
-        CartonesGratis: 3,
-        cartonesGratis: 3
-      }),
-      { merge: true }
+        method: 'POST',
+        headers: expect.objectContaining({
+          Authorization: 'Bearer token-ok'
+        })
+      })
     );
   });
 });

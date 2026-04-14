@@ -10693,7 +10693,6 @@
       let premioRef = null;
       let premioIdUsado = '';
       let billeteraIdPremio = billeteraId;
-      let billeteraRefObjetivo = db.collection('Billetera').doc(billeteraIdPremio);
 
       for(const billeteraCandidata of billeteraIds){
         const premiosCollectionRef = db.collection('Billetera').doc(billeteraCandidata).collection('premiosPendientesDirectos');
@@ -10704,7 +10703,6 @@
             premioRef = referencia;
             premioIdUsado = candidato;
             billeteraIdPremio = billeteraCandidata;
-            billeteraRefObjetivo = db.collection('Billetera').doc(billeteraIdPremio);
             break;
           }
         }
@@ -10724,7 +10722,6 @@
               premioRef = eventoSnap.docs[0].ref;
               premioIdUsado = eventoSnap.docs[0].id;
               billeteraIdPremio = billeteraCandidata;
-              billeteraRefObjetivo = db.collection('Billetera').doc(billeteraIdPremio);
               break;
             }
           }
@@ -10746,61 +10743,73 @@
               premioRef = claveSnap.docs[0].ref;
               premioIdUsado = claveSnap.docs[0].id;
               billeteraIdPremio = billeteraCandidata;
-              billeteraRefObjetivo = db.collection('Billetera').doc(billeteraIdPremio);
               break;
             }
           }
         }
       }
-      let acreditado = false;
+      const resolverBaseAcreditacion = ()=>{
+        const normalizar = (valor='')=>String(valor||'').trim().replace(/\/+$/,'');
+        if(typeof getAdminApiBase === 'function'){
+          const baseAdmin = normalizar(getAdminApiBase());
+          if(baseAdmin) return baseAdmin;
+        }
+        const uploadEndpoint = normalizar(window.UPLOAD_ENDPOINT || window.__APP_CONFIG__?.uploadEndpoint || '');
+        if(uploadEndpoint){
+          return uploadEndpoint.replace(/\/upload\/?$/,'');
+        }
+        const origin = normalizar(window.location?.origin || '');
+        return origin || '';
+      };
+      let resultadoAcreditacion = '';
       let premioYaNoDisponible = false;
-      let premioYaAcreditado = false;
       if(!premioRef){
         premioYaNoDisponible = true;
       }
       if(premioRef){
-        await db.runTransaction(async tx=>{
-          const [premioSnap, billeteraSnap] = await Promise.all([
-            tx.get(premioRef),
-            tx.get(billeteraRefObjetivo)
-          ]);
-        if(!premioSnap.exists){
-          premioYaNoDisponible = true;
-          return;
+        const apiBase = resolverBaseAcreditacion();
+        const user = auth?.currentUser || usuarioActual || null;
+        if(!apiBase || !user || typeof user.getIdToken !== 'function'){
+          throw new Error('No se pudo resolver API base o token para acreditar premio.');
         }
-        const premioData = premioSnap.data() || {};
-        const estadoPremio = (premioData?.estado || '').toString().trim().toLowerCase();
-        if(estadoPremio && estadoPremio !== 'pendiente'){
-          if(estadoPremio === 'acreditado'){
-            premioYaAcreditado = true;
-          }
-          premioYaNoDisponible = true;
-          return;
-        }
-        const data = billeteraSnap.exists ? (billeteraSnap.data() || {}) : {};
-        const creditosActual = Number(data.creditos) || 0;
-        const gratisActual = Number(data.CartonesGratis ?? data.cartonesGratis) || 0;
-        const creditosPremio = Math.max(0, Number(premioData?.creditos) || 0);
-        const cartonesPremio = Math.max(0, Number(premioData?.cartonesGratis) || 0);
-        const totalCartonesGratis = gratisActual + cartonesPremio;
-        tx.set(billeteraRefObjetivo,{
-          creditos: creditosActual + creditosPremio,
-          CartonesGratis: totalCartonesGratis,
-          cartonesGratis: totalCartonesGratis
-        },{ merge:true });
-        tx.set(premioRef, {
-          estado: 'acreditado',
-          acreditadoEn: firebase.firestore.FieldValue.serverTimestamp(),
-          acreditadoPor: billeteraId,
-          origen: 'juegoactivo:acreditar-ahora'
-        }, { merge: true });
-          acreditado = true;
+        const token = await user.getIdToken(true);
+        const eventoGanadorId = (detalle?.eventoGanadorId || '').toString().trim();
+        const res = await fetch(`${apiBase}/acreditarPremioEvento`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            premioId: premioIdUsado || premioRef.id || '',
+            eventoGanadorId: eventoGanadorId || null,
+            billeteraId: billeteraIdPremio || billeteraId || '',
+            sorteoId: (detalle?.sorteoId || activeSorteoId || '').toString(),
+            origen: 'frontend/juegoactivo/acreditar-ahora'
+          })
         });
+        const payload = await res.json().catch(()=>null);
+        if(!res.ok){
+          const code = (payload?.code || '').toString().trim();
+          if(code === 'PREMIO_YA_ACREDITADO' || (payload?.resultado || '').toString() === 'ya_acreditado'){
+            resultadoAcreditacion = 'ya_acreditado';
+          }else if(res.status === 404){
+            premioYaNoDisponible = true;
+          }else{
+            throw new Error((payload?.error || `HTTP ${res.status}`).toString());
+          }
+        }else{
+          resultadoAcreditacion = (payload?.resultado || '').toString().trim().toLowerCase();
+        }
       }
-      if(acreditado){
+      if(resultadoAcreditacion === 'acreditado'){
         botonEl?.closest('.celebracion-linea')?.remove();
         cerrarModalCelebracionSiSinPendientes();
-      }else if(premioYaAcreditado){
+      }else if(resultadoAcreditacion === 'ya_acreditado'){
+        if(botonEl){
+          botonEl.disabled = true;
+          botonEl.textContent = 'Ya acreditado';
+        }
         botonEl?.remove();
       }else if(premioYaNoDisponible && botonEl){
         console.warn('Premio pendiente no encontrado para acreditar', {

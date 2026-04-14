@@ -680,7 +680,8 @@ async function reconcileSinglePendingPrize({
   premioDoc,
   sorteoId,
   acreditadoPor,
-  origen
+  origen,
+  eventoGanadorId = ''
 }) {
   const premioId = normalizeString(premioDoc.id, 320).toLowerCase();
   if (!premioId) {
@@ -703,6 +704,10 @@ async function reconcileSinglePendingPrize({
     }
 
     const estadoActual = normalizePendingPrizeState(premioData.estado || 'pendiente');
+    const eventoGanadorIdPremio = normalizeString(
+      eventoGanadorId || premioData.eventoGanadorId,
+      320
+    );
     const creditos = Math.max(0, normalizeNumber(premioData.creditos));
     const cartones = Math.max(
       0,
@@ -733,6 +738,7 @@ async function reconcileSinglePendingPrize({
             acreditadoEn: premioData.acreditadoEn || admin.firestore.FieldValue.serverTimestamp(),
             acreditadoPor: premioData.acreditadoPor || acreditadoPor,
             origen: premioData.origen || origen,
+            eventoGanadorId: premioData.eventoGanadorId || eventoGanadorIdPremio || null,
             reconciliadoEn: admin.firestore.FieldValue.serverTimestamp(),
             reconciliadoPor: acreditadoPor
           },
@@ -746,6 +752,7 @@ async function reconcileSinglePendingPrize({
               acreditadoEn: premioData.acreditadoEn || admin.firestore.FieldValue.serverTimestamp(),
               acreditadoPor: premioData.acreditadoPor || acreditadoPor,
               origen: premioData.origen || origen,
+              eventoGanadorId: premioData.eventoGanadorId || eventoGanadorIdPremio || null,
               reconciliadoEn: admin.firestore.FieldValue.serverTimestamp(),
               reconciliadoPor: acreditadoPor
             },
@@ -784,6 +791,7 @@ async function reconcileSinglePendingPrize({
         acreditadoEn: admin.firestore.FieldValue.serverTimestamp(),
         acreditadoPor,
         origen,
+        eventoGanadorId: eventoGanadorIdPremio || null,
         reconciliadoEn: admin.firestore.FieldValue.serverTimestamp(),
         reconciliadoPor: acreditadoPor
       },
@@ -797,6 +805,7 @@ async function reconcileSinglePendingPrize({
           acreditadoEn: admin.firestore.FieldValue.serverTimestamp(),
           acreditadoPor,
           origen,
+          eventoGanadorId: eventoGanadorIdPremio || null,
           reconciliadoEn: admin.firestore.FieldValue.serverTimestamp(),
           reconciliadoPor: acreditadoPor
         },
@@ -812,6 +821,7 @@ async function reconcileSinglePendingPrize({
         estado: 'APROBADO',
         premioId,
         sorteoId,
+        eventoGanadorId: eventoGanadorIdPremio || null,
         IDbilletera: billeteraRef.id,
         Monto: creditos,
         cartonesGratis: cartones,
@@ -824,7 +834,7 @@ async function reconcileSinglePendingPrize({
       { merge: false }
     );
 
-    return { status: 'acreditado', premioId, creditos, cartones };
+    return { status: 'acreditado', premioId, creditos, cartones, eventoGanadorId: eventoGanadorIdPremio || null };
   });
 }
 
@@ -1838,6 +1848,7 @@ async function acreditarPremioEventoHandler(req, res) {
 
   const premioId = normalizeString(req.body?.premioId, 320).toLowerCase();
   const eventoGanadorId = normalizeString(req.body?.eventoGanadorId, 320);
+  const origenCliente = normalizeString(req.body?.origen, 160);
   const billeteraId = normalizeString(
     req.body?.billeteraId
     || req.body?.email
@@ -1935,12 +1946,32 @@ async function acreditarPremioEventoHandler(req, res) {
     }
 
     const acreditadoPor = normalizeString(req.user?.email, 200) || 'sistema:acreditar-premio-evento';
+    const origen = normalizeString(
+      origenCliente ? `backend/acreditarPremioEvento/${origenCliente}` : 'backend/acreditarPremioEvento',
+      220
+    );
     const result = await reconcileSinglePendingPrize({
       db,
       premioDoc,
       sorteoId,
       acreditadoPor,
-      origen: 'backend/acreditarPremioEvento'
+      origen,
+      eventoGanadorId
+    });
+
+    await db.collection('adminAccessAudit').add({
+      uid: req.user?.uid || null,
+      email: acreditadoPor,
+      role: req.user?.role || 'desconocido',
+      timestamp: admin.firestore.FieldValue.serverTimestamp(),
+      motivo: 'acreditar_premio_evento',
+      resultado: result?.status === 'acreditado' ? 'acreditado' : (result?.reason || 'omitido'),
+      premioId: result?.premioId || normalizeString(premioDoc.id, 320).toLowerCase(),
+      eventoGanadorId: normalizeString(eventoGanadorId || premioData.eventoGanadorId, 320) || null,
+      sorteoId,
+      billeteraId: premioDoc.ref?.parent?.parent?.id || billeteraId || null,
+      acreditadoPor,
+      origen
     });
 
     if (result?.status === 'acreditado') {
@@ -1950,7 +1981,9 @@ async function acreditarPremioEventoHandler(req, res) {
         idempotente: false,
         premioId: result.premioId,
         creditos: result.creditos,
-        cartones: result.cartones
+        cartones: result.cartones,
+        eventoGanadorId: result.eventoGanadorId || normalizeString(eventoGanadorId || premioData.eventoGanadorId, 320) || null,
+        billeteraId: premioDoc.ref?.parent?.parent?.id || billeteraId || null
       });
     }
 
@@ -1958,8 +1991,11 @@ async function acreditarPremioEventoHandler(req, res) {
       return res.json({
         status: 'ok',
         resultado: 'ya_acreditado',
+        code: 'PREMIO_YA_ACREDITADO',
         idempotente: true,
-        premioId: result.premioId || normalizeString(premioDoc.id, 320).toLowerCase()
+        premioId: result.premioId || normalizeString(premioDoc.id, 320).toLowerCase(),
+        eventoGanadorId: normalizeString(eventoGanadorId || premioData.eventoGanadorId, 320) || null,
+        billeteraId: premioDoc.ref?.parent?.parent?.id || billeteraId || null
       });
     }
 
