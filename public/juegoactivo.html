@@ -10103,13 +10103,27 @@
         return Number(Math.max(0, cartonesPorGanadorRaw).toFixed(6));
       }
       const totalManual=Number.isFinite(totalCartonesRaw) ? Math.max(0, totalCartonesRaw) : 0;
-      return Number(totalManual.toFixed(6));
+      let ganadoresManual=Number(totalGanadores);
+      if(!Number.isFinite(ganadoresManual)){
+        ganadoresManual=1;
+      }else{
+        ganadoresManual=Math.floor(ganadoresManual);
+      }
+      const totalSeguroManual=Math.max(1,ganadoresManual);
+      return Number((totalManual/totalSeguroManual).toFixed(6));
     }
     if(Number.isFinite(cartonesPorGanadorRaw)){
       return Number(Math.max(0, cartonesPorGanadorRaw).toFixed(6));
     }
     const totalCartones=Number.isFinite(totalCartonesRaw) ? Math.max(0,totalCartonesRaw) : 0;
-    return Number(totalCartones.toFixed(6));
+    let ganadoresNumero=Number(totalGanadores);
+    if(!Number.isFinite(ganadoresNumero)){
+      ganadoresNumero=1;
+    }else{
+      ganadoresNumero=Math.floor(ganadoresNumero);
+    }
+    const totalSeguro=Math.max(1,ganadoresNumero);
+    return Number((totalCartones/totalSeguro).toFixed(6));
   }
 
   function obtenerCartonesGratisTotalEntregados(forma,totalGanadores){

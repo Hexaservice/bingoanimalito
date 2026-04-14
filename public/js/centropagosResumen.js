@@ -9,8 +9,13 @@
     const idx = Number(registro.formaIdx);
     const formas = Array.isArray(registro.formasGanadoras) ? registro.formasGanadoras : [];
     const porIndice = Number.isInteger(idx) && idx >= 0 && idx < formas.length ? formas[idx] : null;
-    const etiqueta = (porIndice || '').toString().trim();
-    if(etiqueta) return etiqueta;
+    const etiquetaObjeto = (porIndice && typeof porIndice === 'object')
+      ? (porIndice.nombre || porIndice.label || porIndice.titulo || porIndice.forma || '')
+      : porIndice;
+    const etiqueta = (etiquetaObjeto || '').toString().trim();
+    if(etiqueta && etiqueta !== '[object Object]') return etiqueta;
+    const nombreDirecto = (registro.nombreForma || registro.nombre || registro.formaNombre || '').toString().trim();
+    if(nombreDirecto && nombreDirecto !== '[object Object]') return nombreDirecto;
     if(Number.isInteger(idx) && idx >= 0) return `Forma ${idx + 1}`;
     return 'Forma sin índice';
   }

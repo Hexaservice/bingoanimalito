@@ -632,6 +632,9 @@ async function executeAuthoritativeSorteoFinalization({ db, sorteoId, operadorEm
     if (!contrato.permitido) return contrato;
     tx.update(sorteoRef, {
       estado: 'Finalizado',
+      pdfresul: 'si',
+      resultadoPublicadoJugadores: 'si',
+      resultadoPublicadoEn: admin.firestore.FieldValue.serverTimestamp(),
       finalizadoEn: admin.firestore.FieldValue.serverTimestamp(),
       finalizadoPor: normalizeString(operadorEmail, 200) || 'desconocido'
     });
@@ -946,12 +949,12 @@ function computeWinnerPrizeAmounts(forma = {}, totalGanadores = 1) {
     : null;
   // Convención vigente:
   // - cartonesGratisPorGanador: valor explícito por ganador.
-  // - cartonesGratis: también se interpreta por ganador (no se divide entre ganadores).
+  // - cartonesGratis: total de la forma, se divide entre ganadores.
   const cartonesGratis = Math.max(
     0,
     cartonesPorGanador !== null
       ? cartonesPorGanador
-      : cartonesBase
+      : (cartonesBase / total)
   );
   return {
     creditos: Number(creditos.toFixed(6)),
