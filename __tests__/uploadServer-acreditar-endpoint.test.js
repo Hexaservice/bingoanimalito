@@ -28,7 +28,8 @@ function createFirestoreDouble({
   estadoSorteo = 'jugando',
   estadoPremioInicial = 'pendiente',
   userDocData = null,
-  collectionGroupDocs = []
+  collectionGroupDocs = [],
+  billeteraIdPremio = 'ganador@example.com'
 } = {}) {
   const state = {
     sorteo: { estado: estadoSorteo },
@@ -47,7 +48,7 @@ function createFirestoreDouble({
 
   const billeteraRef = {
     __kind: 'billetera-ref',
-    id: 'ganador@example.com',
+    id: billeteraIdPremio,
     collection: jest.fn((name) => ({
       doc: (id) => ({ __kind: `${name}-doc`, id })
     }))
@@ -77,9 +78,32 @@ function createFirestoreDouble({
               exists: String(walletId || '').toLowerCase() === String(billeteraRef.id || '').toLowerCase(),
               data: () => ({ ...state.billetera })
             })),
-            collection: jest.fn(() => ({
-              doc: jest.fn(() => premioRef)
-            }))
+            collection: jest.fn(() => {
+              const walletMatches = String(walletId || '').toLowerCase() === String(billeteraRef.id || '').toLowerCase();
+              return {
+                doc: jest.fn((id) => ({
+                  ...premioRef,
+                  id,
+                  get: jest.fn(async () => ({
+                    exists: walletMatches && String(id || '').toLowerCase() === String(state.premio.premioId || '').toLowerCase(),
+                    id,
+                    ref: premioRef,
+                    data: () => ({ ...state.premio })
+                  }))
+                })),
+                where: jest.fn((field, op, value) => ({
+                  limit: jest.fn(() => ({
+                    get: async () => {
+                      const matchesEvento = field === 'eventoGanadorId' && op === '==' && value === state.premio.eventoGanadorId;
+                      if (walletMatches && matchesEvento) {
+                        return { empty: false, docs: [premioRef], size: 1 };
+                      }
+                      return { empty: true, docs: [], size: 0 };
+                    }
+                  }))
+                }))
+              };
+            })
           }))
         };
       }
