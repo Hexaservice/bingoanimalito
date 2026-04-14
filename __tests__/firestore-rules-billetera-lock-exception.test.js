@@ -21,4 +21,9 @@ describe('firestore.rules - billetera y subcolección premiosPendientesDirectos'
     expect(rules).toContain('allow update, delete: if isSystemRequest();');
     expect(rules).not.toContain('hasPendingPrizeAccreditationMutationShape()');
   });
+
+  test('transacciones impide que jugador cree tipotrans premio por cliente', () => {
+    expect(rules).toContain("&& request.resource.data.tipotrans != 'premio')");
+    expect(rules).toContain("|| (isPrivilegedOperator() && request.resource.data.tipotrans == 'premio'))");
+  });
 });
