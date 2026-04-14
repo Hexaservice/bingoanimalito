@@ -10763,44 +10763,43 @@
       };
       let resultadoAcreditacion = '';
       let premioYaNoDisponible = false;
-      if(!premioRef){
-        premioYaNoDisponible = true;
+      const apiBase = resolverBaseAcreditacion();
+      const user = auth?.currentUser || usuarioActual || null;
+      if(!apiBase || !user || typeof user.getIdToken !== 'function'){
+        throw new Error('No se pudo resolver API base o token para acreditar premio.');
       }
-      if(premioRef){
-        const apiBase = resolverBaseAcreditacion();
-        const user = auth?.currentUser || usuarioActual || null;
-        if(!apiBase || !user || typeof user.getIdToken !== 'function'){
-          throw new Error('No se pudo resolver API base o token para acreditar premio.');
-        }
-        const token = await user.getIdToken(true);
-        const eventoGanadorId = (detalle?.eventoGanadorId || '').toString().trim();
-        const res = await fetch(`${apiBase}/acreditarPremioEvento`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`
-          },
-          body: JSON.stringify({
-            premioId: premioIdUsado || premioRef.id || '',
-            eventoGanadorId: eventoGanadorId || null,
-            billeteraId: billeteraIdPremio || billeteraId || '',
-            sorteoId: (detalle?.sorteoId || activeSorteoId || '').toString(),
-            origen: 'frontend/juegoactivo/acreditar-ahora'
-          })
-        });
-        const payload = await res.json().catch(()=>null);
-        if(!res.ok){
-          const code = (payload?.code || '').toString().trim();
-          if(code === 'PREMIO_YA_ACREDITADO' || (payload?.resultado || '').toString() === 'ya_acreditado'){
-            resultadoAcreditacion = 'ya_acreditado';
-          }else if(res.status === 404){
-            premioYaNoDisponible = true;
-          }else{
-            throw new Error((payload?.error || `HTTP ${res.status}`).toString());
-          }
+      const token = await user.getIdToken(true);
+      const eventoGanadorId = (detalle?.eventoGanadorId || '').toString().trim();
+      const premioId = premioIdUsado || premioRef?.id || '';
+      if(!premioId && !eventoGanadorId){
+        throw new Error('No hay premioId ni eventoGanadorId para acreditar premio pendiente.');
+      }
+      const res = await fetch(`${apiBase}/acreditarPremioEvento`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          premioId,
+          eventoGanadorId: eventoGanadorId || null,
+          billeteraId: billeteraIdPremio || billeteraId || '',
+          sorteoId: (detalle?.sorteoId || activeSorteoId || '').toString(),
+          origen: 'frontend/juegoactivo/acreditar-ahora'
+        })
+      });
+      const payload = await res.json().catch(()=>null);
+      if(!res.ok){
+        const code = (payload?.code || '').toString().trim();
+        if(code === 'PREMIO_YA_ACREDITADO' || (payload?.resultado || '').toString() === 'ya_acreditado'){
+          resultadoAcreditacion = 'ya_acreditado';
+        }else if(res.status === 404 && code === 'PREMIO_NO_EXISTE'){
+          premioYaNoDisponible = true;
         }else{
-          resultadoAcreditacion = (payload?.resultado || '').toString().trim().toLowerCase();
+          throw new Error((payload?.error || `HTTP ${res.status}`).toString());
         }
+      }else{
+        resultadoAcreditacion = (payload?.resultado || '').toString().trim().toLowerCase();
       }
       if(resultadoAcreditacion === 'acreditado'){
         botonEl?.closest('.celebracion-linea')?.remove();
