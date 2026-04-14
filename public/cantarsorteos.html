@@ -2255,6 +2255,8 @@
   let sincronizacionPremiosDirectosEnCurso = false;
   let firmaSincronizacionPremiosDirectos = '';
   let resumenUltimaSincronizacionPremiosDirectos = null;
+  let sincronizacionPremiosDirectosPendiente = false;
+  let sincronizacionPremiosDirectosRetryTimeout = null;
   function manejarAceptarConfirmacionCanto(){
     cerrarConfirmacionCanto(true);
   }
@@ -5149,6 +5151,10 @@
 
   async function sincronizarPremiosDirectosEnCaliente(formasNuevas = []){
     if(!premiosEngineV2Enabled || !currentSorteoId) return;
+    if(sincronizacionPremiosDirectosRetryTimeout){
+      clearTimeout(sincronizacionPremiosDirectosRetryTimeout);
+      sincronizacionPremiosDirectosRetryTimeout = null;
+    }
     const listaFormas = Array.from(new Set((Array.isArray(formasNuevas) ? formasNuevas : []).map(v=>Number(v)).filter(Number.isFinite))).sort((a,b)=>a-b);
     const firmaActual = `${currentSorteoId}::${listaFormas.join(',')}`;
     if(!listaFormas.length || (sincronizacionPremiosDirectosEnCurso && firmaSincronizacionPremiosDirectos === firmaActual)) return;
@@ -5176,12 +5182,32 @@
         formasNuevas: listaFormas,
         resumen: payload?.summary || null
       };
+      sincronizacionPremiosDirectosPendiente = false;
     }catch(error){
+      sincronizacionPremiosDirectosPendiente = true;
       console.warn('No se pudo sincronizar premios directos en caliente.', {
         sorteoId: currentSorteoId,
         formasNuevas: listaFormas,
         error: error?.message || error
       });
+      const reintentoSorteoId = currentSorteoId;
+      sincronizacionPremiosDirectosRetryTimeout = setTimeout(()=>{
+        if(!sincronizacionPremiosDirectosPendiente || reintentoSorteoId !== currentSorteoId){
+          return;
+        }
+        const formasPendientes = [];
+        cartonesGanadoresPorForma.forEach((registro, indice)=>{
+          const idxNumero = Number(indice);
+          if(!Number.isFinite(idxNumero)) return;
+          const total = Array.isArray(registro?.cartones) ? registro.cartones.length : 0;
+          if(total > 0){
+            formasPendientes.push(idxNumero);
+          }
+        });
+        if(formasPendientes.length){
+          sincronizarPremiosDirectosEnCaliente(formasPendientes);
+        }
+      }, 5000);
     }finally{
       sincronizacionPremiosDirectosEnCurso = false;
     }
@@ -5231,6 +5257,7 @@
     });
     if(formasNuevas.size){
       const formasNuevasLista = Array.from(formasNuevas);
+      sincronizacionPremiosDirectosPendiente = true;
       console.info('Se registran/visualizan ganadores y se sincroniza acreditación instantánea.', {
         sorteoId: currentSorteoId,
         formas: formasNuevasLista
@@ -5322,6 +5349,11 @@
     evaluandoCantoActual = false;
     nuevosGanadoresModalActivo = false;
     cartonesResultadoRegistrado = new Map();
+    sincronizacionPremiosDirectosPendiente = false;
+    if(sincronizacionPremiosDirectosRetryTimeout){
+      clearTimeout(sincronizacionPremiosDirectosRetryTimeout);
+      sincronizacionPremiosDirectosRetryTimeout = null;
+    }
     sincronizacionMetadatosNecesaria = false;
     if(sincronizacionMetadatosTimeout){
       clearTimeout(sincronizacionMetadatosTimeout);
