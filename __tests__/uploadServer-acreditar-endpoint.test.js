@@ -24,7 +24,12 @@ function makeRes() {
   };
 }
 
-function createFirestoreDouble({ estadoSorteo = 'jugando', estadoPremioInicial = 'pendiente' } = {}) {
+function createFirestoreDouble({
+  estadoSorteo = 'jugando',
+  estadoPremioInicial = 'pendiente',
+  userDocData = null,
+  collectionGroupDocs = []
+} = {}) {
   const state = {
     sorteo: { estado: estadoSorteo },
     premio: {
@@ -66,7 +71,12 @@ function createFirestoreDouble({ estadoSorteo = 'jugando', estadoPremioInicial =
     collection: jest.fn((name) => {
       if (name === 'Billetera') {
         return {
-          doc: jest.fn(() => ({
+          doc: jest.fn((walletId) => ({
+            id: walletId,
+            get: jest.fn(async () => ({
+              exists: String(walletId || '').toLowerCase() === String(billeteraRef.id || '').toLowerCase(),
+              data: () => ({ ...state.billetera })
+            })),
             collection: jest.fn(() => ({
               doc: jest.fn(() => premioRef)
             }))
@@ -98,17 +108,27 @@ function createFirestoreDouble({ estadoSorteo = 'jugando', estadoPremioInicial =
       if (name === 'users') {
         return {
           doc: jest.fn(() => ({
-            get: jest.fn(async () => ({ exists: false, data: () => ({}) }))
+            get: jest.fn(async () => ({
+              exists: !!userDocData,
+              data: () => ({ ...(userDocData || {}) })
+            }))
           }))
         };
       }
       return {};
     }),
-    collectionGroup: jest.fn(() => ({
-      where: jest.fn().mockReturnThis(),
-      limit: jest.fn().mockReturnThis(),
-      get: jest.fn().mockResolvedValue({ empty: true, docs: [], size: 0 })
-    })),
+    collectionGroup: jest.fn(() => {
+      const query = {
+        where: jest.fn().mockReturnThis(),
+        limit: jest.fn().mockReturnThis(),
+        get: jest.fn().mockResolvedValue({
+          empty: collectionGroupDocs.length === 0,
+          docs: collectionGroupDocs,
+          size: collectionGroupDocs.length
+        })
+      };
+      return query;
+    }),
     runTransaction: jest.fn(async (fn) => fn({
       get: jest.fn(async (target) => {
         if (target === premioRef) {
@@ -244,5 +264,76 @@ describe('endpoint /acreditarPremioEvento', () => {
     expect(state.billetera.creditos).toBe(saldoTrasPrimera);
     expect(state.transacciones.size).toBe(transaccionesTrasPrimera);
     expect(state.transacciones.size).toBe(1);
+  });
+
+  test('jugador autenticado sin email verificable responde 401', async () => {
+    process.env.PREMIOS_ENGINE_V2_ENABLED = 'true';
+    const admin = require('firebase-admin');
+    const { acreditarPremioEventoHandler } = require('../uploadServer.js');
+    const { db } = createFirestoreDouble();
+    admin.firestore.mockReturnValue(db);
+
+    const req = {
+      body: {
+        premioId: 'ppd_123',
+        sorteoId: 'sorteo-1'
+      },
+      headers: {},
+      user: { uid: 'uid-1', authScope: 'jugador' }
+    };
+    const res = makeRes();
+
+    await acreditarPremioEventoHandler(req, res);
+
+    expect(res.statusCode).toBe(401);
+    expect(res.body).toEqual(expect.objectContaining({
+      code: 'JUGADOR_EMAIL_REQUERIDO'
+    }));
+  });
+
+  test('jugador autenticado no puede acreditar premio de otra billetera', async () => {
+    process.env.PREMIOS_ENGINE_V2_ENABLED = 'true';
+    const admin = require('firebase-admin');
+    const { acreditarPremioEventoHandler } = require('../uploadServer.js');
+    const { db } = createFirestoreDouble({
+      userDocData: { uid: 'uid-jugador', IDbilletera: 'jugador@example.com', email: 'jugador@example.com' },
+      collectionGroupDocs: [{
+        id: 'ppd_123',
+        exists: true,
+        ref: {
+          parent: {
+            parent: {
+              id: 'otra-billetera@example.com'
+            }
+          }
+        },
+        data: () => ({
+          premioId: 'ppd_123',
+          sorteoId: 'sorteo-1',
+          estado: 'pendiente',
+          creditos: 10,
+          cartonesGratis: 1
+        })
+      }]
+    });
+    admin.firestore.mockReturnValue(db);
+
+    const req = {
+      body: {
+        premioId: 'ppd_123',
+        sorteoId: 'sorteo-1'
+      },
+      headers: {},
+      user: { uid: 'uid-jugador', email: 'jugador@example.com', authScope: 'jugador' }
+    };
+    const res = makeRes();
+
+    await acreditarPremioEventoHandler(req, res);
+
+    expect(res.statusCode).toBe(403);
+    expect(res.body).toEqual(expect.objectContaining({
+      code: 'PREMIO_NO_PERTENECE_JUGADOR',
+      billeteraId: 'jugador@example.com'
+    }));
   });
 });
