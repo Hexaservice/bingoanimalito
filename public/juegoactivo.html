@@ -10687,57 +10687,90 @@
     }
     try{
       const billeteraIdPremio = billeteraId;
-      const resolverBaseAcreditacion = ()=>{
-        const normalizar = (valor='')=>String(valor||'').trim().replace(/\/+$/,'');
-        if(typeof getAdminApiBase === 'function'){
-          const baseAdmin = normalizar(getAdminApiBase());
-          if(baseAdmin) return baseAdmin;
-        }
-        const uploadEndpoint = normalizar(window.UPLOAD_ENDPOINT || window.__APP_CONFIG__?.uploadEndpoint || '');
-        if(uploadEndpoint){
-          return uploadEndpoint.replace(/\/upload\/?$/,'');
-        }
-        const origin = normalizar(window.location?.origin || '');
-        return origin || '';
+      const normalizarApiBase = (valor='')=>{
+        const limpio = String(valor || '').trim();
+        if(!limpio) return '';
+        return limpio.replace(/\/upload\/?$/,'').replace(/\/+$/,'');
+      };
+      const construirApiBasesAcreditacion = ()=>{
+        const dominiosAutorizados = Array.isArray(window.__FIREBASE_AUTH_SETTINGS__?.authorizedDomains)
+          ? window.__FIREBASE_AUTH_SETTINGS__.authorizedDomains
+          : [];
+        const dominioPublicado = dominiosAutorizados
+          .map((item)=>String(item || '').trim().toLowerCase())
+          .find((dominio)=>
+            dominio &&
+            !dominio.includes('localhost') &&
+            !dominio.endsWith('.web.app') &&
+            !dominio.endsWith('.firebaseapp.com')
+          );
+        const candidatosDominioPublicado = dominioPublicado
+          ? [`https://${dominioPublicado}`, `https://www.${dominioPublicado.replace(/^www\./,'')}`]
+          : [];
+        const candidatas = [
+          typeof getAdminApiBase === 'function' ? normalizarApiBase(getAdminApiBase()) : '',
+          normalizarApiBase(window.UPLOAD_ENDPOINT || ''),
+          normalizarApiBase(window.__APP_CONFIG__?.uploadEndpoint || ''),
+          normalizarApiBase(window.location?.origin || ''),
+          ...candidatosDominioPublicado.map((url)=>normalizarApiBase(url))
+        ];
+        return Array.from(new Set(candidatas.filter(Boolean)));
       };
       let resultadoAcreditacion = '';
       let premioYaNoDisponible = false;
-      const apiBase = resolverBaseAcreditacion();
+      const apiBases = construirApiBasesAcreditacion();
       const user = auth?.currentUser || usuarioActual || null;
-      if(!apiBase || !user || typeof user.getIdToken !== 'function'){
+      if(!apiBases.length || !user || typeof user.getIdToken !== 'function'){
         throw new Error('No se pudo resolver API base o token para acreditar premio.');
       }
       const token = await user.getIdToken(true);
       const eventoGanadorId = (detalle?.eventoGanadorId || '').toString().trim();
-      if(!eventoGanadorId){
-        throw new Error('No hay eventoGanadorId para acreditar premio pendiente.');
+      const premioId = (detalle?.premioId || detalle?.clavePendiente || '').toString().trim();
+      if(!eventoGanadorId && !premioId){
+        throw new Error('No hay identificador de premio (eventoGanadorId/premioId) para acreditar.');
       }
-      const res = await fetch(`${apiBase}/acreditarPremioEvento`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          premioId: '',
-          eventoGanadorId: eventoGanadorId || null,
-          billeteraId: billeteraIdPremio || billeteraId || '',
-          sorteoId: (detalle?.sorteoId || activeSorteoId || '').toString(),
-          origen: 'frontend/juegoactivo/acreditar-ahora'
-        })
-      });
-      const payload = await res.json().catch(()=>null);
-      if(!res.ok){
-        const code = (payload?.code || '').toString().trim();
-        if(code === 'PREMIO_YA_ACREDITADO' || (payload?.resultado || '').toString() === 'ya_acreditado'){
-          resultadoAcreditacion = 'ya_acreditado';
-        }else if(res.status === 404 && code === 'PREMIO_NO_EXISTE'){
-          premioYaNoDisponible = true;
-        }else{
-          throw new Error((payload?.error || `HTTP ${res.status}`).toString());
+      let ultimoError = null;
+      for(const apiBase of apiBases){
+        try{
+          const res = await fetch(`${apiBase}/acreditarPremioEvento`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`
+            },
+            body: JSON.stringify({
+              premioId: premioId || null,
+              eventoGanadorId: eventoGanadorId || null,
+              billeteraId: billeteraIdPremio || billeteraId || '',
+              sorteoId: (detalle?.sorteoId || activeSorteoId || '').toString(),
+              origen: 'frontend/juegoactivo/acreditar-ahora'
+            })
+          });
+          const payload = await res.json().catch(()=>null);
+          if(!res.ok){
+            const code = (payload?.code || '').toString().trim();
+            if(code === 'PREMIO_YA_ACREDITADO' || (payload?.resultado || '').toString() === 'ya_acreditado'){
+              resultadoAcreditacion = 'ya_acreditado';
+              ultimoError = null;
+              break;
+            }
+            if(res.status === 404 && code === 'PREMIO_NO_EXISTE'){
+              premioYaNoDisponible = true;
+              ultimoError = null;
+              break;
+            }
+            ultimoError = new Error((payload?.error || `HTTP ${res.status}`).toString());
+            continue;
+          }
+          resultadoAcreditacion = (payload?.resultado || '').toString().trim().toLowerCase();
+          ultimoError = null;
+          break;
+        }catch(errorIntento){
+          ultimoError = errorIntento;
         }
-      }else{
-        resultadoAcreditacion = (payload?.resultado || '').toString().trim().toLowerCase();
+      }
+      if(ultimoError){
+        throw ultimoError;
       }
       if(resultadoAcreditacion === 'acreditado'){
         botonEl?.closest('.celebracion-linea')?.remove();

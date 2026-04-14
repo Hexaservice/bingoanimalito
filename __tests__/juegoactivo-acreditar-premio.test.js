@@ -202,7 +202,7 @@ describe('juegoactivo.html - acreditarPremioAhora sin premio local pero acredita
       'https://api.demo.com/acreditarPremioEvento',
       expect.objectContaining({
         method: 'POST',
-        body: expect.stringContaining('"premioId":""')
+        body: expect.stringContaining('"premioId":"clave-inexistente"')
       })
     );
     const requestBody = JSON.parse(context.fetch.mock.calls[0][1].body);
@@ -356,7 +356,7 @@ describe('juegoactivo.html - acreditarPremioAhora con contrato por eventoGanador
     );
     const requestBody = JSON.parse(context.fetch.mock.calls[0][1].body);
     expect(requestBody).toEqual(expect.objectContaining({
-      premioId: '',
+      premioId: 'clave-vieja-inexistente',
       eventoGanadorId: 'SRT-1__f2__usr:jugador@test.com::num:7',
       billeteraId: 'jugador@test.com'
     }));
