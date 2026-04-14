@@ -4403,7 +4403,14 @@
       return Number(Math.max(0, cartonesPorGanadorRaw).toFixed(6));
     }
     const totalCartones = Number.isFinite(totalCartonesRaw) ? Math.max(0, totalCartonesRaw) : 0;
-    return Number(totalCartones.toFixed(6));
+    let ganadoresNumero = Number(totalGanadores);
+    if(!Number.isFinite(ganadoresNumero)){
+      ganadoresNumero = 1;
+    }else{
+      ganadoresNumero = Math.floor(ganadoresNumero);
+    }
+    const totalSeguro = Math.max(1, ganadoresNumero);
+    return Number((totalCartones / totalSeguro).toFixed(6));
   }
 
   function obtenerCartonesGratisTotalesEntregados(forma,totalGanadores){
@@ -5140,6 +5147,46 @@
     return totales;
   }
 
+  async function sincronizarPremiosDirectosEnCaliente(formasNuevas = []){
+    if(!premiosEngineV2Enabled || !currentSorteoId) return;
+    const listaFormas = Array.from(new Set((Array.isArray(formasNuevas) ? formasNuevas : []).map(v=>Number(v)).filter(Number.isFinite))).sort((a,b)=>a-b);
+    const firmaActual = `${currentSorteoId}::${listaFormas.join(',')}`;
+    if(!listaFormas.length || (sincronizacionPremiosDirectosEnCurso && firmaSincronizacionPremiosDirectos === firmaActual)) return;
+    const usuario = auth?.currentUser || null;
+    const apiBase = resolverBaseApiAdministrativa();
+    if(!usuario || !apiBase) return;
+    sincronizacionPremiosDirectosEnCurso = true;
+    firmaSincronizacionPremiosDirectos = firmaActual;
+    try{
+      const token = await usuario.getIdToken(true);
+      const resp = await fetch(`${apiBase}/admin/generar-premios-pendientes-directos-oficiales`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ sorteoId: currentSorteoId })
+      });
+      const payload = await resp.json().catch(()=>null);
+      if(!resp.ok){
+        throw new Error(payload?.error || `HTTP ${resp.status}`);
+      }
+      resumenUltimaSincronizacionPremiosDirectos = {
+        sorteoId: currentSorteoId,
+        formasNuevas: listaFormas,
+        resumen: payload?.summary || null
+      };
+    }catch(error){
+      console.warn('No se pudo sincronizar premios directos en caliente.', {
+        sorteoId: currentSorteoId,
+        formasNuevas: listaFormas,
+        error: error?.message || error
+      });
+    }finally{
+      sincronizacionPremiosDirectosEnCurso = false;
+    }
+  }
+
   function revisarGanadoresNuevos({ mapaPrevio, longitudAnterior, longitudActual, esPrimerProcesamiento }){
     const anterior = Number(longitudAnterior) || 0;
     const actual = Number(longitudActual) || 0;
@@ -5183,10 +5230,12 @@
       }
     });
     if(formasNuevas.size){
-      console.info('Se registran/visualizan ganadores sin acreditación instantánea.', {
+      const formasNuevasLista = Array.from(formasNuevas);
+      console.info('Se registran/visualizan ganadores y se sincroniza acreditación instantánea.', {
         sorteoId: currentSorteoId,
-        formas: Array.from(formasNuevas)
+        formas: formasNuevasLista
       });
+      sincronizarPremiosDirectosEnCaliente(formasNuevasLista);
     }
     if(esPrimerProcesamiento || !nuevos.length) return;
     if(detallesGanadoresNuevos.length){
@@ -6977,7 +7026,7 @@
       const estaPublicado = pdfEstadoNormalizado === 'si'
         || (datos.cartonesJugandoPublicados || '').toString().trim().toLowerCase() === 'si';
       if(!estaPublicado){
-        const confirmarPublicacion = await preguntarAccionEstado('¿Confirmas que deseas PUBLICAR la ventana de cartones en juego para los jugadores?');
+        const confirmarPublicacion = await preguntarAccionEstado('¿Deseas publicar ventana de PDF a jugadores?');
         if(!confirmarPublicacion) return;
         const timestamp = firebase.firestore.FieldValue.serverTimestamp();
         const payloadPublicacion = {
@@ -6996,22 +7045,15 @@
           sorteos[indiceSorteo] = { ...sorteos[indiceSorteo], ...payloadPublicacion };
         }
         sincronizarDatosPdf({ ...datos, ...payloadPublicacion });
+        mostrarAvisoSimple('Ventana PDF publicada para jugadores. Usa el icono flotante para abrir la generación del PDF.', 'PDF publicado');
+        return;
       }
-
-      } catch (error) {
+      mostrarAvisoSimple('Esta ventana ya está publicada. Usa el icono flotante del botón PDF para abrir su generación.', 'PDF publicado');
+      return;
+    } catch (error) {
       console.error('Error consultando el estado del PDF', error);
       alert('Ocurrió un error al consultar el estado del documento PDF.');
       return;
-    }
-
-    try {
-      const destinoUrl = new URL('pdfsorteo.html', window.location.href);
-      destinoUrl.searchParams.set('s', currentSorteoId);
-      destinoUrl.searchParams.set('viewer', 'admin');
-      window.location.assign(destinoUrl.toString());
-    } catch (err) {
-      const fallback = `pdfsorteo.html?s=${encodeURIComponent(currentSorteoId)}&viewer=admin`;
-      window.location.href = fallback;
     }
   }
 
@@ -7466,6 +7508,18 @@
         return;
       }
       const detalleFinalizacion = resultadoFinalizacion?.detalle || {};
+      if(currentSorteoData){
+        currentSorteoData.estado = 'Finalizado';
+        currentSorteoData.pdfresul = 'si';
+      }
+      const indiceSorteoFinalizado = sorteos.findIndex(s=>s && s.id === currentSorteoId);
+      if(indiceSorteoFinalizado >= 0){
+        sorteos[indiceSorteoFinalizado] = {
+          ...sorteos[indiceSorteoFinalizado],
+          estado: 'Finalizado',
+          pdfresul: 'si'
+        };
+      }
       const formasSinGanadorBackend = Array.isArray(detalleFinalizacion?.formasSinGanador)
         ? detalleFinalizacion.formasSinGanador
         : [];
@@ -7480,9 +7534,11 @@
       }
       mensajeEl.textContent = resumenAcumulado?.montoCreditos
         ? `Sorteo finalizado. Se registró un acumulado de ${formatearNumero(resumenAcumulado.montoCreditos)} créditos.`
-        : 'Sorteo finalizado correctamente.';
+        : 'Sorteo finalizado correctamente. El PDF de resultados quedó publicado para jugadores.';
       finalizarBtn.classList.remove('attention');
       conservarLoteriasCacheEnSorteoActual();
+      actualizarBotones();
+      actualizarAnimaciones();
       registrarTelemetriaFinalizacion('cantarsorteos_finalizacion_exitosa', {
         ...contextoSeguroBase,
         acumuladoRegistrado: !!resumenAcumulado?.montoCreditos,

@@ -621,8 +621,7 @@
     <select id="cp-sorteo-selector" aria-label="Seleccionar sorteo para generar solicitudes">
       <option value="">Selecciona un sorteo</option>
     </select>
-    <button id="cp-generar-solicitudes" class="btn-pagos-pendientes" type="button">GENERAR PAGOS</button>
-    <button id="cp-acreditar-premios" class="btn-pagos-pendientes" type="button">ACREDITAR PREMIOS</button>
+    <button id="cp-procesar-premios-pagos" class="btn-pagos-pendientes" type="button">PROCESAR PREMIOS Y PAGOS</button>
   </div>
   <div id="cp-resumen-montos" aria-live="polite"></div>
   <section class="section" id="premios-section">
@@ -947,8 +946,8 @@
       );
       if(!confirmar) return;
 
-      const btn = document.getElementById('cp-acreditar-premios');
-      const textoOriginal = btn?.textContent || 'ACREDITAR PREMIOS';
+      const btn = document.getElementById('cp-procesar-premios-pagos');
+      const textoOriginal = btn?.textContent || 'PROCESAR PREMIOS Y PAGOS';
       try{
         if(btn){
           btn.disabled = true;
@@ -1052,8 +1051,8 @@
         alert('Debes seleccionar un sorteo para generar pagos.');
         return;
       }
-      const btn = document.getElementById('cp-generar-solicitudes');
-      const textoOriginal = btn?.textContent || 'GENERAR PAGOS';
+      const btn = document.getElementById('cp-procesar-premios-pagos');
+      const textoOriginal = btn?.textContent || 'PROCESAR PREMIOS Y PAGOS';
       try {
         generacionSolicitudesEnCurso = true;
         if(btn){
@@ -1100,6 +1099,20 @@
           btn.textContent = textoOriginal;
         }
       }
+    }
+
+    async function cpProcesarPremiosYPagosManual(){
+      if(generacionSolicitudesEnCurso) return;
+      await cpGenerarSolicitudesManual();
+      const sorteoId = cpObtenerSorteoIdObjetivo();
+      if(!sorteoId) return;
+      const sorteoData = await cpResolverDataSorteo(sorteoId);
+      const estadoSorteo = (sorteoData?.estado || '').toString().trim().toLowerCase();
+      if(estadoSorteo === 'finalizado'){
+        await cpAcreditarPremiosPendientesManual();
+      }
+      await cpRecargarTablasTrasGeneracion(sorteoId);
+      cpRenderResumenMontos(sorteoId);
     }
 
     function cpNormalizarNumero(valor){
@@ -2622,8 +2635,13 @@
       const idx = Number(registro.formaIdx);
       const formas = Array.isArray(registro.formasGanadoras) ? registro.formasGanadoras : [];
       const porIndice = Number.isInteger(idx) && idx >= 0 && idx < formas.length ? formas[idx] : null;
-      const etiqueta = (porIndice || '').toString().trim();
-      if(etiqueta) return etiqueta;
+      const etiquetaObjeto = (porIndice && typeof porIndice === 'object')
+        ? (porIndice.nombre || porIndice.label || porIndice.titulo || porIndice.forma || '')
+        : porIndice;
+      const etiqueta = (etiquetaObjeto || '').toString().trim();
+      if(etiqueta && etiqueta !== '[object Object]') return etiqueta;
+      const nombreDirecto = (registro.nombreForma || registro.nombre || registro.formaNombre || '').toString().trim();
+      if(nombreDirecto && nombreDirecto !== '[object Object]') return nombreDirecto;
       if(Number.isInteger(idx) && idx >= 0) return `Forma ${idx + 1}`;
       return 'Forma sin índice';
     }
@@ -3315,25 +3333,14 @@
           cpRenderResumenMontos(selectorSorteo.value);
         });
       }
-      const botonGenerarSolicitudes = document.getElementById('cp-generar-solicitudes');
-      if(botonGenerarSolicitudes){
-        botonGenerarSolicitudes.disabled = !premiosEngineV2Enabled;
-        botonGenerarSolicitudes.title = premiosEngineV2Enabled
-          ? 'Generar solicitudes de pagos'
+      const botonProcesarPremiosPagos = document.getElementById('cp-procesar-premios-pagos');
+      if(botonProcesarPremiosPagos){
+        botonProcesarPremiosPagos.disabled = !premiosEngineV2Enabled;
+        botonProcesarPremiosPagos.title = premiosEngineV2Enabled
+          ? 'Genera pagos administrativos y acredita premios pendientes del sorteo finalizado'
           : 'Deshabilitado por premiosEngineV2Enabled=false';
-        botonGenerarSolicitudes.addEventListener('click', async()=>{
-          await cpGenerarSolicitudesManual();
-          cpRenderResumenMontos(cpObtenerSorteoIdObjetivo());
-        });
-      }
-      const botonAcreditarPremios = document.getElementById('cp-acreditar-premios');
-      if(botonAcreditarPremios){
-        botonAcreditarPremios.disabled = !premiosEngineV2Enabled;
-        botonAcreditarPremios.title = premiosEngineV2Enabled
-          ? 'Acreditar de forma masiva los premios pendientes del sorteo finalizado'
-          : 'Deshabilitado por premiosEngineV2Enabled=false';
-        botonAcreditarPremios.addEventListener('click', async()=>{
-          await cpAcreditarPremiosPendientesManual();
+        botonProcesarPremiosPagos.addEventListener('click', async()=>{
+          await cpProcesarPremiosYPagosManual();
         });
       }
 
