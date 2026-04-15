@@ -3682,18 +3682,22 @@
       const forma = obtenerResumenForma(idx);
       const infoGanadores = cartonesGanadoresPorForma.get(idx) || {};
       const totalGanadores = Array.isArray(infoGanadores.cartones) ? infoGanadores.cartones.length : 0;
+      const cerrada = Boolean(obtenerRegistroFormaCerrada(idx));
       const color = obtenerColorParaForma(idx);
       refs.textoEl.textContent = `GF${idx}`;
       refs.contadorEl.textContent = String(totalGanadores);
       refs.boton.dataset.totalGanadores = String(totalGanadores);
+      refs.boton.dataset.cerrada = cerrada ? 'si' : 'no';
       refs.boton.style.setProperty('--forma-color', color);
       refs.boton.style.setProperty('--forma-color-borde', obtenerColorOscurecido(color, 0.7));
       refs.boton.style.setProperty('--forma-color-contador', obtenerColorOscurecido(color, 0.55));
       refs.boton.classList.toggle('con-ganadores', totalGanadores > 0);
+      refs.boton.classList.toggle('forma-cerrada', cerrada);
       const nombreForma = forma?.nombre ? `, ${forma.nombre}` : '';
       const descripcion = totalGanadores === 1 ? '1 cartón ganador' : `${totalGanadores} cartones ganadores`;
-      refs.boton.setAttribute('aria-label', `Ver cartones ganadores de la forma ${String(idx).padStart(2,'0')}${nombreForma}, ${descripcion}`);
-      refs.boton.title = `GF${idx}${nombreForma} (${descripcion})`;
+      const sufijoCerrada = cerrada ? ', forma cerrada oficialmente' : '';
+      refs.boton.setAttribute('aria-label', `Ver cartones ganadores de la forma ${String(idx).padStart(2,'0')}${nombreForma}, ${descripcion}${sufijoCerrada}`);
+      refs.boton.title = `GF${idx}${nombreForma} (${descripcion}${cerrada ? ' · cerrada oficialmente' : ''})`;
     });
   }
 
@@ -4470,39 +4474,75 @@
 
   function guardarLockGanadoresFormaTransaccional(idx, registro){
     if(!db || !currentSorteoId) return;
+    const usuario = auth?.currentUser || null;
+    if(!usuario || typeof fetch !== 'function') return;
     const idxNumero = Number(idx);
     const paso = Number(registro?.paso);
     const winnerKeys = Array.isArray(registro?.cartonClaves)
       ? registro.cartonClaves.map(item=>(item ?? '').toString().trim()).filter(Boolean)
       : [];
     if(!Number.isFinite(idxNumero) || !winnerKeys.length) return;
-    const docId = `${currentSorteoId}__f${idxNumero}`;
-    const lockRef = db.collection(COLECCION_LOCK_GANADORES_TIEMPO_REAL).doc(docId);
-    db.runTransaction(async tx=>{
-      const snap = await tx.get(lockRef);
-      const data = snap.exists ? (snap.data() || {}) : {};
-      const existingKeys = Array.isArray(data?.winnerKeys)
-        ? data.winnerKeys.map(item=>(item ?? '').toString().trim()).filter(Boolean)
-        : [];
-      if(existingKeys.length){
-        return;
-      }
-      tx.set(lockRef, {
-        sorteoId: currentSorteoId,
-        formaIdx: idxNumero,
-        cerrada: true,
-        pasoCierre: Number.isFinite(paso) ? paso : null,
-        winnerKeys,
-        cerradoEn: firebase.firestore.FieldValue.serverTimestamp(),
-        cerradoPor: (adminActual?.email || '').toString().trim().toLowerCase() || 'desconocido'
-      }, { merge: true });
-    }).catch(error=>{
-      console.warn('No fue posible persistir lock de ganadores por forma.', {
-        sorteoId: currentSorteoId,
-        idx: idxNumero,
-        error
+    const apiBase = resolverBaseApiAdministrativa();
+    if(!apiBase) return;
+    usuario.getIdToken(true)
+      .then(token=>fetch(`${apiBase}/admin/cerrar-forma-ganadora`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          sorteoId: currentSorteoId,
+          formaIdx: idxNumero,
+          winnerKeys,
+          pasoCierre: Number.isFinite(paso) ? paso : null
+        })
+      }))
+      .then(resp=>resp.json().catch(()=>null))
+      .then(payload=>{
+        if(!payload || typeof payload !== 'object') return;
+        const lockPayload = payload?.lock || null;
+        const lockKeys = Array.isArray(lockPayload?.winnerKeys)
+          ? lockPayload.winnerKeys.map(item=>(item ?? '').toString().trim()).filter(Boolean)
+          : [];
+        if(lockKeys.length){
+          ganadoresBloqueadosPorForma.set(idxNumero, {
+            paso: Number.isFinite(Number(lockPayload?.pasoCierre)) ? Number(lockPayload.pasoCierre) : (Number.isFinite(paso) ? paso : null),
+            cartonClaves: lockKeys,
+            cerradoEn: lockPayload?.cerradoEn || null
+          });
+        }
+      })
+      .catch(error=>{
+        console.warn('No fue posible persistir lock de ganadores por forma.', {
+          sorteoId: currentSorteoId,
+          idx: idxNumero,
+          error
+        });
       });
-    });
+  }
+
+  function obtenerRegistroFormaCerrada(idx){
+    const idxNumero = Number(idx);
+    if(!Number.isFinite(idxNumero)) return null;
+    const registro = ganadoresBloqueadosPorForma.get(idxNumero);
+    if(!registro || !Array.isArray(registro.cartonClaves) || !registro.cartonClaves.length){
+      return null;
+    }
+    return registro;
+  }
+
+  function resolverGanadoresFormaCerrada(idx, fallbackPaso = Infinity){
+    const registro = obtenerRegistroFormaCerrada(idx);
+    if(!registro){
+      return { cerrado: false, cartones: [], paso: fallbackPaso };
+    }
+    const paso = Number(registro?.paso);
+    return {
+      cerrado: true,
+      cartones: resolverCartonesGanadoresBloqueados(registro.cartonClaves),
+      paso: Number.isFinite(paso) ? paso : fallbackPaso
+    };
   }
 
   function calcularGanadores(){
@@ -4516,6 +4556,15 @@
     formasActivas.forEach(forma=>{
       const idx = Number(forma?.idx);
       if(!Number.isFinite(idx)) return;
+      const cierreCanonico = resolverGanadoresFormaCerrada(idx, Infinity);
+      if(cierreCanonico.cerrado){
+        cartonesGanadoresPorForma.set(idx, { forma, cartones: cierreCanonico.cartones, paso: cierreCanonico.paso, cerrada: true });
+        cierreCanonico.cartones.forEach(carton=>{
+          if(!formasPorCarton.has(carton.id)) formasPorCarton.set(carton.id, []);
+          formasPorCarton.get(carton.id).push({ forma, paso: cierreCanonico.paso });
+        });
+        return;
+      }
       const posiciones = obtenerPosicionesForma(forma);
       if(!posiciones.length){
         cartonesGanadoresPorForma.set(idx, { forma, cartones: [] });
@@ -4548,18 +4597,13 @@
           ganadores.push(carton);
         }
       });
-      const registroBloqueado = ganadoresBloqueadosPorForma.get(idx);
       let ganadoresFinales = ganadores;
       let pasoFinal = mejorPaso;
-      if(registroBloqueado && Array.isArray(registroBloqueado.cartonClaves) && registroBloqueado.cartonClaves.length){
-        ganadoresFinales = resolverCartonesGanadoresBloqueados(registroBloqueado.cartonClaves);
-        pasoFinal = Number.isFinite(Number(registroBloqueado.paso)) ? Number(registroBloqueado.paso) : mejorPaso;
-      }else if(ganadores.length && Number.isFinite(mejorPaso)){
+      if(ganadores.length && Number.isFinite(mejorPaso)){
         const lockForma = {
           paso: mejorPaso,
           cartonClaves: ganadores.map(item=>construirClaveCartonGanador(item)).filter(Boolean)
         };
-        ganadoresBloqueadosPorForma.set(idx, lockForma);
         guardarLockGanadoresFormaTransaccional(idx, lockForma);
       }
       cartonesGanadoresPorForma.set(idx, { forma, cartones: ganadoresFinales, paso: pasoFinal });
@@ -4967,9 +5011,12 @@
     if(!Number.isFinite(idxNumero)) return;
     const registro = cartonesGanadoresPorForma.get(idxNumero);
     const forma = registro?.forma || obtenerResumenForma(idxNumero) || { idx: idxNumero };
+    const formaCerrada = Boolean(obtenerRegistroFormaCerrada(idxNumero));
     const nombreForma = forma?.nombre ? forma.nombre : '';
     modalGanadoresTituloEl.textContent = `Ganadores Forma ${String(idxNumero).padStart(2,'0')}`;
-    modalGanadoresSubtituloEl.textContent = nombreForma;
+    modalGanadoresSubtituloEl.textContent = formaCerrada
+      ? `${nombreForma}${nombreForma ? ' · ' : ''}cerrada oficialmente`
+      : nombreForma;
     actualizarModalPremioForma(forma);
     modalGanadoresListaEl.innerHTML = '';
     modalGanadoresSinEl.textContent = '';
