@@ -7421,6 +7421,7 @@
     }
     const formaReferencia=(typeof forma==='object' && forma!==null)?forma:{idx: idxNumero};
     const totalGanadores=obtenerTotalGanadoresRegistrados(formaReferencia, totalGanadoresAlterno);
+    const formaCerrada = Boolean(obtenerRegistroFormaCerrada(ganadoresBloqueadosPorForma, idxNumero));
     const boton=document.createElement('button');
     boton.type='button';
     boton.className='carton-forma-accion';
@@ -7448,13 +7449,15 @@
     boton.style.setProperty('--forma-color-borde', colorOscurecido);
     boton.style.setProperty('--forma-color-contador', obtenerColorOscurecido(colorForma,0.55));
     boton.dataset.totalGanadores=String(totalGanadores);
+    boton.dataset.cerrada=formaCerrada ? 'si' : 'no';
     boton.classList.toggle('con-ganadores', totalGanadores>0);
+    boton.classList.toggle('forma-cerrada', formaCerrada);
     const nombre=(formaReferencia?.nombre||'').toString().trim();
     const referenciaNombre=nombre?`, ${nombre}`:'';
     const descripcionGanadores=totalGanadores===1?'1 cartón ganador':`${totalGanadores} cartones ganadores`;
-    boton.setAttribute('aria-label',`Ver cartones ganadores de la forma ${String(idxNumero).padStart(2,'0')}${referenciaNombre}, ${descripcionGanadores}`);
+    boton.setAttribute('aria-label',`Ver cartones ganadores de la forma ${String(idxNumero).padStart(2,'0')}${referenciaNombre}, ${descripcionGanadores}${formaCerrada ? ', forma cerrada oficialmente' : ''}`);
     const tituloBase=nombre?`Ganadores ${nombre}`:`Ganadores Forma ${String(idxNumero).padStart(2,'0')}`;
-    boton.title=`${tituloBase} (${descripcionGanadores})`;
+    boton.title=`${tituloBase} (${descripcionGanadores}${formaCerrada ? ' · cerrada oficialmente' : ''})`;
     const aliasGanadores=obtenerAliasGanadoresForma(formaReferencia);
     configurarTextoBotonGanadores({
       boton,
@@ -11331,6 +11334,7 @@
   function abrirModalGanadores(forma){
     if(!forma) return;
     const info=cartonesGanadoresPorForma.get(forma.idx);
+    const formaCerrada = Boolean(obtenerRegistroFormaCerrada(ganadoresBloqueadosPorForma, forma?.idx));
     const ganadores=info&&Array.isArray(info.cartones)?info.cartones:[];
     const restaurarSimulacion = modoSimulacionCartones;
     if(restaurarSimulacion){
@@ -11341,7 +11345,9 @@
       actualizarModalPremioForma(forma);
       const nombreBase=forma.nombre?forma.nombre:'';
       if(modalSubtituloEl){
-        modalSubtituloEl.textContent=nombreBase;
+        modalSubtituloEl.textContent=formaCerrada
+          ? `${nombreBase}${nombreBase ? ' · ' : ''}cerrada oficialmente`
+          : nombreBase;
         modalSubtituloEl.dataset.nombreBase=nombreBase;
       }
       modalListaEl.innerHTML='';
@@ -11868,6 +11874,17 @@
     return locksGanadoresCargaPromesa;
   }
 
+  function obtenerRegistroFormaCerrada(mapaBloqueados, formaIdx){
+    if(!esMapaValido(mapaBloqueados)) return null;
+    const idxNumero = Number(formaIdx);
+    if(!Number.isFinite(idxNumero)) return null;
+    const registro = mapaBloqueados.get(idxNumero);
+    if(!registro || !Array.isArray(registro.cartonClaves) || !registro.cartonClaves.length){
+      return null;
+    }
+    return registro;
+  }
+
   function calcularGanadoresEnMapa(mapa, formasExcluidas = new Set(), opciones = {}){
     const formasMapa=new Map();
     const ganadoresForma=new Map();
@@ -11891,6 +11908,20 @@
       const indiceForma=Number(forma.idx);
       if(formasBloqueadas.has(indiceForma)){
         ganadoresForma.set(forma.idx,{forma,cartones:[],paso:Infinity,totalGanadores:0});
+        return;
+      }
+      const registroBloqueado=obtenerRegistroFormaCerrada(mapaBloqueados, indiceForma);
+      if(registroBloqueado){
+        const resolucionBloqueada=resolverCartonesGanadoresBloqueados(mapa,registroBloqueado.cartonClaves);
+        const ganadoresFinales=Array.isArray(resolucionBloqueada?.cartones) ? resolucionBloqueada.cartones.filter(Boolean) : [];
+        const pasoBloqueado=Number(registroBloqueado.paso);
+        const pasoFinal=Number.isFinite(pasoBloqueado) ? pasoBloqueado : Infinity;
+        const totalGanadores=ganadoresFinales.length;
+        ganadoresForma.set(forma.idx,{forma,cartones:ganadoresFinales,paso:pasoFinal,totalGanadores,cerrada:true});
+        ganadoresFinales.forEach(carton=>{
+          if(!formasMapa.has(carton.id)) formasMapa.set(carton.id,[]);
+          formasMapa.get(carton.id).push({forma,paso:pasoFinal,totalGanadores,cerrada:true});
+        });
         return;
       }
       const posiciones=obtenerPosicionesNormalizadas(forma);
@@ -11922,30 +11953,12 @@
           ganadores.push(carton);
         }
       });
-      const registroBloqueado=mapaBloqueados?.get(indiceForma);
       let ganadoresFinales=ganadores;
       let pasoFinal=mejorPaso;
-      if(registroBloqueado && Array.isArray(registroBloqueado.cartonClaves) && registroBloqueado.cartonClaves.length){
-        const resolucionBloqueada=resolverCartonesGanadoresBloqueados(mapa,registroBloqueado.cartonClaves);
-        ganadoresFinales=Array.isArray(resolucionBloqueada?.cartones) ? resolucionBloqueada.cartones : [];
-        if(Array.isArray(resolucionBloqueada?.faltantes) && resolucionBloqueada.faltantes.length){
-          // Mantener el lock original y evitar introducir "ganadores nuevos"
-          // cuando aún no están todos los cartones bloqueados resolubles.
-          ganadoresFinales=ganadoresFinales.filter(Boolean);
-        }
-        const pasoBloqueado=Number(registroBloqueado.paso);
-        if(Number.isFinite(pasoBloqueado)){
-          pasoFinal=pasoBloqueado;
-        }
-      }else if(mapaBloqueados && ganadores.length && Number.isFinite(mejorPaso)){
+      if(mapaBloqueados && ganadores.length && Number.isFinite(mejorPaso)){
         const cartonClaves=ganadores.map(carton=>construirClaveCartonGanador(carton)).filter(Boolean);
         if(!cartonClaves.length){
           ganadoresFinales=[];
-        }else{
-        mapaBloqueados.set(indiceForma,{
-          paso:mejorPaso,
-          cartonClaves
-        });
         }
       }
       const totalGanadores=ganadoresFinales.length;

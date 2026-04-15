@@ -1204,6 +1204,74 @@ function normalizeWinnerRealtimeLockDoc(data = {}) {
   };
 }
 
+async function closeWinnerFormTransactional({
+  db,
+  sorteoId,
+  formaIdx,
+  winnerKeys,
+  pasoCierre = null,
+  cerradoPor = ''
+} = {}) {
+  const normalizedSorteoId = normalizeString(sorteoId, 120);
+  const parsedFormaIdx = Number(formaIdx);
+  const normalizedWinnerKeys = normalizeUniqueWinnerKeys(winnerKeys);
+  if (!db || !normalizedSorteoId || !Number.isFinite(parsedFormaIdx)) {
+    return {
+      ok: false,
+      status: 'invalid_input',
+      error: 'sorteoId y formaIdx son obligatorios'
+    };
+  }
+  if (!normalizedWinnerKeys.length) {
+    return {
+      ok: false,
+      status: 'invalid_input',
+      error: 'winnerKeys es obligatorio'
+    };
+  }
+
+  const closedBy = normalizeString(cerradoPor, 200).toLowerCase() || 'desconocido';
+  const normalizedPaso = Number(pasoCierre);
+  const docId = `${normalizedSorteoId}__f${parsedFormaIdx}`;
+  const lockRef = db.collection(WINNER_LOCKS_COLLECTION).doc(docId);
+
+  return db.runTransaction(async (tx) => {
+    const snap = await tx.get(lockRef);
+    const existing = snap.exists ? (snap.data() || {}) : {};
+    const existingLock = normalizeWinnerRealtimeLockDoc(existing);
+    if (existingLock && existingLock.cerrada) {
+      return {
+        ok: true,
+        status: 'already_closed',
+        docId,
+        lock: existingLock
+      };
+    }
+
+    const payload = {
+      sorteoId: normalizedSorteoId,
+      formaIdx: parsedFormaIdx,
+      cerrada: true,
+      winnerKeys: normalizedWinnerKeys,
+      pasoCierre: Number.isFinite(normalizedPaso) ? normalizedPaso : null,
+      cerradoEn: admin.firestore.FieldValue.serverTimestamp(),
+      cerradoPor: closedBy
+    };
+    tx.set(lockRef, payload, { merge: true });
+    return {
+      ok: true,
+      status: 'closed',
+      docId,
+      lock: {
+        formaIdx: parsedFormaIdx,
+        winnerKeys: normalizedWinnerKeys,
+        pasoCierre: Number.isFinite(normalizedPaso) ? normalizedPaso : null,
+        cerrada: true
+      }
+    };
+  });
+}
+
 async function resolveWinnerLocksForSorteo({ db, sorteoId, sorteoData = null } = {}) {
   const normalizedSorteoId = normalizeString(sorteoId, 120);
   if (!db || !normalizedSorteoId) return [];
@@ -2419,6 +2487,42 @@ app.post('/admin/finalizar-sorteo', verificarOperadorFinalizacion, async (req, r
   }
 });
 
+app.post('/admin/cerrar-forma-ganadora', verificarOperadorFinalizacion, async (req, res) => {
+  const sorteoId = normalizeString(req.body?.sorteoId, 120);
+  const formaIdx = Number(req.body?.formaIdx);
+  const winnerKeys = normalizeUniqueWinnerKeys(req.body?.winnerKeys ?? req.body?.cartonClaves);
+  const pasoCierre = Number(req.body?.pasoCierre ?? req.body?.paso);
+
+  if (!sorteoId || !Number.isFinite(formaIdx) || !winnerKeys.length) {
+    return res.status(400).json({
+      ok: false,
+      status: 'invalid_input',
+      error: 'sorteoId, formaIdx y winnerKeys son obligatorios'
+    });
+  }
+
+  try {
+    const result = await closeWinnerFormTransactional({
+      db: admin.firestore(),
+      sorteoId,
+      formaIdx,
+      winnerKeys,
+      pasoCierre: Number.isFinite(pasoCierre) ? pasoCierre : null,
+      cerradoPor: req.user?.email || 'desconocido'
+    });
+    const httpStatus = result?.status === 'already_closed' ? 200 : 201;
+    return res.status(httpStatus).json(result);
+  } catch (error) {
+    console.error('[cerrar-forma-ganadora] fallo', { sorteoId, formaIdx, error });
+    return res.status(500).json({
+      ok: false,
+      status: 'error',
+      error: 'No se pudo cerrar la forma ganadora',
+      message: error?.message || String(error)
+    });
+  }
+});
+
 app.post('/admin/generar-premios-pendientes-directos-oficiales', verificarToken, async (req, res) => {
   const sorteoId = normalizeString(req.body?.sorteoId, 120);
   if (!sorteoId) {
@@ -2838,6 +2942,7 @@ module.exports = {
   normalizeCartonWinnerKey,
   buildOfficialPendingPrizeId,
   computeWinnerPrizeAmounts,
+  closeWinnerFormTransactional,
   generatePendingDirectPrizesFromOfficialResults,
   resolveWinnerIdentity,
   acreditarPremioEventoHandler,
