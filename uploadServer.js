@@ -570,7 +570,7 @@ function computeLoadedResultBlocks(resultadosPorCelda = {}) {
   return loaded;
 }
 
-function getMissingWinnerForms(sorteoData = {}) {
+function getMissingWinnerForms(sorteoData = {}, { winnerFormIdxs = null } = {}) {
   const formas = Array.isArray(sorteoData?.formas) ? sorteoData.formas : [];
   const activeForms = formas
     .map((forma) => ({
@@ -578,10 +578,14 @@ function getMissingWinnerForms(sorteoData = {}) {
       nombre: normalizeString(forma?.nombre || `Forma ${forma?.idx}`, 120)
     }))
     .filter((forma) => Number.isFinite(forma.idx));
+  const winnerIdxSet = winnerFormIdxs instanceof Set
+    ? winnerFormIdxs
+    : new Set();
   const lock = (sorteoData?.ganadoresBloqueadosPorForma && typeof sorteoData.ganadoresBloqueadosPorForma === 'object')
     ? sorteoData.ganadoresBloqueadosPorForma
     : {};
   return activeForms.filter((forma) => {
+    if (winnerIdxSet.has(forma.idx)) return false;
     const lockEntry = lock[String(forma.idx)];
     const cartonClaves = normalizeUniqueWinnerKeys(lockEntry?.cartonClaves);
     return cartonClaves.length === 0;
@@ -597,14 +601,21 @@ function normalizeUniqueWinnerKeys(rawKeys) {
   ));
 }
 
-function buildFinalizationContract({ sorteoData = {}, cantosData = {} } = {}) {
+function buildFinalizationContract({
+  sorteoData = {},
+  cantosData = {},
+  loteriasConfig = null,
+  winnerFormIdxs = null
+} = {}) {
   const estado = normalizeString(sorteoData?.estado, 40).toLowerCase();
-  const missingWinnerForms = getMissingWinnerForms(sorteoData);
+  const missingWinnerForms = getMissingWinnerForms(sorteoData, { winnerFormIdxs });
   const totalMissingWinners = missingWinnerForms.length;
   const allFormsHaveWinners = totalMissingWinners === 0;
-  const loterias = Array.isArray(sorteoData?.loterias)
-    ? sorteoData.loterias
-    : (Array.isArray(sorteoData?.loteriasAsignadas) ? sorteoData.loteriasAsignadas : []);
+  const loterias = Array.isArray(loteriasConfig)
+    ? loteriasConfig
+    : (Array.isArray(sorteoData?.loterias)
+      ? sorteoData.loterias
+      : (Array.isArray(sorteoData?.loteriasAsignadas) ? sorteoData.loteriasAsignadas : []));
   const requiredResults = computeRequiredResultBlocks(loterias);
   const loadedResults = computeLoadedResultBlocks(cantosData?.resultadosPorCelda);
   const resultsComplete = requiredResults === 0 || loadedResults >= requiredResults;
@@ -652,6 +663,56 @@ function buildFinalizationContract({ sorteoData = {}, cantosData = {} } = {}) {
   };
 }
 
+async function resolveSorteoLoteriasForFinalization({ tx, db, sorteoData = {} } = {}) {
+  const inlineLoterias = Array.isArray(sorteoData?.loterias) ? sorteoData.loterias : [];
+  const configuredLoterias = inlineLoterias.filter((item) => item && typeof item === 'object' && !Array.isArray(item));
+  if (configuredLoterias.length) return configuredLoterias;
+
+  const loteriaIds = Array.isArray(sorteoData?.loteriasAsignadas)
+    ? sorteoData.loteriasAsignadas
+      .map((item) => normalizeString(item, 120))
+      .filter(Boolean)
+    : [];
+  if (!loteriaIds.length || !db) return configuredLoterias;
+
+  const docs = await Promise.all(loteriaIds.map((id) => {
+    const ref = db.collection('loterias').doc(id);
+    if (tx && typeof tx.get === 'function') return tx.get(ref);
+    return ref.get();
+  }));
+  const loterias = [];
+  docs.forEach((docSnap) => {
+    if (!docSnap?.exists) return;
+    const data = docSnap.data() || {};
+    loterias.push({ id: docSnap.id, ...data });
+  });
+  return loterias;
+}
+
+async function resolveWinnerFormIdxsFromRealtime({ tx, db, sorteoId } = {}) {
+  const normalizedSorteoId = normalizeString(sorteoId, 120);
+  if (!normalizedSorteoId || !db) return new Set();
+  const collectionRef = db.collection('GanadoresSorteosTiempoReal');
+  if (!collectionRef || typeof collectionRef.where !== 'function') return new Set();
+  const query = collectionRef.where('sorteoId', '==', normalizedSorteoId);
+  const snap = tx && typeof tx.get === 'function'
+    ? await tx.get(query)
+    : await query.get();
+  const winnerIdxs = new Set();
+  snap.forEach((doc) => {
+    const data = doc.data() || {};
+    const idx = Number(
+      data?.formaIdx
+      ?? data?.idx
+      ?? data?.forma?.idx
+      ?? data?.formaIndice
+      ?? data?.formaId
+    );
+    if (Number.isFinite(idx)) winnerIdxs.add(idx);
+  });
+  return winnerIdxs;
+}
+
 async function executeAuthoritativeSorteoFinalization({ db, sorteoId, operadorEmail }) {
   const normalizedSorteoId = normalizeString(sorteoId, 120);
   if (!normalizedSorteoId) {
@@ -674,7 +735,16 @@ async function executeAuthoritativeSorteoFinalization({ db, sorteoId, operadorEm
     }
     const sorteoData = sorteoSnap.data() || {};
     const cantosData = cantosSnap.exists ? (cantosSnap.data() || {}) : {};
-    const contrato = buildFinalizationContract({ sorteoData, cantosData });
+    const [loteriasConfig, winnerFormIdxs] = await Promise.all([
+      resolveSorteoLoteriasForFinalization({ tx, db, sorteoData }),
+      resolveWinnerFormIdxsFromRealtime({ tx, db, sorteoId: normalizedSorteoId })
+    ]);
+    const contrato = buildFinalizationContract({
+      sorteoData,
+      cantosData,
+      loteriasConfig,
+      winnerFormIdxs
+    });
     if (!contrato.permitido) return contrato;
     tx.update(sorteoRef, {
       estado: 'Finalizado',

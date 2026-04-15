@@ -56,6 +56,55 @@ describe('finalización autoritativa de sorteo', () => {
     expect(contrato.detalle.totalFormasSinGanador).toBe(1);
   });
 
+  test('usa configuración de loterías resuelta para evitar bloquear cuando loteriasAsignadas solo tiene ids', () => {
+    const { buildFinalizationContract } = require('../uploadServer.js');
+
+    const contrato = buildFinalizationContract({
+      sorteoData: {
+        estado: 'Jugando',
+        formas: [{ idx: 1, nombre: 'Linea' }],
+        ganadoresBloqueadosPorForma: {},
+        loteriasAsignadas: ['zulia']
+      },
+      cantosData: {
+        resultadosPorCelda: {
+          'zulia_08:00': { exacta: '12' }
+        }
+      },
+      loteriasConfig: [
+        { id: 'zulia', bloquesHorarios: ['08:00'], mostrarBloquesIntermedios: false }
+      ]
+    });
+
+    expect(contrato.permitido).toBe(true);
+    expect(contrato.detalle.totalResultadosRequeridos).toBe(1);
+    expect(contrato.detalle.totalResultadosCargados).toBe(1);
+  });
+
+  test('considera ganadores por forma de GanadoresSorteosTiempoReal aunque falte lock en sorteo', () => {
+    const { buildFinalizationContract } = require('../uploadServer.js');
+
+    const contrato = buildFinalizationContract({
+      sorteoData: {
+        estado: 'Jugando',
+        formas: [{ idx: 1, nombre: 'Linea' }, { idx: 2, nombre: 'Bingo' }],
+        ganadoresBloqueadosPorForma: {
+          '1': { cartonClaves: ['usr:a::num:1'] }
+        },
+        loterias: [{ id: 'l1', bloquesHorarios: ['08:00'] }]
+      },
+      cantosData: {
+        resultadosPorCelda: {
+          'l1_08:00': { exacta: null }
+        }
+      },
+      winnerFormIdxs: new Set([2])
+    });
+
+    expect(contrato.permitido).toBe(true);
+    expect(contrato.detalle.totalFormasSinGanador).toBe(0);
+  });
+
   test('serializa concurrencia: solo la primera finalización cambia estado', async () => {
     jest.resetModules();
     const { executeAuthoritativeSorteoFinalization } = require('../uploadServer.js');
