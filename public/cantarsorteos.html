@@ -2180,6 +2180,8 @@
   let cartonesGanadoresPorForma = new Map();
   let ganadoresBloqueadosPorForma = new Map();
   const CAMPO_LOCK_GANADORES_FORMA = 'ganadoresBloqueadosPorForma';
+  const COLECCION_LOCK_GANADORES_TIEMPO_REAL = 'GanadoresSorteosTiempoReal';
+  const FEATURE_LEGACY_LOCK_GANADORES_READ = (window.__APP_CONFIG__?.winnerLocksLegacyReadEnabled ?? true) !== false;
   let cantosOrdenados = [];
   let cantosIndiceMap = new Map();
   let cantosResultadoMap = new Map();
@@ -4421,17 +4423,45 @@
     return payload;
   }
 
+
+  function normalizarLockGanadoresDesdeRealtimeDocs(docs = []){
+    const locks = new Map();
+    if(!Array.isArray(docs)) return locks;
+    docs.forEach(data=>{
+      if(!data || typeof data !== 'object') return;
+      const idx = Number(data?.formaIdx ?? data?.idx ?? data?.forma?.idx);
+      const winnerKeys = Array.isArray(data?.winnerKeys)
+        ? data.winnerKeys.map(item=>(item ?? '').toString().trim()).filter(Boolean)
+        : [];
+      if(!Number.isFinite(idx) || !winnerKeys.length) return;
+      const paso = Number(data?.pasoCierre ?? data?.paso);
+      locks.set(idx, {
+        paso: Number.isFinite(paso) ? paso : null,
+        cartonClaves: winnerKeys,
+        cerradoEn: data?.cerradoEn ?? null
+      });
+    });
+    return locks;
+  }
+
   async function cargarLocksGanadoresRemotos(sorteoId = currentSorteoId){
     if(!db || !sorteoId) return;
     try{
-      const doc = await db.collection('sorteos').doc(sorteoId).get();
-      if(!doc.exists){
-        ganadoresBloqueadosPorForma = new Map();
+      const snap = await db.collection(COLECCION_LOCK_GANADORES_TIEMPO_REAL)
+        .where('sorteoId', '==', sorteoId)
+        .get();
+      if(!snap.empty){
+        const docs = snap.docs.map(doc=>doc.data() || {});
+        ganadoresBloqueadosPorForma = normalizarLockGanadoresDesdeRealtimeDocs(docs);
         return;
       }
-      const data = doc.data() || {};
-      ganadoresBloqueadosPorForma = normalizarLockGanadoresDesdeFuente(data?.[CAMPO_LOCK_GANADORES_FORMA]);
-
+      if(FEATURE_LEGACY_LOCK_GANADORES_READ){
+        const doc = await db.collection('sorteos').doc(sorteoId).get();
+        const data = doc.exists ? (doc.data() || {}) : {};
+        ganadoresBloqueadosPorForma = normalizarLockGanadoresDesdeFuente(data?.[CAMPO_LOCK_GANADORES_FORMA]);
+        return;
+      }
+      ganadoresBloqueadosPorForma = new Map();
     }catch(err){
       console.warn('No se pudieron cargar locks remotos de ganadores por forma.', err);
       ganadoresBloqueadosPorForma = new Map();
@@ -4442,28 +4472,30 @@
     if(!db || !currentSorteoId) return;
     const idxNumero = Number(idx);
     const paso = Number(registro?.paso);
-    const cartonClaves = Array.isArray(registro?.cartonClaves)
+    const winnerKeys = Array.isArray(registro?.cartonClaves)
       ? registro.cartonClaves.map(item=>(item ?? '').toString().trim()).filter(Boolean)
       : [];
-    if(!Number.isFinite(idxNumero) || !cartonClaves.length) return;
-    const sorteoRef = db.collection('sorteos').doc(currentSorteoId);
+    if(!Number.isFinite(idxNumero) || !winnerKeys.length) return;
+    const docId = `${currentSorteoId}__f${idxNumero}`;
+    const lockRef = db.collection(COLECCION_LOCK_GANADORES_TIEMPO_REAL).doc(docId);
     db.runTransaction(async tx=>{
-      const snap = await tx.get(sorteoRef);
-      if(!snap.exists) return;
-      const data = snap.data() || {};
-      const locksActuales = normalizarLockGanadoresDesdeFuente(data?.[CAMPO_LOCK_GANADORES_FORMA]);
-      const existente = locksActuales.get(idxNumero);
-      if(existente && Array.isArray(existente.cartonClaves) && existente.cartonClaves.length){
+      const snap = await tx.get(lockRef);
+      const data = snap.exists ? (snap.data() || {}) : {};
+      const existingKeys = Array.isArray(data?.winnerKeys)
+        ? data.winnerKeys.map(item=>(item ?? '').toString().trim()).filter(Boolean)
+        : [];
+      if(existingKeys.length){
         return;
       }
-      locksActuales.set(idxNumero, {
-        paso: Number.isFinite(paso) ? paso : null,
-        cartonClaves,
-        cerradoEn: firebase.firestore.FieldValue.serverTimestamp()
-      });
-      tx.update(sorteoRef, {
-        [CAMPO_LOCK_GANADORES_FORMA]: serializarGanadoresBloqueadosPorForma(locksActuales)
-      });
+      tx.set(lockRef, {
+        sorteoId: currentSorteoId,
+        formaIdx: idxNumero,
+        cerrada: true,
+        pasoCierre: Number.isFinite(paso) ? paso : null,
+        winnerKeys,
+        cerradoEn: firebase.firestore.FieldValue.serverTimestamp(),
+        cerradoPor: (adminActual?.email || '').toString().trim().toLowerCase() || 'desconocido'
+      }, { merge: true });
     }).catch(error=>{
       console.warn('No fue posible persistir lock de ganadores por forma.', {
         sorteoId: currentSorteoId,

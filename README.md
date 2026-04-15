@@ -170,6 +170,39 @@ A partir de este cambio, el contrato operativo para premios es:
 
 Este contrato reduce superficie de fraude y centraliza trazabilidad de acreditaciones en backend.
 
+### Ventana temporal de compatibilidad para locks de ganadores por forma
+
+La colección canónica para cierres por forma ganadora es `GanadoresSorteosTiempoReal` con documentos por id `sorteoId__f{idx}`.
+
+Mientras se completa el retiro del campo legacy `sorteos/{id}.ganadoresBloqueadosPorForma`, se mantiene **solo lectura** de fallback controlada por flag:
+
+- Backend (`uploadServer.js`): `WINNER_LOCKS_LEGACY_READ_ENABLED=true` (default) permite fallback de lectura del campo legacy cuando aún no hay docs en `GanadoresSorteosTiempoReal`.
+- Frontend (`window.__APP_CONFIG__`): `winnerLocksLegacyReadEnabled: true` (default) habilita el mismo fallback temporal.
+
+#### Script de migración y limpieza
+
+1. Validar impacto en seco:
+
+```bash
+npm run migrar:ganadores-locks-realtime -- --dry-run true
+```
+
+2. Copiar locks legacy al formato canónico:
+
+```bash
+npm run migrar:ganadores-locks-realtime -- --dry-run false
+```
+
+3. Retirar campo legacy en la misma pasada (cuando corresponda):
+
+```bash
+npm run migrar:ganadores-locks-realtime -- --dry-run false --remove-legacy true
+```
+
+4. Cerrar ventana temporal de compatibilidad:
+   - Backend: `WINNER_LOCKS_LEGACY_READ_ENABLED=false`
+   - Frontend runtime: `winnerLocksLegacyReadEnabled: false`
+
 ### Ventana de seguridad temporal para desactivar/activar espejo legacy de premios directos
 
 Para retirar la doble escritura sobre `Billetera/{email}/premiosPagosdirectos` sin perder capacidad de rollback inmediato, `uploadServer.js` usa el flag runtime:

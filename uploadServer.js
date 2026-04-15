@@ -21,6 +21,8 @@ const {
 const requiredEnv = ['GOOGLE_APPLICATION_CREDENTIALS', 'FIREBASE_STORAGE_BUCKET'];
 const PREMIOS_ENGINE_V2_ENABLED = String(process.env.PREMIOS_ENGINE_V2_ENABLED || 'false').trim().toLowerCase() === 'true';
 const PREMIOS_PAGOS_DIRECTOS_MIRROR_ENABLED = String(process.env.PREMIOS_PAGOS_DIRECTOS_MIRROR_ENABLED || 'false').trim().toLowerCase() === 'true';
+const WINNER_LOCKS_LEGACY_READ_ENABLED = String(process.env.WINNER_LOCKS_LEGACY_READ_ENABLED || 'true').trim().toLowerCase() !== 'false';
+const WINNER_LOCKS_COLLECTION = 'GanadoresSorteosTiempoReal';
 
 function getMissingRequiredEnv(env = process.env) {
   return requiredEnv.filter((name) => !env[name]);
@@ -601,15 +603,7 @@ function getMissingWinnerForms(sorteoData = {}, { winnerFormIdxs = null } = {}) 
   const winnerIdxSet = winnerFormIdxs instanceof Set
     ? winnerFormIdxs
     : new Set();
-  const lock = (sorteoData?.ganadoresBloqueadosPorForma && typeof sorteoData.ganadoresBloqueadosPorForma === 'object')
-    ? sorteoData.ganadoresBloqueadosPorForma
-    : {};
-  return activeForms.filter((forma) => {
-    if (winnerIdxSet.has(forma.idx)) return false;
-    const lockEntry = lock[String(forma.idx)];
-    const cartonClaves = normalizeUniqueWinnerKeys(lockEntry?.cartonClaves);
-    return cartonClaves.length === 0;
-  });
+  return activeForms.filter((forma) => !winnerIdxSet.has(forma.idx));
 }
 
 function normalizeUniqueWinnerKeys(rawKeys) {
@@ -628,7 +622,22 @@ function buildFinalizationContract({
   winnerFormIdxs = null
 } = {}) {
   const estado = normalizeString(sorteoData?.estado, 40).toLowerCase();
-  const missingWinnerForms = getMissingWinnerForms(sorteoData, { winnerFormIdxs });
+  const effectiveWinnerFormIdxs = winnerFormIdxs instanceof Set
+    ? new Set(winnerFormIdxs)
+    : new Set();
+  if (WINNER_LOCKS_LEGACY_READ_ENABLED) {
+    const legacyRaw = sorteoData?.ganadoresBloqueadosPorForma;
+    if (legacyRaw && typeof legacyRaw === 'object') {
+      Object.entries(legacyRaw).forEach(([idxRaw, value]) => {
+        const idx = Number(idxRaw);
+        if (!Number.isFinite(idx)) return;
+        const winnerKeys = normalizeUniqueWinnerKeys(value?.cartonClaves ?? value?.winnerKeys);
+        if (!winnerKeys.length) return;
+        effectiveWinnerFormIdxs.add(idx);
+      });
+    }
+  }
+  const missingWinnerForms = getMissingWinnerForms(sorteoData, { winnerFormIdxs: effectiveWinnerFormIdxs });
   const totalMissingWinners = missingWinnerForms.length;
   const allFormsHaveWinners = totalMissingWinners === 0;
   const loterias = Array.isArray(loteriasConfig)
@@ -710,28 +719,54 @@ async function resolveSorteoLoteriasForFinalization({ tx, db, sorteoData = {} } 
   return loterias;
 }
 
-async function resolveWinnerFormIdxsFromRealtime({ tx, db, sorteoId } = {}) {
+async function resolveWinnerFormIdxsFromRealtime({ tx, db, sorteoId, sorteoData = null } = {}) {
   const normalizedSorteoId = normalizeString(sorteoId, 120);
-  if (!normalizedSorteoId || !db) return new Set();
-  const collectionRef = db.collection('GanadoresSorteosTiempoReal');
-  if (!collectionRef || typeof collectionRef.where !== 'function') return new Set();
-  const query = collectionRef.where('sorteoId', '==', normalizedSorteoId);
-  const snap = tx && typeof tx.get === 'function'
-    ? await tx.get(query)
-    : await query.get();
   const winnerIdxs = new Set();
-  snap.forEach((doc) => {
-    const data = doc.data() || {};
-    const idx = Number(
-      data?.formaIdx
-      ?? data?.idx
-      ?? data?.forma?.idx
-      ?? data?.formaIndice
-      ?? data?.formaId
-    );
-    if (Number.isFinite(idx)) winnerIdxs.add(idx);
-  });
-  return winnerIdxs;
+  if (!normalizedSorteoId || !db) return winnerIdxs;
+
+  const appendLegacyWinnerIdxs = () => {
+    if (!WINNER_LOCKS_LEGACY_READ_ENABLED || !sorteoData || typeof sorteoData !== 'object') return;
+    const legacyRaw = sorteoData?.ganadoresBloqueadosPorForma;
+    if (!legacyRaw || typeof legacyRaw !== 'object') return;
+    Object.entries(legacyRaw).forEach(([idxRaw, value]) => {
+      const idx = Number(idxRaw);
+      if (!Number.isFinite(idx)) return;
+      const winnerKeys = normalizeUniqueWinnerKeys(value?.cartonClaves ?? value?.winnerKeys);
+      if (!winnerKeys.length) return;
+      winnerIdxs.add(idx);
+    });
+  };
+
+  try {
+    const collectionRef = db.collection(WINNER_LOCKS_COLLECTION);
+    if (!collectionRef || typeof collectionRef.where !== 'function') {
+      appendLegacyWinnerIdxs();
+      return winnerIdxs;
+    }
+    const query = collectionRef.where('sorteoId', '==', normalizedSorteoId);
+    const snap = tx && typeof tx.get === 'function'
+      ? await tx.get(query)
+      : await query.get();
+    snap.forEach((doc) => {
+      const data = doc.data() || {};
+      const idx = Number(
+        data?.formaIdx
+        ?? data?.idx
+        ?? data?.forma?.idx
+        ?? data?.formaIndice
+        ?? data?.formaId
+      );
+      if (!Number.isFinite(idx)) return;
+      const winnerKeys = normalizeUniqueWinnerKeys(data?.winnerKeys ?? data?.cartonClaves);
+      if (!winnerKeys.length) return;
+      winnerIdxs.add(idx);
+    });
+    if (!winnerIdxs.size) appendLegacyWinnerIdxs();
+    return winnerIdxs;
+  } catch (_error) {
+    appendLegacyWinnerIdxs();
+    return winnerIdxs;
+  }
 }
 
 async function executeAuthoritativeSorteoFinalization({ db, sorteoId, operadorEmail }) {
@@ -758,7 +793,7 @@ async function executeAuthoritativeSorteoFinalization({ db, sorteoId, operadorEm
     const cantosData = cantosSnap.exists ? (cantosSnap.data() || {}) : {};
     const [loteriasConfig, winnerFormIdxs] = await Promise.all([
       resolveSorteoLoteriasForFinalization({ tx, db, sorteoData }),
-      resolveWinnerFormIdxsFromRealtime({ tx, db, sorteoId: normalizedSorteoId })
+      resolveWinnerFormIdxsFromRealtime({ tx, db, sorteoId: normalizedSorteoId, sorteoData })
     ]);
     const contrato = buildFinalizationContract({
       sorteoData,
@@ -1156,6 +1191,57 @@ function computeWinnerPrizeAmounts(forma = {}, totalGanadores = 1) {
   };
 }
 
+function normalizeWinnerRealtimeLockDoc(data = {}) {
+  const formaIdx = Number(data?.formaIdx ?? data?.idx ?? data?.forma?.idx ?? data?.formaIndice ?? data?.formaId);
+  if (!Number.isFinite(formaIdx)) return null;
+  const winnerKeys = normalizeUniqueWinnerKeys(data?.winnerKeys ?? data?.cartonClaves);
+  if (!winnerKeys.length) return null;
+  return {
+    formaIdx,
+    winnerKeys,
+    cerradoEn: data?.cerradoEn || null,
+    cerrada: data?.cerrada !== false
+  };
+}
+
+async function resolveWinnerLocksForSorteo({ db, sorteoId, sorteoData = null } = {}) {
+  const normalizedSorteoId = normalizeString(sorteoId, 120);
+  if (!db || !normalizedSorteoId) return [];
+  const locks = [];
+  try {
+    const locksSnap = await db
+      .collection(WINNER_LOCKS_COLLECTION)
+      .where('sorteoId', '==', normalizedSorteoId)
+      .get();
+    locksSnap.forEach((doc) => {
+      const lock = normalizeWinnerRealtimeLockDoc(doc.data() || {});
+      if (lock) locks.push(lock);
+    });
+  } catch (_error) {
+    // Fallback legacy controlado por flag para entornos transitorios y tests con mocks parciales.
+  }
+  if (locks.length || !WINNER_LOCKS_LEGACY_READ_ENABLED) return locks;
+
+  const legacyLockRaw = sorteoData && typeof sorteoData === 'object'
+    ? sorteoData.ganadoresBloqueadosPorForma
+    : null;
+  if (!legacyLockRaw || typeof legacyLockRaw !== 'object') return locks;
+
+  Object.entries(legacyLockRaw).forEach(([idxRaw, value]) => {
+    const formaIdx = Number(idxRaw);
+    if (!Number.isFinite(formaIdx)) return;
+    const winnerKeys = normalizeUniqueWinnerKeys(value?.cartonClaves ?? value?.winnerKeys);
+    if (!winnerKeys.length) return;
+    locks.push({
+      formaIdx,
+      winnerKeys,
+      cerradoEn: value?.cerradoEn || null,
+      cerrada: true
+    });
+  });
+  return locks;
+}
+
 async function generatePendingDirectPrizesFromOfficialResults({
   db,
   sorteoId,
@@ -1173,9 +1259,9 @@ async function generatePendingDirectPrizesFromOfficialResults({
   }
 
   const sorteoData = sorteoSnap.data() || {};
-  const lockRaw = sorteoData?.ganadoresBloqueadosPorForma;
   const formas = Array.isArray(sorteoData?.formas) ? sorteoData.formas : [];
-  if (!lockRaw || typeof lockRaw !== 'object') {
+  const winnerLocks = await resolveWinnerLocksForSorteo({ db, sorteoId: normalizedSorteoId, sorteoData });
+  if (!winnerLocks.length) {
     return { sorteoId: normalizedSorteoId, evaluados: 0, creados: 0, duplicados: 0 };
   }
 
@@ -1197,10 +1283,10 @@ async function generatePendingDirectPrizesFromOfficialResults({
   let duplicados = 0;
   let bloqueadosTotales = 0;
 
-  for (const [idxRaw, lockValue] of Object.entries(lockRaw)) {
-    const formaIdx = Number(idxRaw);
+  for (const lockValue of winnerLocks) {
+    const formaIdx = Number(lockValue?.formaIdx);
     if (!Number.isFinite(formaIdx)) continue;
-    const cartonClaves = normalizeUniqueWinnerKeys(lockValue?.cartonClaves);
+    const cartonClaves = normalizeUniqueWinnerKeys(lockValue?.winnerKeys ?? lockValue?.cartonClaves);
     if (!cartonClaves.length) continue;
     bloqueadosTotales += cartonClaves.length;
 
