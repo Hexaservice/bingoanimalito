@@ -337,6 +337,15 @@
     #estado-actual .estado-etiqueta {
       letter-spacing: 1px;
     }
+    #visibilidad-juegoactivo-indicador {
+      width: 100%;
+      text-align: center;
+      font-family: 'Poppins', sans-serif;
+      font-size: 0.78rem;
+      font-weight: 600;
+      color: #4b5563;
+      text-shadow: none;
+    }
     .estado-etiqueta { text-transform: uppercase; }
     .estado-badge {
       padding: 2px 10px;
@@ -1833,6 +1842,7 @@
       <span id="tipo-estado" class="tipo-estado"></span>
       <span class="estado-etiqueta">ESTADO:</span>
       <span id="estado-valor" class="estado-badge">-</span>
+      <span id="visibilidad-juegoactivo-indicador" role="status" aria-live="polite" title="Estado de visibilidad en juegoactivo para operación interna"></span>
     </div>
     <div id="resumen-sorteo">
       <div id="tipo-sorteo"></div>
@@ -2063,6 +2073,7 @@
   const estadoActualEl = document.getElementById('estado-actual');
   const estadoValorEl = document.getElementById('estado-valor');
   const tipoEstadoEl = document.getElementById('tipo-estado');
+  const visibilidadJuegoActivoIndicadorEl = document.getElementById('visibilidad-juegoactivo-indicador');
   const tipoEl = document.getElementById('tipo-sorteo');
   const mensajeEl = document.getElementById('mensaje-area');
   const sellarBtn = document.getElementById('sellar-btn');
@@ -6098,6 +6109,21 @@
     }
   }
 
+  function actualizarIndicadorVisibleJuegoActivo(data){
+    if(!visibilidadJuegoActivoIndicadorEl) return;
+    if(!data){
+      visibilidadJuegoActivoIndicadorEl.textContent = '';
+      visibilidadJuegoActivoIndicadorEl.title = 'Estado de visibilidad en juegoactivo para operación interna';
+      return;
+    }
+    const visibleJuegoActivo = (data.visibleJuegoActivo || '').toString().trim().toLowerCase();
+    const visibleEnJuegoActivo = visibleJuegoActivo === 'si';
+    visibilidadJuegoActivoIndicadorEl.textContent = visibleEnJuegoActivo
+      ? 'Visible en juegoactivo'
+      : 'Oculto en juegoactivo (pagos procesados)';
+    visibilidadJuegoActivoIndicadorEl.title = `visibleJuegoActivo: ${visibleJuegoActivo || 'no'}`;
+  }
+
   function mostrarDatos(){
     if(!currentSorteoData){
       btnSorteo.textContent = 'Selecciona Sorteo';
@@ -6116,6 +6142,7 @@
         tipoEstadoEl.textContent = '';
         tipoEstadoEl.className = 'tipo-estado';
       }
+      actualizarIndicadorVisibleJuegoActivo(null);
       tipoEl.innerHTML = '';
       if(detalleContainer) detalleContainer.classList.remove('estado-sellado','estado-pdf','estado-jugando','estado-finalizado');
       mensajeEl.textContent = 'Selecciona un sorteo para administrar su estado.';
@@ -6137,6 +6164,7 @@
       return;
     }
     const data = currentSorteoData;
+    actualizarIndicadorVisibleJuegoActivo(data);
     sincronizarFormasBase(data.formas || []);
     btnSorteo.textContent = data.nombre || 'Sorteo';
     if(centroPagosBtn){
