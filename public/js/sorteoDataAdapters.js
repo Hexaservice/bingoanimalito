@@ -1,11 +1,20 @@
 (function(global){
   function obtenerLoteriasAsignadas(sorteo){
-    const origen = Array.isArray(sorteo?.loteriasAsignadas)
-      ? sorteo.loteriasAsignadas
-      : (Array.isArray(sorteo?.loteriasActivas)
-        ? sorteo.loteriasActivas
-        : (Array.isArray(sorteo?.loterias) ? sorteo.loterias : []));
-    return origen.map(id=>String(id || '').trim()).filter(Boolean);
+    const origen = Array.isArray(sorteo?.loteriasAsignadas) ? sorteo.loteriasAsignadas : [];
+    return origen
+      .map(id=>typeof id === 'string' ? id.trim() : '')
+      .filter(Boolean);
+  }
+
+  async function resolverLoteriasAsignadas(db, ids){
+    if(!db || typeof db.collection !== 'function') return [];
+    const idsNormalizados = obtenerLoteriasAsignadas({ loteriasAsignadas: ids });
+    if(!idsNormalizados.length) return [];
+
+    const docs = await Promise.all(
+      idsNormalizados.map((id)=>db.collection('loterias').doc(id).get().catch(()=>null))
+    );
+    return docs.filter(doc=>doc && doc.exists);
   }
 
   function normalizarClaveResultado(celdaKey, opciones = {}){
@@ -40,6 +49,7 @@
 
   global.SorteoDataAdapters = {
     obtenerLoteriasAsignadas,
+    resolverLoteriasAsignadas,
     normalizarClaveResultado,
     normalizarMiniaturaLoteria,
     formatearNumeroAnimalVisual

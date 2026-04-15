@@ -4728,7 +4728,7 @@
   const sorteoResumenEl = document.getElementById('sorteo-resumen');
   const sorteoDetallesEl = document.getElementById('sorteo-detalles');
 
-  const { obtenerLoteriasAsignadas, normalizarMiniaturaLoteria, formatearNumeroAnimalVisual, normalizarClaveResultado } = window.SorteoDataAdapters;
+  const { obtenerLoteriasAsignadas, resolverLoteriasAsignadas, normalizarMiniaturaLoteria, formatearNumeroAnimalVisual, normalizarClaveResultado } = window.SorteoDataAdapters;
   const premiosPendientesIdsApi = window.PremiosPendientesIds || {};
   const billeteraIdentityApi = window.BilleteraIdentity || {};
   const premiosEngineV2Enabled = true;
@@ -7647,7 +7647,7 @@
       return;
     }
     try{
-      const docs=await Promise.all(ids.map(id=>db.collection('loterias').doc(id).get().catch(()=>null)));
+      const docs=await resolverLoteriasAsignadas(db, ids);
       const loterias=docs
         .filter(doc=>doc && doc.exists)
         .map(doc=>{
