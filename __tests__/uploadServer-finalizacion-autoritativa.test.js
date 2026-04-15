@@ -56,7 +56,7 @@ describe('finalización autoritativa de sorteo', () => {
     expect(contrato.detalle.totalFormasSinGanador).toBe(1);
   });
 
-  test('usa configuración de loterías resuelta para evitar bloquear cuando loteriasAsignadas solo tiene ids', () => {
+  test('usa configuración resuelta de catálogo para loterías asignadas por id', () => {
     const { buildFinalizationContract } = require('../uploadServer.js');
 
     const contrato = buildFinalizationContract({
@@ -64,15 +64,15 @@ describe('finalización autoritativa de sorteo', () => {
         estado: 'Jugando',
         formas: [{ idx: 1, nombre: 'Linea' }],
         ganadoresBloqueadosPorForma: {},
-        loteriasAsignadas: ['zulia']
+        loteriasAsignadas: ['loteria_a']
       },
       cantosData: {
         resultadosPorCelda: {
-          'zulia_08:00': { exacta: '12' }
+          'loteria_a_08:00': { exacta: '12' }
         }
       },
       loteriasConfig: [
-        { id: 'zulia', bloquesHorarios: ['08:00'], mostrarBloquesIntermedios: false }
+        { id: 'loteria_a', bloquesHorarios: ['08:00'], mostrarBloquesIntermedios: false }
       ]
     });
 
@@ -172,5 +172,95 @@ describe('finalización autoritativa de sorteo', () => {
     expect(segunda.motivo).toBe('estado_no_jugando');
     expect(state.sorteo.estado).toBe('Finalizado');
     expect(state.sorteo.finalizadoPor).toBe('op1@demo.com');
+  });
+
+  test('ignora resultados de loterías fuera del catálogo resuelto desde Firestore', async () => {
+    jest.resetModules();
+    const { executeAuthoritativeSorteoFinalization } = require('../uploadServer.js');
+
+    const sorteoRef = { __kind: 'sorteo-ref', id: 's-catalogo' };
+    const cantosRef = { __kind: 'cantos-ref', id: 's-catalogo' };
+
+    const loteriaRefConocida = { __kind: 'loteria-ref', id: 'loteria_1' };
+    const loteriaRefDesconocida = { __kind: 'loteria-ref', id: 'loteria_2' };
+
+    const state = {
+      sorteo: {
+        estado: 'Jugando',
+        formas: [{ idx: 1, nombre: 'Linea' }],
+        ganadoresBloqueadosPorForma: {},
+        loteriasAsignadas: ['loteria_1', 'loteria_2']
+      },
+      cantos: {
+        resultadosPorCelda: {
+          'loteria_2_08:00': { exacta: '17' }
+        }
+      }
+    };
+
+    const db = {
+      collection: jest.fn((name) => {
+        if (name === 'sorteos') {
+          return { doc: jest.fn(() => sorteoRef) };
+        }
+        if (name === 'cantos') {
+          return { doc: jest.fn(() => cantosRef) };
+        }
+        if (name === 'loterias') {
+          return {
+            doc: jest.fn((id) => {
+              if (id === 'loteria_1') return loteriaRefConocida;
+              if (id === 'loteria_2') return loteriaRefDesconocida;
+              return { __kind: 'loteria-ref', id };
+            })
+          };
+        }
+        if (name === 'GanadoresSorteosTiempoReal') {
+          return {
+            where: jest.fn(() => ({ __kind: 'winner-query' }))
+          };
+        }
+        return { doc: jest.fn(() => ({ __kind: 'doc-ref', id: 'x' })) };
+      }),
+      runTransaction: jest.fn(async (fn) => {
+        const tx = {
+          get: jest.fn(async (ref) => {
+            if (ref === sorteoRef) {
+              return { exists: true, data: () => ({ ...state.sorteo }) };
+            }
+            if (ref === cantosRef) {
+              return { exists: true, data: () => ({ ...state.cantos }) };
+            }
+            if (ref === loteriaRefConocida) {
+              return {
+                exists: true,
+                id: 'loteria_1',
+                data: () => ({ bloquesHorarios: ['08:00'], mostrarBloquesIntermedios: false })
+              };
+            }
+            if (ref === loteriaRefDesconocida) {
+              return { exists: false, id: 'loteria_2', data: () => ({}) };
+            }
+            if (ref?.__kind === 'winner-query') {
+              return { forEach: () => {} };
+            }
+            return { exists: false, data: () => ({}) };
+          }),
+          update: jest.fn()
+        };
+        return fn(tx);
+      })
+    };
+
+    const resultado = await executeAuthoritativeSorteoFinalization({
+      db,
+      sorteoId: 's-catalogo',
+      operadorEmail: 'operador@demo.com'
+    });
+
+    expect(resultado.permitido).toBe(false);
+    expect(resultado.motivo).toBe('faltan_resultados_y_ganadores');
+    expect(resultado.detalle.totalResultadosRequeridos).toBe(1);
+    expect(resultado.detalle.totalResultadosCargados).toBe(0);
   });
 });
