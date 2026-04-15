@@ -5059,7 +5059,9 @@
   }
 
   function tienePublicacionActivaCartonesJugando(sorteo){
-    return esFlagPublicado(sorteo?.pdf) || esFlagPublicado(sorteo?.cartonesJugandoPublicados);
+    return esFlagPublicado(sorteo?.publicadoJugadores)
+      || esFlagPublicado(sorteo?.pdf)
+      || esFlagPublicado(sorteo?.cartonesJugandoPublicados);
   }
 
   function esSorteoVisibleJuegoActivo(sorteo){
