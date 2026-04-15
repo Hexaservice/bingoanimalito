@@ -7486,13 +7486,15 @@
       if(currentSorteoData){
         currentSorteoData.estado = 'Finalizado';
         currentSorteoData.pdfresul = 'si';
+        currentSorteoData.visibleJuegoActivo = 'si';
       }
       const indiceSorteoFinalizado = sorteos.findIndex(s=>s && s.id === currentSorteoId);
       if(indiceSorteoFinalizado >= 0){
         sorteos[indiceSorteoFinalizado] = {
           ...sorteos[indiceSorteoFinalizado],
           estado: 'Finalizado',
-          pdfresul: 'si'
+          pdfresul: 'si',
+          visibleJuegoActivo: 'si'
         };
       }
       const formasSinGanadorBackend = Array.isArray(detalleFinalizacion?.formasSinGanador)

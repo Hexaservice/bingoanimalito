@@ -5064,9 +5064,13 @@
       || esFlagPublicado(sorteo?.cartonesJugandoPublicados);
   }
 
+  function esVisibleJuegoActivo(sorteo){
+    return esFlagPublicado(sorteo?.visibleJuegoActivo);
+  }
+
   function esSorteoVisibleJuegoActivo(sorteo){
     const estado = normalizarEstadoSorteo(sorteo?.estado);
-    if(estado === 'finalizado') return false;
+    if(estado === 'finalizado') return esVisibleJuegoActivo(sorteo);
     if(estado === 'jugando') return true;
     if(estado === 'sellado'){
       return tienePublicacionActivaCartonesJugando(sorteo);
