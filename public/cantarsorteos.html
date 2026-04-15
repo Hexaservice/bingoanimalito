@@ -2047,7 +2047,7 @@
 
   const premiosEngineV2Enabled = true;
 
-  const { obtenerLoteriasAsignadas, normalizarMiniaturaLoteria } = window.SorteoDataAdapters;
+  const { obtenerLoteriasAsignadas, resolverLoteriasAsignadas, normalizarMiniaturaLoteria } = window.SorteoDataAdapters;
 
   let sorteos = [];
   let currentSorteoId = null;
@@ -6422,7 +6422,7 @@
       idsVistos.add(id);
       idsUnicos.push(id);
     });
-    const sorteoTieneCampoLoterias = Array.isArray(currentSorteoData?.loteriasAsignadas) || Array.isArray(currentSorteoData?.loteriasActivas);
+    const sorteoTieneCampoLoterias = Array.isArray(currentSorteoData?.loteriasAsignadas);
 
     if(!idsUnicos.length){
       if(restaurarLoteriasDesdeCache()){
@@ -6445,7 +6445,7 @@
       return;
     }
 
-    const docs = await Promise.all(idsUnicos.map(id=>db.collection('loterias').doc(id).get().catch(()=>null)));
+    const docs = await resolverLoteriasAsignadas(db, idsUnicos);
     const loteriasCargadas = [];
     docs.forEach(doc=>{
       if(!doc || !doc.exists) return;
