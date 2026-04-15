@@ -5034,6 +5034,8 @@
   let ganadoresBloqueadosPorForma = new Map();
   let cierresPremiosPorForma = new Map();
   const CAMPO_LOCK_GANADORES_FORMA = 'ganadoresBloqueadosPorForma';
+  const COLECCION_LOCK_GANADORES_TIEMPO_REAL = 'GanadoresSorteosTiempoReal';
+  const FEATURE_LEGACY_LOCK_GANADORES_READ = (window.__APP_CONFIG__?.winnerLocksLegacyReadEnabled ?? true) !== false;
   let locksGanadoresListos = false;
   let locksGanadoresCargaPromesa = null;
   let locksGanadoresSorteoId = '';
@@ -11785,6 +11787,27 @@
     return locks;
   }
 
+
+  function normalizarLockGanadoresDesdeRealtimeDocs(docs = []){
+    const locks = new Map();
+    if(!Array.isArray(docs)) return locks;
+    docs.forEach(data=>{
+      if(!data || typeof data !== 'object') return;
+      const idx = Number(data?.formaIdx ?? data?.idx ?? data?.forma?.idx);
+      const winnerKeys = Array.isArray(data?.winnerKeys)
+        ? data.winnerKeys.map(item=>(item ?? '').toString().trim()).filter(Boolean)
+        : [];
+      if(!Number.isFinite(idx) || !winnerKeys.length) return;
+      const paso = Number(data?.pasoCierre ?? data?.paso);
+      locks.set(idx, {
+        paso: Number.isFinite(paso) ? paso : null,
+        cartonClaves: winnerKeys,
+        cerradoEn: data?.cerradoEn ?? null
+      });
+    });
+    return locks;
+  }
+
   async function cargarLocksGanadoresRemotos(sorteoId = activeSorteoId){
     if(!db || !sorteoId){
       ganadoresBloqueadosPorForma = new Map();
@@ -11793,9 +11816,19 @@
       return ganadoresBloqueadosPorForma;
     }
     try{
-      const doc = await db.collection('sorteos').doc(sorteoId).get();
-      const data = doc.exists ? (doc.data() || {}) : {};
-      ganadoresBloqueadosPorForma = normalizarLockGanadoresDesdeFuente(data?.[CAMPO_LOCK_GANADORES_FORMA]);
+      const locksSnap = await db.collection(COLECCION_LOCK_GANADORES_TIEMPO_REAL)
+        .where('sorteoId', '==', sorteoId)
+        .get();
+      if(!locksSnap.empty){
+        const docs = locksSnap.docs.map(doc=>doc.data() || {});
+        ganadoresBloqueadosPorForma = normalizarLockGanadoresDesdeRealtimeDocs(docs);
+      }else if(FEATURE_LEGACY_LOCK_GANADORES_READ){
+        const doc = await db.collection('sorteos').doc(sorteoId).get();
+        const data = doc.exists ? (doc.data() || {}) : {};
+        ganadoresBloqueadosPorForma = normalizarLockGanadoresDesdeFuente(data?.[CAMPO_LOCK_GANADORES_FORMA]);
+      }else{
+        ganadoresBloqueadosPorForma = new Map();
+      }
       locksGanadoresSorteoId = sorteoId;
       locksGanadoresListos = true;
       return ganadoresBloqueadosPorForma;
