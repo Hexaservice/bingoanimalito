@@ -6902,15 +6902,27 @@
   function sincronizarDatosPdf(datos = {}){
     const estadoBruto = (datos.pdf || '').toString().toLowerCase();
     const estadoNormalizado = estadoBruto === 'si' ? 'si' : 'no';
+    const estadoCartonesJugandoBruto = (datos.cartonesJugandoPublicados || '').toString().toLowerCase();
+    const estadoCartonesJugando = estadoCartonesJugandoBruto === 'si' ? 'si' : 'no';
+    const estadoPublicadoJugadoresBruto = (datos.publicadoJugadores || '').toString().toLowerCase();
+    const estadoPublicadoJugadores = estadoPublicadoJugadoresBruto === 'si' ? 'si' : 'no';
     const urlPdf = typeof datos.pdfUrl === 'string' ? datos.pdfUrl.trim() : '';
 
     if(currentSorteoData){
       currentSorteoData.pdf = estadoNormalizado;
+      currentSorteoData.cartonesJugandoPublicados = estadoCartonesJugando;
+      currentSorteoData.publicadoJugadores = estadoPublicadoJugadores;
       currentSorteoData.pdfUrl = urlPdf;
     }
     const idx = sorteos.findIndex(s=>s.id===currentSorteoId);
     if(idx>=0){
-      sorteos[idx] = { ...sorteos[idx], pdf: estadoNormalizado, pdfUrl: urlPdf };
+      sorteos[idx] = {
+        ...sorteos[idx],
+        pdf: estadoNormalizado,
+        cartonesJugandoPublicados: estadoCartonesJugando,
+        publicadoJugadores: estadoPublicadoJugadores,
+        pdfUrl: urlPdf
+      };
     }
     pdfDestinoUrl = urlPdf;
     guardarSorteoSeleccionado(currentSorteoData);
@@ -6918,7 +6930,29 @@
     actualizarAnimaciones();
     mostrarDatos();
 
-    return { estado: estadoNormalizado, url: urlPdf };
+    return {
+      estado: estadoNormalizado,
+      estadoCartonesJugando,
+      estadoPublicadoJugadores,
+      url: urlPdf
+    };
+  }
+
+  async function publicarSorteoParaJugadores(){
+    const timestamp = firebase.firestore.FieldValue.serverTimestamp();
+    const payloadPublicacion = {
+      pdf: 'si',
+      cartonesJugandoPublicados: 'si',
+      publicadoJugadores: 'si',
+      cartonesJugandoPublicadoEn: timestamp,
+      publicadoJugadoresEn: timestamp,
+      pdfActualizadoEn: timestamp
+    };
+    const batch = db.batch();
+    batch.set(db.collection('sorteos').doc(currentSorteoId), payloadPublicacion, { merge: true });
+    batch.set(db.collection('cantarsorteos').doc(currentSorteoId), payloadPublicacion, { merge: true });
+    await batch.commit();
+    return payloadPublicacion;
   }
 
   async function abrirPDF(){
@@ -6966,24 +7000,19 @@
         return;
       }
       const datos = docRef.data() || {};
-      const { estado: pdfEstadoNormalizado } = sincronizarDatosPdf(datos);
+      const {
+        estado: pdfEstadoNormalizado,
+        estadoCartonesJugando,
+        estadoPublicadoJugadores
+      } = sincronizarDatosPdf(datos);
 
-      const estaPublicado = pdfEstadoNormalizado === 'si'
-        || (datos.cartonesJugandoPublicados || '').toString().trim().toLowerCase() === 'si';
+      const estaPublicado = estadoPublicadoJugadores === 'si'
+        || pdfEstadoNormalizado === 'si'
+        || estadoCartonesJugando === 'si';
       if(!estaPublicado){
         const confirmarPublicacion = await preguntarAccionEstado('¿Deseas publicar ventana de PDF a jugadores?');
         if(!confirmarPublicacion) return;
-        const timestamp = firebase.firestore.FieldValue.serverTimestamp();
-        const payloadPublicacion = {
-          pdf: 'si',
-          cartonesJugandoPublicados: 'si',
-          cartonesJugandoPublicadoEn: timestamp,
-          pdfActualizadoEn: timestamp
-        };
-        await Promise.all([
-          db.collection('sorteos').doc(currentSorteoId).set(payloadPublicacion, { merge: true }),
-          db.collection('cantarsorteos').doc(currentSorteoId).set(payloadPublicacion, { merge: true })
-        ]);
+        const payloadPublicacion = await publicarSorteoParaJugadores();
         currentSorteoData = { ...currentSorteoData, ...payloadPublicacion };
         const indiceSorteo = sorteos.findIndex(s=>s && s.id === currentSorteoId);
         if(indiceSorteo >= 0){
@@ -7077,8 +7106,9 @@
       return;
     }
     const pdfEstado = (currentSorteoData.pdf || '').toString().toLowerCase();
+    const publicadoJugadores = (currentSorteoData.publicadoJugadores || '').toString().toLowerCase();
     const publicadoJugando = (currentSorteoData.cartonesJugandoPublicados || '').toString().toLowerCase();
-    if(pdfEstado !== 'si' && publicadoJugando !== 'si'){
+    if(publicadoJugadores !== 'si' && pdfEstado !== 'si' && publicadoJugando !== 'si'){
       alert('Debes publicar primero "Cartones jugando" (botón DPF) antes de poner el sorteo en Jugando.');
       return;
     }

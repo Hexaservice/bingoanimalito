@@ -1,6 +1,18 @@
 # bingoanimalito
 Bingo Con opciones de juego loterías animalitos
 
+## Flujo operativo de estados del sorteo (cantado/juego activo)
+
+El flujo esperado para publicar y jugar un sorteo queda así:
+
+1. **Sellado**: administración sella el sorteo y deja la base lista.
+2. **Confirmar PDF (visible jugadores)**: desde `cantarsorteos.html` se confirma la publicación de cartones/PDF para jugadores.
+   - Se persiste en `sorteos/{id}` y `cantarsorteos/{id}` con `pdf='si'`, `cartonesJugandoPublicados='si'` y `publicadoJugadores='si'`.
+   - `publicadoJugadores` es el campo canónico para controlar visibilidad en `juegoactivo.html`.
+   - `pdf` y `cartonesJugandoPublicados` se mantienen como compatibilidad retroactiva.
+3. **Jugando**: solo después de la publicación anterior se permite pasar a estado Jugando.
+4. **Finalizado**: cierre del sorteo y publicación de resultados.
+
 ## Configuración de Firebase Authentication
 
 Para que `public/registrarse.html` y `public/js/auth.js` muestren correctamente los proveedores habilitados y validen mejor el dominio actual, el despliegue publica `window.__FIREBASE_AUTH_SETTINGS__` dentro de `public/firebase-config.js` a partir de la plantilla `public/firebase-config.template.js`.
