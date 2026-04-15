@@ -1281,24 +1281,6 @@ async function generatePendingDirectPrizesFromOfficialResults({
 }
 
 
-function getAcreditacionExecutionMode({ source, origen, manualApproval, userRole }) {
-  const normalizedSource = normalizeString(source, 120).toLowerCase();
-  const normalizedOrigen = normalizeString(origen, 80).toLowerCase();
-  const normalizedUserRole = normalizeString(userRole, 40).toLowerCase();
-  const explicitManualApproval = manualApproval === true;
-  const sourceRequestsManual = normalizedSource === 'centropagos/manual' || normalizedOrigen === 'centropagos/manual';
-  const manualRequested = explicitManualApproval || sourceRequestsManual;
-  const hasPrivilegedRole = ['superadmin', 'administrador', 'colaborador'].includes(normalizedUserRole);
-  const manualAllowed = manualRequested && hasPrivilegedRole;
-
-  return {
-    mode: manualAllowed ? 'manual' : 'automatico',
-    manualRequested,
-    manualAllowed,
-    hasPrivilegedRole
-  };
-}
-
 function normalizePremioTransactionState(value) {
   return EstadosPagoPremio.normalizarLectura(value);
 }
@@ -2680,7 +2662,6 @@ module.exports = {
   computeWinnerPrizeAmounts,
   generatePendingDirectPrizesFromOfficialResults,
   resolveWinnerIdentity,
-  getAcreditacionExecutionMode,
   acreditarPremioEventoHandler,
   syncClaimsHandler,
   normalizeLoteriaImageItem,
