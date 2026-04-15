@@ -679,6 +679,7 @@ async function executeAuthoritativeSorteoFinalization({ db, sorteoId, operadorEm
     tx.update(sorteoRef, {
       estado: 'Finalizado',
       pdfresul: 'si',
+      visibleJuegoActivo: 'si',
       resultadoPublicadoJugadores: 'si',
       resultadoPublicadoEn: admin.firestore.FieldValue.serverTimestamp(),
       finalizadoEn: admin.firestore.FieldValue.serverTimestamp(),
