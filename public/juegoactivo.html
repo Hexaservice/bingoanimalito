@@ -5054,6 +5054,24 @@
     return (valor || '').toString().trim().toLowerCase() === 'si';
   }
 
+  function normalizarEstadoSorteo(estado){
+    return (estado || '').toString().trim().toLowerCase();
+  }
+
+  function tienePublicacionActivaCartonesJugando(sorteo){
+    return esFlagPublicado(sorteo?.pdf) || esFlagPublicado(sorteo?.cartonesJugandoPublicados);
+  }
+
+  function esSorteoVisibleJuegoActivo(sorteo){
+    const estado = normalizarEstadoSorteo(sorteo?.estado);
+    if(estado === 'finalizado') return false;
+    if(estado === 'jugando') return true;
+    if(estado === 'sellado'){
+      return tienePublicacionActivaCartonesJugando(sorteo);
+    }
+    return false;
+  }
+
   function abrirVistaCartones(urlBase){
     if(!activeSorteoId){
       alert('No hay un sorteo seleccionado.');
@@ -5067,13 +5085,13 @@
 
   function actualizarBotonesCartonesPublicados(){
     const haySorteoSeleccionado = Boolean(activeSorteoId);
-    const publicadoJugando = esFlagPublicado(activeSorteo?.cartonesJugandoPublicados) || esFlagPublicado(activeSorteo?.pdf);
+    const publicadoJugando = esSorteoVisibleJuegoActivo(activeSorteo);
     const publicadoGanadores = esFlagPublicado(activeSorteo?.cartonesGanadoresPublicados) || esFlagPublicado(activeSorteo?.pdfresul);
     if(cartonesJugandoBtnEl){
       cartonesJugandoBtnEl.hidden = !haySorteoSeleccionado;
       cartonesJugandoBtnEl.disabled = !publicadoJugando;
       cartonesJugandoBtnEl.classList.toggle('publicado', publicadoJugando);
-      cartonesJugandoBtnEl.title = publicadoJugando ? 'Ver cartones en juego' : 'Aún no publicados por administración';
+      cartonesJugandoBtnEl.title = publicadoJugando ? 'Ver cartones en juego' : 'Cartones/PDF no disponibles para este estado';
     }
     if(cartonesGanadoresBtnEl){
       cartonesGanadoresBtnEl.hidden = !haySorteoSeleccionado;
@@ -12824,19 +12842,20 @@
       unsubscribeSorteos();
       unsubscribeSorteos=null;
     }
-    unsubscribeSorteos=db.collection('sorteos').where('estado','==','Jugando').onSnapshot(snapshot=>{
+    unsubscribeSorteos=db.collection('sorteos').onSnapshot(snapshot=>{
       const lista=[];
       snapshot.forEach(doc=>{
         const data=doc.data()||{};
         lista.push({id:doc.id,...data});
       });
-      lista.sort((a,b)=>{
+      const sorteosVisibles = lista.filter(esSorteoVisibleJuegoActivo);
+      sorteosVisibles.sort((a,b)=>{
         const fechaA=(a.fecha||'');
         const fechaB=(b.fecha||'');
         if(fechaA!==fechaB) return fechaA.localeCompare(fechaB);
         return (a.hora||'').localeCompare(b.hora||'');
       });
-      seleccionarSorteo(lista);
+      seleccionarSorteo(sorteosVisibles);
     },err=>{
       console.error('Error escuchando sorteos en juego',err);
     });
