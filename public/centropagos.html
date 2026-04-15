@@ -2357,6 +2357,9 @@
           pagosCentroAprobados: indicadorCompletado,
           pagosCentroActualizadosEn: firebase.firestore.FieldValue.serverTimestamp()
         };
+        if(indicadorCompletado){
+          payload.visibleJuegoActivo = 'no';
+        }
         const actualizaciones = [
           db.collection('sorteos').doc(sorteoId).set(payload, { merge: true }),
           db.collection('cantarsorteos').doc(sorteoId).set(payload, { merge: true }).catch(err=>{
