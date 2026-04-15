@@ -560,10 +560,30 @@ function computeRequiredResultBlocks(loterias = []) {
   return total;
 }
 
-function computeLoadedResultBlocks(resultadosPorCelda = {}) {
+function buildAllowedResultCellKeys(loterias = []) {
+  if (!Array.isArray(loterias) || !loterias.length) return new Set();
+  const allowedKeys = new Set();
+  loterias.forEach((loteria) => {
+    const loteriaId = normalizeString(loteria?.id, 120);
+    if (!loteriaId) return;
+    for (let row = 0; row < MAX_FILAS_RESULTADOS; row += 1) {
+      if (isResultBlockEnabled(loteria, row, 'exacta')) {
+        allowedKeys.add(`${loteriaId}_${buildScheduleByRow(row, false)}`);
+      }
+      if (isResultBlockEnabled(loteria, row, 'intermedia')) {
+        allowedKeys.add(`${loteriaId}_${buildScheduleByRow(row, true)}`);
+      }
+    }
+  });
+  return allowedKeys;
+}
+
+function computeLoadedResultBlocks(resultadosPorCelda = {}, allowedCellKeys = null) {
   if (!resultadosPorCelda || typeof resultadosPorCelda !== 'object') return 0;
   let loaded = 0;
-  Object.values(resultadosPorCelda).forEach((item) => {
+  const onlyAllowed = allowedCellKeys instanceof Set && allowedCellKeys.size > 0;
+  Object.entries(resultadosPorCelda).forEach(([cellKey, item]) => {
+    if (onlyAllowed && !allowedCellKeys.has(normalizeString(cellKey, 160))) return;
     if (normalizeResultNumber(item?.exacta) !== null) loaded += 1;
     if (normalizeResultNumber(item?.intermedia) !== null) loaded += 1;
   });
@@ -616,8 +636,9 @@ function buildFinalizationContract({
     : (Array.isArray(sorteoData?.loterias)
       ? sorteoData.loterias
       : (Array.isArray(sorteoData?.loteriasAsignadas) ? sorteoData.loteriasAsignadas : []));
+  const allowedResultCellKeys = buildAllowedResultCellKeys(loterias);
   const requiredResults = computeRequiredResultBlocks(loterias);
-  const loadedResults = computeLoadedResultBlocks(cantosData?.resultadosPorCelda);
+  const loadedResults = computeLoadedResultBlocks(cantosData?.resultadosPorCelda, allowedResultCellKeys);
   const resultsComplete = requiredResults === 0 || loadedResults >= requiredResults;
   const permitted = estado === 'jugando' && (allFormsHaveWinners || resultsComplete);
 
