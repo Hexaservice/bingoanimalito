@@ -7018,6 +7018,33 @@
       if(!confirmarSellado) return false;
     }
     try {
+      const precheck = await solicitarPrecheckSelladoLiquidacionAdmin();
+      const diagnosticoPrecheck = mapearResultadoPrecheckSelladoLiquidacion(precheck || {});
+      if(diagnosticoPrecheck.bloqueante){
+        const mensajeBloqueo = [
+          'No se puede sellar: el precheck detectó errores críticos.',
+          diagnosticoPrecheck.resumen,
+          diagnosticoPrecheck.detalleBloqueantes
+        ].filter(Boolean).join('\n');
+        alert(mensajeBloqueo);
+        registrarLogSelladoAdmin('sellado_liquidacion_precheck_bloqueado', {
+          sorteoId: currentSorteoId || 'sin-sorteo',
+          operador: enmascararEmailParaLog(auth?.currentUser?.email || ''),
+          status: Number(precheck?.status || 409),
+          code: normalizeStringValue(precheck?.code, 80) || 'PRECHECK_BLOCKED',
+          requestId: normalizeStringValue(precheck?.requestId, 120) || ''
+        });
+        return false;
+      }
+      if(diagnosticoPrecheck.tieneAdvertencias){
+        const confirmarAdvertencias = await preguntarAccionEstado([
+          'Precheck completado con advertencias.',
+          diagnosticoPrecheck.resumen,
+          diagnosticoPrecheck.detalleAdvertencias,
+          '¿Deseas continuar con el sellado?'
+        ].filter(Boolean).join('\n'));
+        if(!confirmarAdvertencias) return false;
+      }
       const resultado = await solicitarSelladoConLiquidacionAdmin();
       if(!resultado || resultado.ok !== true){
         const diagnosticoError = mapearErrorSelladoLiquidacionAdmin(resultado || {});
@@ -7049,6 +7076,89 @@
       alert(mensaje ? `No fue posible sellar el sorteo.\n${mensaje}` : 'No fue posible sellar el sorteo.');
       return false;
     }
+  }
+
+  async function solicitarPrecheckSelladoLiquidacionAdmin(){
+    const user = auth?.currentUser || null;
+    if(!user){
+      return { ok: false, permitido: false, error: 'No hay sesión activa.', code: 'NO_ACTIVE_SESSION' };
+    }
+    const apiBase = resolverBaseApiAdministrativa();
+    if(!apiBase || typeof fetch !== 'function'){
+      return { ok: false, permitido: false, error: 'No hay API administrativa configurada.', code: 'API_BASE_INVALID' };
+    }
+    const token = await user.getIdToken(true);
+    let respuesta = null;
+    try{
+      respuesta = await fetch(`${apiBase}/admin/sellado-liquidacion/precheck`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ sorteoId: currentSorteoId })
+      });
+    }catch(fetchError){
+      return {
+        ok: false,
+        permitido: false,
+        status: 0,
+        code: 'NETWORK_OR_CORS_ERROR',
+        error: 'No se pudo ejecutar el precheck en backend.',
+        detalle: { mensaje: normalizeStringValue(fetchError?.message, 220) || 'fetch_failed' }
+      };
+    }
+    let payload = null;
+    try{
+      payload = await respuesta.json();
+    }catch(_errorParse){
+      payload = null;
+    }
+    const requestId = normalizeStringValue(
+      (respuesta.headers?.get('x-request-id') || '')
+      || payload?.requestId
+      || '',
+      120
+    );
+    if(payload && typeof payload === 'object'){
+      payload.status = respuesta.status;
+      payload.requestId = requestId;
+      payload.code = normalizeStringValue(payload?.code, 80) || '';
+      return payload;
+    }
+    return {
+      ok: false,
+      permitido: false,
+      status: respuesta.status,
+      code: 'INVALID_BACKEND_RESPONSE',
+      error: 'Respuesta inválida del backend en precheck',
+      requestId
+    };
+  }
+
+  function mapearResultadoPrecheckSelladoLiquidacion(resultado = {}){
+    const bloqueantes = Array.isArray(resultado?.bloqueantes) ? resultado.bloqueantes : [];
+    const advertencias = Array.isArray(resultado?.advertencias) ? resultado.advertencias : [];
+    const resumen = `Bloqueantes: ${bloqueantes.length} | Advertencias: ${advertencias.length}`;
+    const detalleBloqueantes = bloqueantes
+      .slice(0, 5)
+      .map((item, idx) => `${idx + 1}. ${normalizeStringValue(item?.mensaje, 220) || 'Error crítico sin detalle.'}`)
+      .join('\n');
+    const detalleAdvertencias = advertencias
+      .slice(0, 5)
+      .map((item, idx) => `${idx + 1}. ${normalizeStringValue(item?.mensaje, 220) || 'Advertencia sin detalle.'}`)
+      .join('\n');
+    const status = Number(resultado?.status || 0);
+    const falloTecnico = !resultado || resultado.ok !== true;
+    return {
+      bloqueante: falloTecnico || bloqueantes.length > 0,
+      tieneAdvertencias: advertencias.length > 0,
+      resumen: falloTecnico ? `Precheck no disponible (${status || 'sin status'}).` : resumen,
+      detalleBloqueantes: falloTecnico
+        ? `No se pudo validar el precheck. code=${normalizeStringValue(resultado?.code, 80) || 'SIN_CODE'}`
+        : detalleBloqueantes,
+      detalleAdvertencias
+    };
   }
 
   async function solicitarSelladoConLiquidacionAdmin(){

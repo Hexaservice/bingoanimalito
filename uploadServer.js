@@ -2138,6 +2138,134 @@ async function getUsuariosAdministrativosPorRol({ db, roleInternal = '' }) {
   return usuarios;
 }
 
+function isValidEmailFormat(value = '') {
+  const email = normalizeString(value, 200).toLowerCase();
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
+function getAdminWalletResolutionContext(user = {}) {
+  const normalizedEmail = normalizeIdentityValue(user?.email, 160).toLowerCase();
+  const normalizedUid = normalizeIdentityValue(user?.uid, 160);
+  const normalizedDocId = normalizeIdentityValue(user?.id, 160);
+  return buildWalletResolutionContext({
+    email: normalizedEmail,
+    uid: normalizedUid,
+    extraCandidates: [normalizedDocId]
+  });
+}
+
+async function ejecutarPrecheckSelladoLiquidacionAdmin({ db, sorteoId = '' }) {
+  const normalizedSorteoId = normalizeString(sorteoId, 120);
+  const bloqueantes = [];
+  const advertencias = [];
+  const rolesObjetivo = ['agencia', 'desarrollador'];
+  const usuariosPorRol = {};
+  const usersWithNormalizedEmail = [];
+
+  for (const rolInterno of rolesObjetivo) {
+    const usuarios = await getUsuariosAdministrativosPorRol({ db, roleInternal: rolInterno });
+    usuariosPorRol[rolInterno] = usuarios;
+    if (!usuarios.length) {
+      bloqueantes.push({
+        tipo: 'sin_usuarios_rol',
+        rolInterno,
+        mensaje: `No existen usuarios administrativos para el rol ${rolInterno}.`
+      });
+      continue;
+    }
+
+    usuarios.forEach((user) => {
+      const emailCrudo = normalizeString(user?.email, 200);
+      const emailNormalizado = emailCrudo.toLowerCase();
+      usersWithNormalizedEmail.push({ ...user, rolInterno, emailCrudo, emailNormalizado });
+      if (!emailNormalizado) {
+        bloqueantes.push({
+          tipo: 'email_obligatorio',
+          rolInterno,
+          userId: normalizeString(user?.id, 200),
+          mensaje: `El usuario ${normalizeString(user?.id, 200) || 'sin-id'} no tiene email resoluble.`
+        });
+        return;
+      }
+      if (!isValidEmailFormat(emailNormalizado)) {
+        bloqueantes.push({
+          tipo: 'email_invalido',
+          rolInterno,
+          email: emailNormalizado,
+          userId: normalizeString(user?.id, 200),
+          mensaje: `El email ${emailNormalizado} no tiene formato válido.`
+        });
+      }
+      if (emailCrudo !== emailNormalizado) {
+        advertencias.push({
+          tipo: 'email_normalizado',
+          rolInterno,
+          emailOriginal: emailCrudo,
+          emailNormalizado,
+          userId: normalizeString(user?.id, 200),
+          mensaje: `Se normalizó el email ${emailCrudo} a ${emailNormalizado}.`
+        });
+      }
+    });
+  }
+
+  const usuariosPorEmail = new Map();
+  usersWithNormalizedEmail.forEach((user) => {
+    if (!user?.emailNormalizado) return;
+    const key = user.emailNormalizado;
+    if (!usuariosPorEmail.has(key)) usuariosPorEmail.set(key, []);
+    usuariosPorEmail.get(key).push({
+      rolInterno: user.rolInterno,
+      userId: normalizeString(user?.id, 200)
+    });
+  });
+  usuariosPorEmail.forEach((coincidencias, email) => {
+    if (coincidencias.length <= 1) return;
+    bloqueantes.push({
+      tipo: 'email_duplicado',
+      email,
+      coincidencias,
+      mensaje: `El email ${email} está duplicado en usuarios administrativos.`
+    });
+  });
+
+  for (const user of usersWithNormalizedEmail) {
+    if (!user?.emailNormalizado || !isValidEmailFormat(user.emailNormalizado)) continue;
+    const walletContext = getAdminWalletResolutionContext(user);
+    const walletId = await resolveWalletIdForAuthenticatedUser({
+      db,
+      email: walletContext.canonicalEmail || user.emailNormalizado,
+      uid: normalizeIdentityValue(user?.uid, 160),
+      extraCandidates: [normalizeIdentityValue(user?.id, 160)]
+    });
+    const walletSnap = await db.collection('Billetera').doc(walletId).get();
+    if (!walletSnap.exists) {
+      bloqueantes.push({
+        tipo: 'billetera_no_resoluble',
+        rolInterno: user.rolInterno,
+        email: user.emailNormalizado,
+        userId: normalizeString(user?.id, 200),
+        billeteraIntentada: walletId,
+        candidatos: walletContext.billeteraCandidates,
+        mensaje: `No se encontró billetera destino para ${user.emailNormalizado}.`
+      });
+    }
+  }
+
+  return {
+    ok: true,
+    sorteoId: normalizedSorteoId,
+    permitido: bloqueantes.length === 0,
+    resumen: {
+      bloqueantes: bloqueantes.length,
+      advertencias: advertencias.length,
+      rolesEvaluados: rolesObjetivo.length
+    },
+    bloqueantes,
+    advertencias
+  };
+}
+
 function buildAdminLiquidationTransactionPayload({
   monto = 0,
   billeteraId = '',
@@ -3494,6 +3622,40 @@ app.post('/admin/finalizar-sorteo', verificarOperadorFinalizacion, async (req, r
       permitido: false,
       motivo: 'error_finalizacion',
       detalle: { mensaje: 'Error interno al finalizar sorteo', code: normalizeString(error?.code, 80) || null }
+    });
+  }
+});
+
+app.post('/admin/sellado-liquidacion/precheck', verificarOperadorFinalizacion, async (req, res) => {
+  const requestId = normalizeString(req.requestId || req.headers['x-request-id'] || req.headers['x-correlation-id'], 120)
+    || `sellado-precheck-${Date.now()}`;
+  const sorteoId = normalizeString(req.body?.sorteoId, 120);
+  if (!sorteoId) {
+    return res.status(400).json({
+      ok: false,
+      permitido: false,
+      code: 'SORTEO_ID_REQUIRED',
+      error: 'sorteoId es obligatorio',
+      requestId
+    });
+  }
+  try {
+    const resultado = await ejecutarPrecheckSelladoLiquidacionAdmin({
+      db: admin.firestore(),
+      sorteoId
+    });
+    return res.status(200).json({
+      ...resultado,
+      code: resultado.permitido ? 'OK' : 'PRECHECK_BLOCKED',
+      requestId
+    });
+  } catch (error) {
+    return res.status(500).json({
+      ok: false,
+      permitido: false,
+      code: 'PRECHECK_INTERNAL_ERROR',
+      error: normalizeString(error?.message, 260) || 'Error ejecutando precheck de sellado-liquidación',
+      requestId
     });
   }
 });
