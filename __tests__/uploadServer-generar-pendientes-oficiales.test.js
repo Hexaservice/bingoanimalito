@@ -140,7 +140,7 @@ describe('generatePendingDirectPrizesFromOfficialResults', () => {
     process.env.PREMIOS_PAGOS_DIRECTOS_MIRROR_ENABLED = ORIGINAL_PREMIOS_PAGOS_DIRECTOS_MIRROR_ENABLED;
   });
 
-  test('redondea a 6 decimales los montos de premio cuando hay reparto', () => {
+  test('redondea a 6 decimales y mantiene cartones completos por ganador cuando hay reparto', () => {
     const result = computeWinnerPrizeAmounts({
       valorPremio: 100,
       cartonesGratis: 2
@@ -148,7 +148,7 @@ describe('generatePendingDirectPrizesFromOfficialResults', () => {
 
     expect(result).toEqual({
       creditos: 33.333333,
-      cartonesGratis: 0.666667
+      cartonesGratis: 2
     });
   });
   test('crea premios pendientes solo desde lock oficial y evita duplicados por eventoGanadorId', async () => {
@@ -210,7 +210,7 @@ describe('generatePendingDirectPrizesFromOfficialResults', () => {
     expect(idA.startsWith('ppd_')).toBe(true);
   });
 
-  test('divide créditos y prorratea cartones gratis totales por ganador con precisión de 6 decimales', async () => {
+  test('divide créditos y asigna cartones gratis completos por ganador con precisión de 6 decimales', async () => {
     const { db, premiosPendientes, premiosLegacy } = createDbDouble({
       formas: [{
         idx: 1,
@@ -260,13 +260,13 @@ describe('generatePendingDirectPrizesFromOfficialResults', () => {
     expect(premiosCreados).toHaveLength(2);
     premiosCreados.forEach((premio) => {
       expect(premio.creditos).toBe(50);
-      expect(premio.cartonesGratis).toBe(2.5);
+      expect(premio.cartonesGratis).toBe(5);
     });
     expect(premiosLegacy.size).toBe(2);
   });
 
 
-  test('prorratea créditos y cartones gratis totales con múltiples ganadores', async () => {
+  test('prorratea créditos y mantiene cartones gratis completos con múltiples ganadores', async () => {
     const { db, premiosPendientes, premiosLegacy } = createDbDouble({
       formas: [{
         idx: 2,
@@ -326,7 +326,7 @@ describe('generatePendingDirectPrizesFromOfficialResults', () => {
     expect(premiosCreados).toHaveLength(3);
     premiosCreados.forEach((premio) => {
       expect(premio.creditos).toBe(33.333333);
-      expect(premio.cartonesGratis).toBe(0.666667);
+      expect(premio.cartonesGratis).toBe(2);
     });
     expect(premiosLegacy.size).toBe(3);
   });
@@ -382,7 +382,7 @@ describe('generatePendingDirectPrizesFromOfficialResults', () => {
     expect(premiosCreados).toHaveLength(2);
     premiosCreados.forEach((premio) => {
       expect(premio.creditos).toBe(45);
-      expect(premio.cartonesGratis).toBe(0.5);
+      expect(premio.cartonesGratis).toBe(1);
     });
   });
 
