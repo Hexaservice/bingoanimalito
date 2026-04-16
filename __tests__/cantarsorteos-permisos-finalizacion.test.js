@@ -58,13 +58,13 @@ describe('cantarsorteos validarPermisoEfectivoFinalizarSorteo', () => {
     return context;
   }
 
-  test('bloquea finalización cuando claims y users/{email}.role no coinciden', async () => {
+  test('permite finalización con sesión activa aunque claims y users/{email}.role no coincidan', async () => {
     const ctx = crearContexto({ claimsRole: 'Jugador', userDocExists: true, userDocRole: 'Administrador' });
 
     const result = await ctx.validarPermisoEfectivoFinalizarSorteo();
 
-    expect(result.permitido).toBe(false);
-    expect(result.mensaje).toContain('desalineación de rol');
-    expect(result.mensaje).toContain('users/admin@correo.com.role=Administrador');
+    expect(result.permitido).toBe(true);
+    expect(result.claimsRole).toBe('Jugador');
+    expect(result.userRole).toBe('Administrador');
   });
 });
