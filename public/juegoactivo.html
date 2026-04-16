@@ -751,6 +751,16 @@
       .canto-cell.cantado.invalido {
           transform: scale(1.08);
       }
+      .canto-cell.post-cierre-flash {
+          background: radial-gradient(circle at center,
+              var(--naranja-penalizacion-suave) 10%,
+              var(--naranja-penalizacion-medio) 55%,
+              var(--naranja-penalizacion-intenso) 100%);
+          color: var(--naranja-penalizacion-texto);
+          text-shadow: 0 0 8px rgba(0, 0, 0, 0.85);
+          box-shadow: inset 0 0 10px rgba(0,0,0,0.3);
+          animation: pulsoPostCierre 1s ease-out 1;
+      }
       .canto-cell.ultimo {
           box-shadow: 0 0 14px rgba(255,215,0,0.9);
           animation: focoUltimo 1.6s ease-in-out infinite;
@@ -3594,6 +3604,11 @@
           45% { transform: scale(1.18); }
           100% { transform: scale(1); }
       }
+      @keyframes pulsoPostCierre {
+          0% { transform: scale(1); }
+          40% { transform: scale(1.08); }
+          100% { transform: scale(1); }
+      }
       @media (min-width: 820px) {
           #panel-superior {
               grid-template-columns: minmax(0, 1fr) minmax(0, clamp(260px, 40vw, 560px));
@@ -5214,6 +5229,8 @@
   const LIVE_ICON_INTERVAL_MS = 3000;
   let ventanaEnFoco = document.visibilityState === 'visible' && document.hasFocus();
   let cantosRecientesSinAnimacion = false;
+  const cantoPostCierreFlashTimers = new Map();
+  const CANTO_POST_CIERRE_FLASH_MS = 1300;
   let resumenGanadoresPrevio = new Map();
   let manualBingoUnsub = null;
   let manualBingoEstado = null;
@@ -10340,69 +10357,81 @@
 
   function renderCantos(){
     if(!cantoCellsMap.size) crearGridCantos();
-    cantoCellsMap.forEach(celda=>{
-      celda.classList.remove('cantado','ultimo','complementario','invalido','ganador');
-      delete celda.dataset.formasGanadoras;
-      const tituloBase=celda.dataset?.tituloBase;
-      if(tituloBase){
-        celda.title=tituloBase;
-        celda.setAttribute('aria-label', tituloBase);
-      }
-      celda.tabIndex=-1;
-    });
+    const todasFormasCerradas = estanTodasLasFormasGanadorasCerradas();
+    if(!todasFormasCerradas){
+      cantoCellsMap.forEach(celda=>{
+        celda.classList.remove('cantado','ultimo','complementario','invalido','ganador','post-cierre-flash');
+        delete celda.dataset.formasGanadoras;
+        const tituloBase=celda.dataset?.tituloBase;
+        if(tituloBase){
+          celda.title=tituloBase;
+          celda.setAttribute('aria-label', tituloBase);
+        }
+        celda.tabIndex=-1;
+      });
+    }else{
+      cantoCellsMap.forEach(celda=>{
+        celda.classList.remove('ultimo');
+      });
+    }
     ultimoCantoEl.innerHTML='';
     const total=cantosOrdenados.length;
     const complementariosActivos=false;
     let ultimoEstadoNormalizado='';
     cantosOrdenados.forEach((num,idx)=>{
       const celda=cantoCellsMap.get(num);
-      if(celda){
-        const estado=cantosResultadoMap instanceof Map?cantosResultadoMap.get(num):undefined;
-        const esPenalizado=typeof estado==='string' && estado.trim().toLowerCase()==='p';
+      if(!celda) return;
+      const estado=cantosResultadoMap instanceof Map?cantosResultadoMap.get(num):undefined;
+      const esPenalizado=typeof estado==='string' && estado.trim().toLowerCase()==='p';
+      if(!todasFormasCerradas){
         celda.classList.add('cantado');
         if(esPenalizado){
           celda.classList.add('invalido');
           celda.classList.remove('complementario');
         }
-        if(idx===total-1){
-          celda.classList.add('ultimo');
-          ultimoEstadoNormalizado=typeof estado==='string'?estado.trim().toLowerCase():'';
-        }
+      }
+      if(idx===total-1){
+        celda.classList.add('ultimo');
+        ultimoEstadoNormalizado=typeof estado==='string'?estado.trim().toLowerCase():'';
       }
     });
-    if(cantosResultadoMap instanceof Map){
-      cantosResultadoMap.forEach((estado,numero)=>{
-        if(typeof estado!=='string') return;
-        if(estado.trim().toLowerCase()!=='p') return;
-        const celda=cantoCellsMap.get(numero);
-        if(!celda) return;
-        celda.classList.add('cantado','invalido');
-        celda.classList.remove('complementario');
-      });
-    }
-    if(cantoColorMap instanceof Map){
-      cantoColorMap.forEach((lista,numero)=>{
-        if(!Array.isArray(lista) || !lista.length) return;
-        const celda=cantoCellsMap.get(numero);
-        if(!celda) return;
-        const etiquetasFormas=lista
-          .map(info=>{
-            const idx=Number(info?.idx);
-            if(!Number.isFinite(idx)) return null;
-            return `F${String(idx).padStart(2,'0')}`;
-          })
-          .filter(Boolean);
-        if(etiquetasFormas.length){
-          celda.classList.add('ganador');
-          celda.dataset.formasGanadoras=etiquetasFormas.join(', ');
-          const tituloBase=celda.dataset?.tituloBase || generarEtiquetaDesdeNumero(numero);
-          const descripcionFormas=etiquetasFormas.map(texto=>`Forma ${texto.slice(1)}`).join(', ');
-          const titulo=`${tituloBase} • Formas ${etiquetasFormas.join(', ')}`;
-          celda.title=titulo;
-          celda.setAttribute('aria-label',`${tituloBase}, ${descripcionFormas}`);
-        }
-        celda.tabIndex=0;
-      });
+    if(!todasFormasCerradas){
+      if(cantosResultadoMap instanceof Map){
+        cantosResultadoMap.forEach((estado,numero)=>{
+          if(typeof estado!=='string') return;
+          if(estado.trim().toLowerCase()!=='p') return;
+          const celda=cantoCellsMap.get(numero);
+          if(!celda) return;
+          celda.classList.add('cantado','invalido');
+          celda.classList.remove('complementario');
+        });
+      }
+      if(cantoColorMap instanceof Map){
+        cantoColorMap.forEach((lista,numero)=>{
+          if(!Array.isArray(lista) || !lista.length) return;
+          const celda=cantoCellsMap.get(numero);
+          if(!celda) return;
+          const etiquetasFormas=lista
+            .map(info=>{
+              const idx=Number(info?.idx);
+              if(!Number.isFinite(idx)) return null;
+              return `F${String(idx).padStart(2,'0')}`;
+            })
+            .filter(Boolean);
+          if(etiquetasFormas.length){
+            celda.classList.add('ganador');
+            celda.dataset.formasGanadoras=etiquetasFormas.join(', ');
+            const tituloBase=celda.dataset?.tituloBase || generarEtiquetaDesdeNumero(numero);
+            const descripcionFormas=etiquetasFormas.map(texto=>`Forma ${texto.slice(1)}`).join(', ');
+            const titulo=`${tituloBase} • Formas ${etiquetasFormas.join(', ')}`;
+            celda.title=titulo;
+            celda.setAttribute('aria-label',`${tituloBase}, ${descripcionFormas}`);
+          }
+          celda.tabIndex=0;
+        });
+      }
+    }else if(total){
+      aplicarFlashTemporalPostCierre(cantosOrdenados[total-1]);
     }
     const ultimoEstadoEsPenalizado=total>0 && (ultimoEstadoNormalizado==='p' || (!ultimoEstadoNormalizado && complementariosActivos));
     ultimoCantoEl.classList.toggle('complementarios-activos', ultimoEstadoEsPenalizado);
@@ -11970,6 +11999,32 @@
     return registro;
   }
 
+  function estanTodasLasFormasGanadorasCerradas(mapaBloqueados = ganadoresBloqueadosPorForma, formas = formasActivas){
+    if(!Array.isArray(formas) || !formas.length || !esMapaValido(mapaBloqueados)){
+      return false;
+    }
+    return formas.every(forma=>Boolean(obtenerRegistroFormaCerrada(mapaBloqueados, forma?.idx)));
+  }
+
+  function aplicarFlashTemporalPostCierre(numero){
+    const numeroNormalizado = Number(numero);
+    if(!Number.isFinite(numeroNormalizado)) return;
+    const celda = cantoCellsMap.get(numeroNormalizado);
+    if(!celda) return;
+    const timerPrevio = cantoPostCierreFlashTimers.get(numeroNormalizado);
+    if(timerPrevio){
+      clearTimeout(timerPrevio);
+      cantoPostCierreFlashTimers.delete(numeroNormalizado);
+    }
+    celda.classList.remove('cantado','complementario','invalido');
+    celda.classList.add('post-cierre-flash');
+    const timer = setTimeout(()=>{
+      celda.classList.remove('post-cierre-flash');
+      cantoPostCierreFlashTimers.delete(numeroNormalizado);
+    }, CANTO_POST_CIERRE_FLASH_MS);
+    cantoPostCierreFlashTimers.set(numeroNormalizado, timer);
+  }
+
   function calcularGanadoresEnMapa(mapa, formasExcluidas = new Set(), opciones = {}){
     const formasMapa=new Map();
     const ganadoresForma=new Map();
@@ -12090,12 +12145,19 @@
       precargarLocksGanadoresRemotos(activeSorteoId);
       return;
     }
-    cartonesGanadoresPorForma=new Map();
-    formasPorCarton=new Map();
     cantosIndiceMap=new Map();
     cantosOrdenados.forEach((num,idx)=>{
       if(!cantosIndiceMap.has(num)) cantosIndiceMap.set(num,idx);
     });
+    const todasFormasCerradas = estanTodasLasFormasGanadorasCerradas();
+    if(todasFormasCerradas && cartonesGanadoresPorForma instanceof Map && cartonesGanadoresPorForma.size){
+      evaluarEstadoFormasGanadoras();
+      renderFormas();
+      renderCartonesJugador();
+      return;
+    }
+    cartonesGanadoresPorForma=new Map();
+    formasPorCarton=new Map();
     const resultadoReal=calcularGanadoresEnMapa(cartonesSorteo, new Set(), {
       bloquearGanadoresPorForma:true,
       mapaGanadoresBloqueados:ganadoresBloqueadosPorForma
