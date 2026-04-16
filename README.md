@@ -445,6 +445,38 @@ Regla vigente:
 
 En resumen: con lock activo, el cliente no recupera permisos de escritura de premios; la acreditación es backend-first.
 
+### Flag operativo backend para lock de escrituras cliente
+
+`uploadServer.js` expone en `/runtime-config` el estado efectivo de lock con:
+
+- `bloquearEscriturasClientePremios`
+- `bloquearEscriturasClientePremiosSource`
+
+Política:
+
+1. En `production`, el default es `true`.
+2. Fuera de `production`, el default es `false`.
+3. Si se define `BLOQUEAR_ESCRITURAS_CLIENTE_PREMIOS`, ese valor (`true/false`) tiene prioridad.
+
+Uso obligatorio:
+
+- Cualquier flujo nuevo que pretenda mutar `Billetera`, `transacciones` o `PremiosSorteos` debe pasar por endpoint autenticado de `uploadServer.js`.
+- El frontend debe abortar temprano cuando detecte lock activo y una mutación directa de cliente.
+
+### Rollback controlado (temporal) por flag operativo
+
+Si una contingencia operativa exige reabrir temporalmente escrituras cliente durante una mitigación:
+
+1. Ajustar **solo temporalmente** `BLOQUEAR_ESCRITURAS_CLIENTE_PREMIOS=false`.
+2. Registrar ventana de tiempo + motivo + responsable.
+3. Restaurar `true` al cerrar la mitigación y ejecutar validación de regresión de pagos/premios.
+
+Criterios de uso temporal recomendados:
+
+- Incidente activo que impida operar endpoints backend de pagos/premios.
+- Existe plan de corrección y ventana de reversión definida.
+- Monitoreo activo de transacciones y auditoría durante toda la ventana.
+
 ## Convención oficial de reparto por ganador (backend + frontend)
 
 Para evitar diferencias entre cálculo de servidor y visualización en cliente, la regla vigente es:

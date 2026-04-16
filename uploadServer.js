@@ -44,8 +44,27 @@ function resolvePremiosEngineV2Policy(env = process.env) {
   };
 }
 
+function resolveClientPremiosWriteLockPolicy(env = process.env) {
+  const environment = String(env.APP_ENV || env.NODE_ENV || 'development').trim().toLowerCase();
+  const explicitValue = env.BLOQUEAR_ESCRITURAS_CLIENTE_PREMIOS;
+  const hasExplicitValue = String(explicitValue ?? '').trim() !== '';
+  const defaultEnabledByEnvironment = environment === 'production';
+  const enabled = hasExplicitValue
+    ? resolveBooleanEnvFlag(explicitValue, defaultEnabledByEnvironment)
+    : defaultEnabledByEnvironment;
+  return {
+    enabled,
+    environment,
+    source: hasExplicitValue
+      ? 'env:BLOQUEAR_ESCRITURAS_CLIENTE_PREMIOS'
+      : `default:${environment}`
+  };
+}
+
 const PREMIOS_ENGINE_V2_POLICY = resolvePremiosEngineV2Policy(process.env);
 const PREMIOS_ENGINE_V2_ENABLED = PREMIOS_ENGINE_V2_POLICY.enabled;
+const CLIENT_PREMIOS_WRITE_LOCK_POLICY = resolveClientPremiosWriteLockPolicy(process.env);
+const CLIENT_PREMIOS_WRITE_LOCK_ENABLED = CLIENT_PREMIOS_WRITE_LOCK_POLICY.enabled;
 const PREMIOS_PAGOS_DIRECTOS_MIRROR_ENABLED = String(process.env.PREMIOS_PAGOS_DIRECTOS_MIRROR_ENABLED || 'false').trim().toLowerCase() === 'true';
 const WINNER_LOCKS_LEGACY_READ_ENABLED = String(process.env.WINNER_LOCKS_LEGACY_READ_ENABLED || 'true').trim().toLowerCase() !== 'false';
 const WINNER_LOCKS_COLLECTION = 'GanadoresSorteosTiempoReal';
@@ -169,6 +188,8 @@ app.get('/runtime-config', (req, res) => {
     config: {
       premiosEngineV2Enabled: PREMIOS_ENGINE_V2_ENABLED,
       premiosEngineV2PolicySource: PREMIOS_ENGINE_V2_POLICY.source,
+      bloquearEscriturasClientePremios: CLIENT_PREMIOS_WRITE_LOCK_ENABLED,
+      bloquearEscriturasClientePremiosSource: CLIENT_PREMIOS_WRITE_LOCK_POLICY.source,
       environment: PREMIOS_ENGINE_V2_POLICY.environment
     }
   });
@@ -3017,6 +3038,290 @@ app.post('/wallet/transfer-credits', verificarUsuarioAutenticado, async (req, re
     }
     console.error('Error al transferir créditos entre billeteras', error);
     return res.status(500).json({ error: 'No se pudo procesar la transferencia.' });
+  }
+});
+
+function buildServerDateTimeUtc() {
+  const now = new Date();
+  return {
+    fecha: `${String(now.getUTCDate()).padStart(2, '0')}/${String(now.getUTCMonth() + 1).padStart(2, '0')}/${now.getUTCFullYear()}`,
+    hora: `${String(now.getUTCHours()).padStart(2, '0')}:${String(now.getUTCMinutes()).padStart(2, '0')}`
+  };
+}
+
+async function aprobarPagoAdministrativoCentroPagos({ db, pagoId = '', actor = {} } = {}) {
+  const normalizedPagoId = normalizeString(pagoId, 240);
+  if (!normalizedPagoId) {
+    return { ok: false, status: 400, error: 'pagoId es obligatorio.' };
+  }
+  const pagoRef = db.collection('PagosAdministracion').doc(normalizedPagoId);
+  const { fecha, hora } = buildServerDateTimeUtc();
+  let payloadResponse = null;
+  await db.runTransaction(async (tx) => {
+    const pagoSnap = await tx.get(pagoRef);
+    if (!pagoSnap.exists) {
+      const err = new Error('PAGO_NO_ENCONTRADO');
+      throw err;
+    }
+    const pagoData = pagoSnap.data() || {};
+    const estadoActual = EstadosPagoPremio.normalizarLectura(pagoData.estado);
+    if (EstadosPagoPremio.estaFinalizado(estadoActual)) {
+      payloadResponse = { ok: true, status: 200, idempotente: true, pagoId: normalizedPagoId };
+      return;
+    }
+    const billeteraId = normalizeString(pagoData.idBilletera || pagoData.email || pagoData.gmail, 240).toLowerCase();
+    const creditos = Number(pagoData.creditos ?? pagoData.monto ?? 0);
+    if (!billeteraId || !Number.isFinite(creditos) || creditos === 0) {
+      const err = new Error('PAGO_DATOS_INVALIDOS');
+      throw err;
+    }
+    const billeteraRef = db.collection('Billetera').doc(billeteraId);
+    const billeteraSnap = await tx.get(billeteraRef);
+    const billeteraData = billeteraSnap.exists ? (billeteraSnap.data() || {}) : {};
+    const saldoActual = Number(billeteraData.creditos || 0);
+    const saldoNuevo = Number((saldoActual + creditos).toFixed(6));
+    tx.set(billeteraRef, {
+      email: billeteraId,
+      creditos: saldoNuevo,
+      CartonesGratis: Number(billeteraData.CartonesGratis ?? billeteraData.cartonesGratis ?? 0) || 0,
+      creditostransito: Number(billeteraData.creditostransito || 0) || 0
+    }, { merge: true });
+    tx.set(db.collection('transacciones').doc(), {
+      tipotrans: 'pago',
+      origen: 'pagos_administracion',
+      Monto: Number(creditos.toFixed(6)),
+      estado: EstadosPagoPremio.validarParaGuardar('APROBADO', `TransaccionPagoAdministracion:${normalizedPagoId}`),
+      IDbilletera: billeteraId,
+      fechasolicitud: '',
+      horasolicitud: '',
+      fechagestion: fecha,
+      horagestion: hora,
+      usuariogestor: normalizeString(actor.email, 200).toLowerCase(),
+      rolusuario: normalizeString(actor.role, 40),
+      referencia: 'PAGO',
+      sorteoId: normalizeString(pagoData.sorteoId, 240),
+      sorteoNombre: normalizeString(pagoData.sorteoNombre || 'Pago a colaborador', 240),
+      creadoEn: admin.firestore.FieldValue.serverTimestamp()
+    });
+    tx.update(pagoRef, {
+      estado: EstadosPagoPremio.validarParaGuardar('APROBADO', `PagosAdministracion:${normalizedPagoId}`),
+      fechaGestion: fecha,
+      horaGestion: hora,
+      gestionadoPor: normalizeString(actor.email, 200).toLowerCase(),
+      rolGestor: normalizeString(actor.role, 40)
+    });
+    payloadResponse = { ok: true, status: 200, idempotente: false, pagoId: normalizedPagoId, saldoNuevo };
+  });
+  return payloadResponse || { ok: true, status: 200, idempotente: true, pagoId: normalizedPagoId };
+}
+
+app.post('/admin/centropagos/aprobar-pago', verificarToken, async (req, res) => {
+  try {
+    const result = await aprobarPagoAdministrativoCentroPagos({
+      db: admin.firestore(),
+      pagoId: req.body?.pagoId,
+      actor: req.user || {}
+    });
+    return res.status(result.status || 200).json(result);
+  } catch (error) {
+    if (error?.message === 'PAGO_NO_ENCONTRADO') {
+      return res.status(404).json({ ok: false, error: 'Pago no encontrado.' });
+    }
+    if (error?.message === 'PAGO_DATOS_INVALIDOS') {
+      return res.status(400).json({ ok: false, error: 'El pago no tiene billetera o monto válido.' });
+    }
+    console.error('Error aprobando pago administrativo en centro de pagos', error);
+    return res.status(500).json({ ok: false, error: 'No se pudo aprobar el pago.' });
+  }
+});
+
+app.post('/admin/centropagos/asignar-colaborador', verificarToken, async (req, res) => {
+  const billeteraId = normalizeString(req.body?.billetera, 240).toLowerCase();
+  const monto = Number(req.body?.monto);
+  if (!billeteraId || !Number.isFinite(monto) || monto === 0) {
+    return res.status(400).json({ ok: false, error: 'billetera y monto son obligatorios.' });
+  }
+  const referencia = normalizeString(req.body?.referencia || (monto > 0 ? 'PAGO' : 'AJUSTE_MANUAL'), 80);
+  const sorteoNombre = normalizeString(req.body?.sorteoNombre || 'Pago a colaborador', 240);
+  const db = admin.firestore();
+  const { fecha, hora } = buildServerDateTimeUtc();
+  try {
+    let saldoNuevo = 0;
+    await db.runTransaction(async (tx) => {
+      const billeteraRef = db.collection('Billetera').doc(billeteraId);
+      const billeteraSnap = await tx.get(billeteraRef);
+      const billeteraData = billeteraSnap.exists ? (billeteraSnap.data() || {}) : {};
+      const saldoActual = Number(billeteraData.creditos || 0);
+      saldoNuevo = Number(Math.max(0, saldoActual + monto).toFixed(6));
+      tx.set(billeteraRef, {
+        email: billeteraId,
+        creditos: saldoNuevo,
+        CartonesGratis: Number(billeteraData.CartonesGratis ?? billeteraData.cartonesGratis ?? 0) || 0,
+        creditostransito: Number(billeteraData.creditostransito || 0) || 0
+      }, { merge: true });
+      tx.set(db.collection('transacciones').doc(), {
+        tipotrans: monto > 0 ? 'pago' : 'ajuste_colaborador',
+        origen: 'pagos_administracion',
+        Monto: Number(monto.toFixed(6)),
+        estado: EstadosPagoPremio.validarParaGuardar('APROBADO', `TransaccionColaborador:${billeteraId}`),
+        IDbilletera: billeteraId,
+        fechasolicitud: '',
+        horasolicitud: '',
+        fechagestion: fecha,
+        horagestion: hora,
+        usuariogestor: normalizeString(req.user?.email, 200).toLowerCase(),
+        rolusuario: normalizeString(req.user?.role, 40),
+        referencia,
+        sorteoId: '',
+        sorteoNombre,
+        creadoEn: admin.firestore.FieldValue.serverTimestamp()
+      });
+    });
+    return res.status(200).json({ ok: true, billetera: billeteraId, saldoNuevo });
+  } catch (error) {
+    console.error('Error asignando créditos a colaborador desde centro de pagos', error);
+    return res.status(500).json({ ok: false, error: 'No se pudo procesar la asignación del colaborador.' });
+  }
+});
+
+app.post('/admin/centropagos/archivar-registro', verificarToken, async (req, res) => {
+  const tipo = normalizeString(req.body?.tipo, 30).toLowerCase();
+  const registroId = normalizeString(req.body?.id, 240);
+  if (!['premios', 'pagos'].includes(tipo) || !registroId) {
+    return res.status(400).json({ ok: false, error: 'tipo e id son obligatorios.' });
+  }
+  const db = admin.firestore();
+  const baseCollection = tipo === 'premios' ? 'PremiosSorteos' : 'PagosAdministracion';
+  const archiveCollection = tipo === 'premios' ? 'PremiosSorteosArchivo' : 'PagosAdministracionArchivo';
+  const { fecha, hora } = buildServerDateTimeUtc();
+  try {
+    await db.runTransaction(async (tx) => {
+      const ref = db.collection(baseCollection).doc(registroId);
+      const snap = await tx.get(ref);
+      if (!snap.exists) return;
+      const data = snap.data() || {};
+      tx.set(db.collection(archiveCollection).doc(registroId), {
+        ...data,
+        estado: EstadosPagoPremio.validarParaGuardar('ARCHIVADO', `${tipo}:${registroId}`),
+        archivadoEn: fecha,
+        horaArchivado: hora,
+        archivadoPor: normalizeString(req.user?.email, 200).toLowerCase()
+      }, { merge: true });
+      tx.delete(ref);
+    });
+    return res.status(200).json({ ok: true, tipo, id: registroId });
+  } catch (error) {
+    console.error('Error archivando registro de centro de pagos', { tipo, registroId, error });
+    return res.status(500).json({ ok: false, error: 'No se pudo archivar el registro.' });
+  }
+});
+
+app.post('/admin/centropagos/registrar-solicitudes', verificarToken, async (req, res) => {
+  const db = admin.firestore();
+  const sorteoId = normalizeString(req.body?.sorteoId, 140);
+  const sorteoNombre = normalizeString(req.body?.sorteoNombre, 240);
+  if (!sorteoId) {
+    return res.status(400).json({ ok: false, error: 'sorteoId es obligatorio.' });
+  }
+  const incluirPremios = Boolean(req.body?.incluirPremios !== false);
+  const ganadores = Array.isArray(req.body?.ganadores) ? req.body.ganadores : [];
+  const administrativos = Array.isArray(req.body?.administrativos) ? req.body.administrativos : [];
+  const colaboradores = Array.isArray(req.body?.colaboradores) ? req.body.colaboradores : [];
+  const actorEmail = normalizeString(req.user?.email, 200).toLowerCase();
+  const timestamp = admin.firestore.FieldValue.serverTimestamp();
+  try {
+    const batch = db.batch();
+    if (incluirPremios) {
+      ganadores.forEach((item) => {
+        const winnerKey = normalizeString(item?.winnerKey || item?.eventoGanadorId || item?.id || '', 320);
+        if (!winnerKey) return;
+        const email = normalizeString(item?.gmail || item?.email, 240).toLowerCase();
+        batch.set(db.collection('PremiosSorteos').doc(winnerKey), {
+          sorteoId,
+          sorteoNombre,
+          gmail: email,
+          email,
+          alias: normalizeString(item?.alias || item?.aliasJugador || item?.aliasGanador, 120),
+          aliasJugador: normalizeString(item?.alias || item?.aliasJugador || item?.aliasGanador, 120),
+          aliasGanador: normalizeString(item?.alias || item?.aliasJugador || item?.aliasGanador, 120),
+          creditos: Number(item?.creditos) || 0,
+          creditosGanados: Number(item?.creditos) || 0,
+          cartonesGratis: Number(item?.cartonesGratis) || 0,
+          cartonesGanados: Number(item?.cartonesGanadores ?? item?.cartonesGratis) || 0,
+          cartonId: normalizeString(item?.cartonId || (Array.isArray(item?.cartonesIds) ? item.cartonesIds[0] : ''), 160),
+          formaIdx: Number(item?.formaIdx ?? item?.formas?.[0]?.idx),
+          formasGanadoras: Array.isArray(item?.formasGanadoras) ? item.formasGanadoras : (Array.isArray(item?.formas) ? item.formas : []),
+          estado: EstadosPagoPremio.validarParaGuardar('PENDIENTE', `PremiosSorteos:${winnerKey}`),
+          fechaGanado: timestamp,
+          fechaRegistro: timestamp,
+          creadoEn: timestamp,
+          actualizadoEn: timestamp,
+          tipoRegistro: 'GANADOR_SORTEO',
+          eventoGanadorId: winnerKey,
+          winnerKey,
+          userIds: Array.isArray(item?.userIds) ? item.userIds : [],
+          generadoDesde: 'centropagos-backend',
+          generadoPor: actorEmail,
+          idBilletera: email || undefined
+        }, { merge: true });
+      });
+    }
+    administrativos.forEach((item, index) => {
+      const email = normalizeString(item?.gmail || item?.email, 240).toLowerCase();
+      const suffix = email || normalizeString(item?.alias || item?.nombre || '', 120) || String(index + 1);
+      const docId = normalizeString(`${sorteoId}_admin_${item?.rolInterno || 'admin'}_${suffix}`, 320).toLowerCase();
+      batch.set(db.collection('PagosAdministracion').doc(docId), {
+        sorteoId,
+        sorteoNombre,
+        gmail: email,
+        email,
+        nombre: normalizeString(item?.nombre || item?.alias, 120),
+        alias: normalizeString(item?.alias, 120),
+        creditos: Number(item?.creditos) || 0,
+        estado: EstadosPagoPremio.validarParaGuardar('PENDIENTE', `PagosAdministracion:${docId}`),
+        fechaAsignacion: timestamp,
+        fecha: timestamp,
+        creadoEn: timestamp,
+        actualizadoEn: timestamp,
+        tipoRegistro: 'ADMINISTRATIVO_SORTEO',
+        rolInterno: normalizeString(item?.rolInterno, 80),
+        montoRolBase: Number(item?.montoRolBase) || 0,
+        totalUsuariosRol: Number(item?.totalUsuariosRol) || 0,
+        metodoDistribucion: normalizeString(item?.metodoDistribucion, 80),
+        userIds: Array.isArray(item?.userIds) ? item.userIds : [],
+        generadoDesde: 'centropagos-backend',
+        generadoPor: actorEmail,
+        idBilletera: email || undefined
+      }, { merge: true });
+    });
+    batch.set(db.collection('SorteosCentroPagos').doc(sorteoId), {
+      sorteoId,
+      sorteoNombre,
+      totalGanadores: incluirPremios ? ganadores.length : 0,
+      totalAdministrativos: administrativos.length,
+      totalColaboradores: colaboradores.length,
+      totalCreditosPremios: incluirPremios ? (Number(req.body?.totalCreditosPremios) || 0) : 0,
+      totalCartonesGratis: incluirPremios ? (Number(req.body?.totalCartonesGratis) || 0) : 0,
+      ganadores: incluirPremios ? ganadores : [],
+      administrativos,
+      colaboradores,
+      generadoEn: timestamp,
+      generadoDesde: 'centropagos-backend',
+      generadoPor: actorEmail
+    }, { merge: true });
+    const indicadorPayload = {
+      pagosCentroAprobados: false,
+      pagosCentroActualizadosEn: timestamp,
+      solicitudesPagosGeneradas: true,
+      solicitudesPagosActualizadasEn: timestamp
+    };
+    batch.set(db.collection('sorteos').doc(sorteoId), indicadorPayload, { merge: true });
+    batch.set(db.collection('cantarsorteos').doc(sorteoId), indicadorPayload, { merge: true });
+    await batch.commit();
+    return res.status(200).json({ ok: true, sorteoId });
+  } catch (error) {
+    console.error('Error registrando solicitudes de centro de pagos por backend', { sorteoId, error });
+    return res.status(500).json({ ok: false, error: 'No se pudieron registrar solicitudes.' });
   }
 });
 
