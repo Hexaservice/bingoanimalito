@@ -105,6 +105,23 @@ function getAllowedOrigins(env = process.env) {
     throw new Error('ALLOWED_ORIGINS no puede estar vacío.');
   }
 
+  const normalizedEnvironment = String(env.APP_ENV || env.NODE_ENV || '').trim().toLowerCase();
+  const isProduction = normalizedEnvironment === 'production';
+  if (isProduction) {
+    const expectedFrontendOrigins = [
+      'https://bingoanimalito.web.app',
+      'https://bingoanimalito.firebaseapp.com',
+      'https://bingoanimalito.juega-online.com',
+      'https://www.bingoanimalito.juega-online.com'
+    ];
+    const missingOrigins = expectedFrontendOrigins.filter((origin) => !parsed.includes(origin));
+    if (missingOrigins.length) {
+      throw new Error(
+        `ALLOWED_ORIGINS en producción debe incluir todos los frontends reales: faltan ${missingOrigins.join(', ')}`
+      );
+    }
+  }
+
   return [...new Set(parsed)];
 }
 
