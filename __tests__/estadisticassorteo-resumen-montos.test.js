@@ -1,7 +1,7 @@
-const { calcularResumenMontos } = require('../public/js/centropagosResumen.js');
+const { calcularResumenMontos } = require('../public/js/estadisticassorteoResumen.js');
 const estadosPago = require('../public/js/estadoPagoPremio.js');
 
-describe('centropagosResumen.calcularResumenMontos', () => {
+describe('estadisticassorteoResumen.calcularResumenMontos', () => {
   function buildContext(premiosActivos) {
     return {
       premiosActivos,

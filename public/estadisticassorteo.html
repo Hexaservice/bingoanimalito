@@ -10,7 +10,7 @@
 
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Centro de Pagos</title>
+  <title>Estadísticas del Sorteo</title>
   <link href="https://fonts.googleapis.com/css2?family=Bangers&display=swap" rel="stylesheet">
   <style>
     :root { color-scheme: only light; }
@@ -637,17 +637,27 @@
 </head>
 <body>
   <button id="volver-btn" class="menu-btn back-btn" data-compact-back="true"><span class="icon">&#9664;</span><span class="label">Volver</span></button>
-  <h2 class="titulo-principal">RESUMEN DE PAGOS</h2>
+  <h2 class="titulo-principal">RESUMEN / ESTADÍSTICAS DEL SORTEO</h2>
   <div class="acciones-top">
-    <select id="cp-sorteo-selector" aria-label="Seleccionar sorteo para generar solicitudes">
+    <select id="cp-sorteo-selector" aria-label="Seleccionar sorteo para ver estadísticas">
       <option value="">Selecciona un sorteo</option>
     </select>
   </div>
   <div id="cp-resumen-reconciliacion" class="oculto" aria-live="polite"></div>
   <div id="cp-resumen-montos" aria-live="polite"></div>
+  <section class="section" id="estadisticassorteo-placeholders">
+    <div class="section-header">
+      <h3>BASE PARA FUTURAS MÉTRICAS</h3>
+    </div>
+    <div id="estadisticassorteo-placeholders-content" class="acciones">
+      <span class="switch-label">• Evolución temporal (placeholder)</span>
+      <span class="switch-label">• Distribución por forma (placeholder)</span>
+      <span class="switch-label">• Comparativas entre sorteos (placeholder)</span>
+    </div>
+  </section>
   <section class="section" id="premios-section">
     <div class="section-header">
-      <h3>PREMIOS JUGADORES</h3>
+      <h3>PREMIOS JUGADORES (LECTURA)</h3>
       <div class="header-controls">
         <span id="badge-premios" class="badge oculto">0</span>
         <label class="switch"><input type="checkbox" id="toggle-premios"><span class="slider"></span></label>
@@ -655,7 +665,7 @@
     </div>
     <div id="premios-content">
       <div class="acciones">
-        <button class="icon-btn" id="premios-archivar"><span class="icon">&#128452;</span><span>Archivar</span></button>
+        <button class="icon-btn" id="premios-archivar" title="Modo solo estadísticas"><span class="icon">&#128202;</span><span>Métricas</span></button>
         <button class="icon-btn" id="premios-archivo"><span class="icon">&#128193;</span><span>Archivo</span></button>
       </div>
       <table id="tabla-premios">
@@ -694,7 +704,7 @@
 
   <section class="section" id="pagos-section">
     <div class="section-header">
-      <h3>PAGOS ADMINISTRACIÓN</h3>
+      <h3>PAGOS ADMINISTRACIÓN (LECTURA)</h3>
       <div class="header-controls">
         <span id="badge-pagos" class="badge oculto">0</span>
         <label class="switch"><input type="checkbox" id="toggle-pagos"><span class="slider"></span></label>
@@ -702,8 +712,8 @@
     </div>
     <div id="pagos-content">
       <div class="acciones">
-        <button class="icon-btn" id="pagos-aprobar"><span class="icon check">&#10004;</span><span>Procesar</span></button>
-        <button class="icon-btn" id="pagos-archivar"><span class="icon">&#128452;</span><span>Archivar</span></button>
+        <button class="icon-btn" id="pagos-aprobar" title="Modo solo estadísticas"><span class="icon">&#128200;</span><span>Resumen</span></button>
+        <button class="icon-btn" id="pagos-archivar" title="Modo solo estadísticas"><span class="icon">&#128202;</span><span>Tendencias</span></button>
         <button class="icon-btn" id="pagos-archivo"><span class="icon">&#128193;</span><span>Archivo</span></button>
       </div>
       <table id="tabla-pagos">
@@ -740,7 +750,7 @@
 
   <section class="section" id="colaboradores-section">
     <div class="section-header">
-      <h3>PAGOS COLABORADORES</h3>
+      <h3>COLABORADORES (LECTURA)</h3>
       <div class="header-controls">
         <span id="badge-colaboradores" class="badge oculto">0</span>
         <label class="switch"><input type="checkbox" id="toggle-colaboradores"><span class="slider"></span></label>
@@ -754,7 +764,7 @@
           <option value="Administrador">Administrador</option>
           <option value="Superadmin">Superadmin</option>
         </select>
-        <button class="icon-btn" id="colaboradores-aprobar"><span class="icon check">&#10004;</span><span>Aprobar</span></button>
+        <button class="icon-btn" id="colaboradores-aprobar" title="Modo solo estadísticas"><span class="icon">&#128200;</span><span>Métricas</span></button>
       </div>
       <table id="tabla-colaboradores">
         <colgroup>
@@ -798,7 +808,7 @@
   <script src="js/timezone.js"></script>
   <script src="js/estadoPagoPremio.js"></script>
   <script src="js/admin-payout-distribution.js"></script>
-  <script src="js/centropagosResumen.js"></script>
+  <script src="js/estadisticassorteoResumen.js"></script>
   <script>
     ensureAuth('Administrador');
     initServerTime();
@@ -806,12 +816,13 @@
     const dbRef = ()=>firebase.firestore();
     const authInstance = ()=>firebase.auth();
     const premiosEngineV2Enabled = true;
+    const modoSoloEstadisticas = true;
 
     const filtrosColaboradores = { gmail:'', creditos:'', tipo:'' };
     const filtrosPremios = { jugador:'', fecha:'', estado:'' };
     const filtrosPagos = { jugador:'', fecha:'', estado:'' };
-    const paramsCentroPagos = new URLSearchParams(window.location.search);
-    const sorteoIdDesdeQuery = (paramsCentroPagos.get('sorteoId') || paramsCentroPagos.get('s') || '').trim();
+    const paramsEstadisticasSorteo = new URLSearchParams(window.location.search);
+    const sorteoIdDesdeQuery = (paramsEstadisticasSorteo.get('sorteoId') || paramsEstadisticasSorteo.get('s') || '').trim();
 
     let mostrarPremiosArchivo = false;
     let mostrarPagosArchivo = false;
@@ -2066,7 +2077,7 @@
           tx.set(ref, payload, { merge: true });
         });
       } catch (err) {
-        console.error('Error registrando solicitud en Centro de Pagos', ref.path, err);
+        console.error('Error registrando solicitud en Estadísticas del Sorteo', ref.path, err);
         throw err;
       }
     }
@@ -2107,7 +2118,7 @@
           eventoGanadorId,
           winnerKey: eventoGanadorId,
           userIds: ganador.userIds || [],
-          generadoDesde: 'centropagos'
+          generadoDesde: 'estadisticassorteo'
         };
         if(email){ payload.idBilletera = email; }
           operaciones.push(cpActualizarDocumentoCentroPagos(ctx, ctx.db.collection('PremiosSorteos').doc(docId), payload));
@@ -2136,7 +2147,7 @@
           totalUsuariosRol: Number(administrativo.totalUsuariosRol) || 0,
           metodoDistribucion: administrativo.metodoDistribucion || '',
           userIds: administrativo.userIds || [],
-          generadoDesde: 'centropagos'
+          generadoDesde: 'estadisticassorteo'
         };
         if(email){ payload.idBilletera = email; }
         operaciones.push(cpActualizarDocumentoCentroPagos(ctx, ctx.db.collection('PagosAdministracion').doc(docId), payload));
@@ -2175,7 +2186,7 @@
           creditos: Number(item.creditos) || 0
         })),
         generadoEn: timestamp,
-        generadoDesde: 'centropagos'
+        generadoDesde: 'estadisticassorteo'
       };
       operaciones.push(resumenRef.set(resumenPayload, { merge: true }));
 
@@ -2679,8 +2690,8 @@
     }
 
     function cpResolverNombreForma(registro = {}){
-      if(window.CentroPagosResumen?.resolverNombreForma){
-        return window.CentroPagosResumen.resolverNombreForma(registro);
+      if(window.EstadisticasSorteoResumen?.resolverNombreForma){
+        return window.EstadisticasSorteoResumen.resolverNombreForma(registro);
       }
       const idx = Number(registro.formaIdx);
       const formas = Array.isArray(registro.formasGanadoras) ? registro.formasGanadoras : [];
@@ -2698,8 +2709,8 @@
 
     function cpCalcularResumenMontos(sorteoId){
       const idObjetivo = (sorteoId || cpObtenerSorteoIdObjetivo() || '').toString().trim();
-      if(window.CentroPagosResumen?.calcularResumenMontos){
-        return window.CentroPagosResumen.calcularResumenMontos({
+      if(window.EstadisticasSorteoResumen?.calcularResumenMontos){
+        return window.EstadisticasSorteoResumen.calcularResumenMontos({
           premiosActivos,
           sorteoId: idObjetivo,
           normalizarEstado,
@@ -3140,81 +3151,93 @@
       });
     }
     function configurarBotones(){
+      if(modoSoloEstadisticas){
+        document.querySelectorAll('#premios-section .acciones .icon-btn, #pagos-section .acciones .icon-btn, #colaboradores-section .acciones .icon-btn, .check-header, #tabla-colaboradores .colab-input').forEach(el=>{
+          if(!el) return;
+          if(el.tagName === 'INPUT'){ el.disabled = true; return; }
+          el.setAttribute('aria-disabled','true');
+          if(el.classList.contains('icon-btn')) el.disabled = true;
+          el.style.pointerEvents = 'none';
+          el.style.opacity = '0.65';
+        });
+      }
       const selectorSorteo = document.getElementById('cp-sorteo-selector');
       if(selectorSorteo){
         selectorSorteo.addEventListener('change', ()=>{
           cpRenderResumenMontos(selectorSorteo.value);
         });
       }
-      document.getElementById('premios-marcar').addEventListener('click', ()=>seleccionarTodos('tabla-premios'));
-      document.getElementById('pagos-marcar').addEventListener('click', ()=>seleccionarTodos('tabla-pagos'));
-      const premiosArchivarBtn = document.getElementById('premios-archivar');
-      if(premiosArchivarBtn){
-        premiosArchivarBtn.addEventListener('click', async()=>{
-          const seleccion = obtenerSeleccion('tabla-premios');
+      if(!modoSoloEstadisticas){
+        document.getElementById('premios-marcar').addEventListener('click', ()=>seleccionarTodos('tabla-premios'));
+        document.getElementById('pagos-marcar').addEventListener('click', ()=>seleccionarTodos('tabla-pagos'));
+        const premiosArchivarBtn = document.getElementById('premios-archivar');
+        if(premiosArchivarBtn){
+          premiosArchivarBtn.addEventListener('click', async()=>{
+            const seleccion = obtenerSeleccion('tabla-premios');
+            if(!seleccion.length){ alert('Selecciona al menos un registro.'); return; }
+            await archivarRegistros(seleccion, 'premios');
+            cpRenderResumenMontos(cpObtenerSorteoIdObjetivo());
+          });
+        }
+        const pagosAprobarBtn = document.getElementById('pagos-aprobar');
+        if(pagosAprobarBtn){
+          pagosAprobarBtn.disabled = !premiosEngineV2Enabled;
+          pagosAprobarBtn.title = premiosEngineV2Enabled
+            ? 'Procesar pagos seleccionados'
+            : 'Deshabilitado por premiosEngineV2Enabled=false';
+        }
+        document.getElementById('pagos-aprobar').addEventListener('click', async()=>{
+          const seleccion = obtenerSeleccion('tabla-pagos');
           if(!seleccion.length){ alert('Selecciona al menos un registro.'); return; }
-          await archivarRegistros(seleccion, 'premios');
+          await aprobarPagos(seleccion);
           cpRenderResumenMontos(cpObtenerSorteoIdObjetivo());
         });
-      }
-      const pagosAprobarBtn = document.getElementById('pagos-aprobar');
-      if(pagosAprobarBtn){
-        pagosAprobarBtn.disabled = !premiosEngineV2Enabled;
-        pagosAprobarBtn.title = premiosEngineV2Enabled
-          ? 'Procesar pagos seleccionados'
-          : 'Deshabilitado por premiosEngineV2Enabled=false';
-      }
-      document.getElementById('pagos-aprobar').addEventListener('click', async()=>{
-        const seleccion = obtenerSeleccion('tabla-pagos');
-        if(!seleccion.length){ alert('Selecciona al menos un registro.'); return; }
-        await aprobarPagos(seleccion);
-        cpRenderResumenMontos(cpObtenerSorteoIdObjetivo());
-      });
-      document.getElementById('pagos-archivar').addEventListener('click', async()=>{
-        const seleccion = obtenerSeleccion('tabla-pagos');
-        if(!seleccion.length){ alert('Selecciona al menos un registro.'); return; }
-        await archivarRegistros(seleccion, 'pagos');
-        cpRenderResumenMontos(cpObtenerSorteoIdObjetivo());
-      });
-      document.getElementById('premios-archivo').addEventListener('click', ()=>{
-        mostrarPremiosArchivo = !mostrarPremiosArchivo;
-        renderPremios();
-      });
-      document.getElementById('pagos-archivo').addEventListener('click', ()=>{
-        mostrarPagosArchivo = !mostrarPagosArchivo;
-        renderPagos();
-      });
+        document.getElementById('pagos-archivar').addEventListener('click', async()=>{
+          const seleccion = obtenerSeleccion('tabla-pagos');
+          if(!seleccion.length){ alert('Selecciona al menos un registro.'); return; }
+          await archivarRegistros(seleccion, 'pagos');
+          cpRenderResumenMontos(cpObtenerSorteoIdObjetivo());
+        });
+        document.getElementById('premios-archivo').addEventListener('click', ()=>{
+          mostrarPremiosArchivo = !mostrarPremiosArchivo;
+          renderPremios();
+        });
+        document.getElementById('pagos-archivo').addEventListener('click', ()=>{
+          mostrarPagosArchivo = !mostrarPagosArchivo;
+          renderPagos();
+        });
 
 
-      document.getElementById('colaboradores-marcar').addEventListener('click', ()=>seleccionarTodos('tabla-colaboradores'));
-      document.getElementById('colaboradores-aprobar').addEventListener('click', async()=>{
-        const seleccion = obtenerSeleccion('tabla-colaboradores');
-        if(!seleccion.length){ alert('Selecciona al menos un registro.'); return; }
-        await aprobarPagosColaboradores(seleccion);
-      });
-      const tablaColaboradores = document.getElementById('tabla-colaboradores');
-      tablaColaboradores.addEventListener('change', e=>{
-        if(e.target.matches('tbody input[type="checkbox"]')){
-          const id = e.target.dataset.id;
-          const fila = e.target.closest('tr');
-          const input = fila ? fila.querySelector('.colab-input') : null;
-          if(!input) return;
-          if(e.target.checked){
-            input.disabled = false;
-            input.focus();
-            input.select();
-          } else {
-            input.disabled = true;
-            pagosColaboradoresEdicion.delete(id);
-            input.value = '';
+        document.getElementById('colaboradores-marcar').addEventListener('click', ()=>seleccionarTodos('tabla-colaboradores'));
+        document.getElementById('colaboradores-aprobar').addEventListener('click', async()=>{
+          const seleccion = obtenerSeleccion('tabla-colaboradores');
+          if(!seleccion.length){ alert('Selecciona al menos un registro.'); return; }
+          await aprobarPagosColaboradores(seleccion);
+        });
+        const tablaColaboradores = document.getElementById('tabla-colaboradores');
+        tablaColaboradores.addEventListener('change', e=>{
+          if(e.target.matches('tbody input[type="checkbox"]')){
+            const id = e.target.dataset.id;
+            const fila = e.target.closest('tr');
+            const input = fila ? fila.querySelector('.colab-input') : null;
+            if(!input) return;
+            if(e.target.checked){
+              input.disabled = false;
+              input.focus();
+              input.select();
+            } else {
+              input.disabled = true;
+              pagosColaboradoresEdicion.delete(id);
+              input.value = '';
+            }
           }
-        }
-      });
-      tablaColaboradores.addEventListener('input', e=>{
-        if(e.target.matches('.colab-input')){
-          pagosColaboradoresEdicion.set(e.target.dataset.id, e.target.value);
-        }
-      });
+        });
+        tablaColaboradores.addEventListener('input', e=>{
+          if(e.target.matches('.colab-input')){
+            pagosColaboradoresEdicion.set(e.target.dataset.id, e.target.value);
+          }
+        });
+      }
 
       const modalAceptar = document.getElementById('modal-info-aceptar');
       if(modalAceptar){ modalAceptar.addEventListener('click', ()=>ocultarModalInfo()); }
@@ -3480,14 +3503,14 @@
       });
     });
 
-    async function iniciarCentroPagos(){
+    async function iniciarEstadisticasSorteo(){
       configurarFiltros();
       configurarBotones();
       configurarInteraccionesTablas();
       try {
         await ensureFirebaseListo();
       } catch (err) {
-        console.error('No se pudo inicializar Firebase para Centro de Pagos', err);
+        console.error('No se pudo inicializar Firebase para Estadísticas del Sorteo', err);
         alert('No fue posible inicializar la conexión con la base de datos. Intenta recargar la página.');
         return;
       }
@@ -3496,7 +3519,7 @@
       suscribirColecciones();
     }
 
-    iniciarCentroPagos();
+    iniciarEstadisticasSorteo();
   </script>
   <script src="js/backNavigation.js"></script>
 </body>

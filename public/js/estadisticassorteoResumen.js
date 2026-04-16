@@ -1,10 +1,10 @@
-(function initCentroPagosResumen(root, factory){
+(function initEstadisticasSorteoResumen(root, factory){
   if(typeof module === 'object' && module.exports){
     module.exports = factory();
     return;
   }
-  root.CentroPagosResumen = factory();
-})(typeof globalThis !== 'undefined' ? globalThis : this, function crearCentroPagosResumen(){
+  root.EstadisticasSorteoResumen = factory();
+})(typeof globalThis !== 'undefined' ? globalThis : this, function crearEstadisticasSorteoResumen(){
   function resolverNombreForma(registro = {}){
     const idx = Number(registro.formaIdx);
     const formas = Array.isArray(registro.formasGanadoras) ? registro.formasGanadoras : [];

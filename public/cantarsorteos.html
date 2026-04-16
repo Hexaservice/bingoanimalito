@@ -421,12 +421,12 @@
       border-color: #c5e1a5;
       box-shadow: 0 6px 14px rgba(56, 142, 60, 0.32);
     }
-    #centro-pagos-btn {
+    #estadisticas-sorteo-btn {
       background: linear-gradient(180deg, #ff9800 0%, #ffb74d 55%, #ffffff 100%);
       border-color: #ffcc80;
       box-shadow: 0 6px 14px rgba(255, 152, 0, 0.32);
     }
-    #centro-pagos-btn.animacion-pagos {
+    #estadisticas-sorteo-btn.animacion-pagos {
       animation: zoomPulse 1.9s ease-in-out infinite;
     }
     .estado-btn img,
@@ -445,7 +445,7 @@
       pointer-events: auto;
       cursor: pointer;
     }
-    #centro-pagos-btn img {
+    #estadisticas-sorteo-btn img {
       width: 26px;
       height: 26px;
       filter: drop-shadow(0 1px 2px rgba(0,0,0,0.25));
@@ -1919,8 +1919,8 @@
           </svg>
         </span>
       </button>
-      <button id="centro-pagos-btn" class="estado-btn" title="Centro de pagos / estadísticas">
-        <img src="https://api.iconify.design/mdi/cash-multiple.svg?color=%230c7a43" alt="Centro de pagos y estadísticas" width="28" height="28">
+      <button id="estadisticas-sorteo-btn" class="estado-btn" title="Estadísticas del sorteo">
+        <img src="https://api.iconify.design/mdi/chart-box-outline.svg?color=%230c7a43" alt="Estadísticas del sorteo" width="28" height="28">
       </button>
     </div>
   </section>
@@ -2087,7 +2087,7 @@
   const resultadoBtn = document.getElementById('resultado-btn');
   const pdfGeneradoFloatingIcon = pdfBtn ? pdfBtn.querySelector('.pdf-floating-icon') : null;
   const pdfResultadosFloatingIcon = resultadoBtn ? resultadoBtn.querySelector('.pdf-floating-icon') : null;
-  const centroPagosBtn = document.getElementById('centro-pagos-btn');
+  const estadisticasSorteoBtn = document.getElementById('estadisticas-sorteo-btn');
   const tablaCantosContainer = document.getElementById('tabla-cantos-container');
   const panelGanadoresEl = document.getElementById('panel-ganadores-formas');
   const modalGanadoresEl = document.getElementById('modal-ganadores');
@@ -2736,14 +2736,14 @@
     pdfResultadosBtn.addEventListener('click', manejarClickResultadoBtn);
   }
   jugarBtn.addEventListener('click', cambiarAJugando);
-  if(centroPagosBtn){
-    centroPagosBtn.addEventListener('click', ()=>{
+  if(estadisticasSorteoBtn){
+    estadisticasSorteoBtn.addEventListener('click', ()=>{
       const estadoActual = obtenerEstadoActualNormalizado();
       if(estadoActual === 'finalizado'){
         abrirPdfResultados();
         return;
       }
-      window.location.href = 'centropagos.html';
+      window.location.href = 'estadisticassorteo.html';
     });
   }
   construirTablaCantos();
@@ -6131,8 +6131,8 @@
     } else if(estadoLower === 'finalizado'){
       if(pdfResultadoEstado === 'si'){
         resultadoBtn.classList.add('attention');
-        if(centroPagosBtn){
-          centroPagosBtn.classList.add('attention');
+        if(estadisticasSorteoBtn){
+          estadisticasSorteoBtn.classList.add('attention');
         }
       }
     }
@@ -6159,8 +6159,8 @@
       if(resultadoBtn){
         resultadoBtn.classList.remove('pdf-disponible');
       }
-      if(centroPagosBtn){
-        centroPagosBtn.classList.remove('animacion-pagos');
+      if(estadisticasSorteoBtn){
+        estadisticasSorteoBtn.classList.remove('animacion-pagos');
       }
       forzarVisibilidadResultado(false);
       return;
@@ -6192,9 +6192,9 @@
     if(resultadoBtn){
       resultadoBtn.classList.toggle('pdf-disponible', pdfResultadoEstado === 'si');
     }
-    if(centroPagosBtn){
+    if(estadisticasSorteoBtn){
       const animarPagos = debeAnimarCentroPagos(currentSorteoData);
-      centroPagosBtn.classList.toggle('animacion-pagos', animarPagos);
+      estadisticasSorteoBtn.classList.toggle('animacion-pagos', animarPagos);
     }
     forzarVisibilidadResultado(esFinalizado);
   }
@@ -6254,8 +6254,8 @@
       if(resultadoBtn){
         resultadoBtn.classList.remove('pdf-disponible');
       }
-      if(centroPagosBtn){
-        centroPagosBtn.classList.remove('animacion-pagos');
+      if(estadisticasSorteoBtn){
+        estadisticasSorteoBtn.classList.remove('animacion-pagos');
       }
       forzarVisibilidadResultado(false);
       actualizarAnimaciones();
@@ -6270,9 +6270,9 @@
     actualizarIndicadorVisibleJuegoActivo(data);
     sincronizarFormasBase(data.formas || []);
     btnSorteo.textContent = data.nombre || 'Sorteo';
-    if(centroPagosBtn){
+    if(estadisticasSorteoBtn){
       const animarPagos = debeAnimarCentroPagos(data);
-      centroPagosBtn.classList.toggle('animacion-pagos', animarPagos);
+      estadisticasSorteoBtn.classList.toggle('animacion-pagos', animarPagos);
     }
     btnSorteo.classList.remove('diario','especial','jugando','finalizado');
     const estadoActual = data.estado || '';
