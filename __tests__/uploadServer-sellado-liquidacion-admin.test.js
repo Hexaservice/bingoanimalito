@@ -12,6 +12,14 @@ jest.mock('firebase-admin', () => ({
 
 describe('sellado con liquidación administrativa', () => {
   function buildDbMock({ state, usersByRole }) {
+    const parseOperationsPath = (name) => {
+      const match = name.match(/^sorteos\/([^/]+)\/liquidaciones\/([^/]+)\/operaciones$/);
+      if (!match) return null;
+      return { sorteoId: match[1], runId: match[2] };
+    };
+
+    const readOperations = (runId) => Object.entries(state.operaciones?.[runId] || {}).map(([id, data]) => ({ id, data }));
+
     const sorteoRef = {
       kind: 'sorteo',
       id: state.sorteo.id,
@@ -59,6 +67,11 @@ describe('sellado con liquidación administrativa', () => {
       }
       if (ref.kind === 'run') {
         state.runs[ref.id] = resolvePayload(state.runs[ref.id] || {}, payload, options);
+        return;
+      }
+      if (ref.kind === 'op') {
+        state.operaciones[ref.runId] = state.operaciones[ref.runId] || {};
+        state.operaciones[ref.runId][ref.id] = resolvePayload(state.operaciones[ref.runId][ref.id] || {}, payload, options);
       }
     }
 
@@ -82,6 +95,46 @@ describe('sellado con liquidación administrativa', () => {
             }))
           };
         }
+        const opsPath = parseOperationsPath(name);
+        if (opsPath) {
+          const buildQuery = ({ statusFilter = null, limitSize = 20, startAfterIndice = null } = {}) => ({
+            where: jest.fn((_field, _op, value) => buildQuery({ statusFilter: value, limitSize, startAfterIndice })),
+            orderBy: jest.fn(() => buildQuery({ statusFilter, limitSize, startAfterIndice })),
+            limit: jest.fn((size) => buildQuery({ statusFilter, limitSize: size, startAfterIndice })),
+            startAfter: jest.fn((doc) => buildQuery({
+              statusFilter,
+              limitSize,
+              startAfterIndice: Number(doc?.data()?.indice || 0)
+            })),
+            get: jest.fn(async () => {
+              let docs = readOperations(opsPath.runId)
+                .map((entry) => ({
+                  id: entry.id,
+                  ref: { kind: 'op', runId: opsPath.runId, id: entry.id, set: jest.fn(async (payload, options) => applySet({ kind: 'op', runId: opsPath.runId, id: entry.id }, payload, options)) },
+                  data: () => ({ ...entry.data })
+                }))
+                .sort((a, b) => Number(a.data().indice || 0) - Number(b.data().indice || 0));
+              if (statusFilter) {
+                docs = docs.filter((doc) => String(doc.data().status || '') === String(statusFilter));
+              }
+              if (Number.isFinite(startAfterIndice)) {
+                docs = docs.filter((doc) => Number(doc.data().indice || 0) > Number(startAfterIndice));
+              }
+              const limited = docs.slice(0, limitSize);
+              return {
+                empty: limited.length === 0,
+                size: limited.length,
+                docs: limited
+              };
+            })
+          });
+          return {
+            doc: jest.fn((id) => ({ kind: 'op', runId: opsPath.runId, id, set: jest.fn(async (payload, options) => applySet({ kind: 'op', runId: opsPath.runId, id }, payload, options)) })),
+            limit: jest.fn((size) => buildQuery({ limitSize: size })),
+            where: jest.fn((_field, _op, value) => buildQuery({ statusFilter: value })),
+            orderBy: jest.fn(() => buildQuery())
+          };
+        }
         throw new Error(`Colección no mockeada: ${name}`);
       }),
       runTransaction: jest.fn(async (fn) => {
@@ -89,6 +142,10 @@ describe('sellado con liquidación administrativa', () => {
           get: jest.fn(async (ref) => {
             if (ref.kind === 'sorteo') {
               return { exists: true, data: () => ({ ...state.sorteo }) };
+            }
+            if (ref.kind === 'run') {
+              const runData = state.runs[ref.id];
+              return { exists: Boolean(runData), data: () => ({ ...(runData || {}) }) };
             }
             return { exists: false, data: () => ({}) };
           }),
@@ -126,7 +183,8 @@ describe('sellado con liquidación administrativa', () => {
         'dev1@test.com': { creditos: 5 }
       },
       transacciones: {},
-      runs: {}
+      runs: {},
+      operaciones: {}
     };
 
     const db = buildDbMock({

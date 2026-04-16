@@ -2093,6 +2093,14 @@ function roundToSixDecimals(value) {
   return Number((Number(value) || 0).toFixed(6));
 }
 
+function toMicros(value) {
+  return Math.round(roundToSixDecimals(value) * 1e6);
+}
+
+function fromMicros(value) {
+  return roundToSixDecimals((Number(value) || 0) / 1e6);
+}
+
 function distribuirMontoEnSeisDecimales(montoTotal = 0, usuarios = []) {
   const montoNormalizado = roundToSixDecimals(montoTotal);
   if (montoNormalizado <= 0 || !Array.isArray(usuarios) || !usuarios.length) return [];
@@ -2178,8 +2186,9 @@ async function ejecutarSelladoConLiquidacionAdmin({ db, sorteoId, operadorEmail 
   const SELLADO_LIQUIDACION_CHUNK_SIZE = 200;
   const sorteoRef = db.collection('sorteos').doc(normalizedSorteoId);
   const now = new Date();
-  const runId = `run-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
-  const runRef = sorteoRef.collection('liquidaciones').doc(runId);
+  const generatedRunId = `run-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+  let runId = generatedRunId;
+  let runRef = sorteoRef.collection('liquidaciones').doc(runId);
 
   const faseA = await db.runTransaction(async (tx) => {
     const sorteoSnap = await tx.get(sorteoRef);
@@ -2202,6 +2211,26 @@ async function ejecutarSelladoConLiquidacionAdmin({ db, sorteoId, operadorEmail 
       };
     }
 
+    const existingRunId = normalizeString(sorteoData.selladoLiquidacionRunId, 80);
+    if (existingRunId) {
+      const existingRunRef = sorteoRef.collection('liquidaciones').doc(existingRunId);
+      const existingRunSnap = await tx.get(existingRunRef);
+      const existingRunData = existingRunSnap.exists ? (existingRunSnap.data() || {}) : {};
+      const existingRunEstado = normalizeString(existingRunData.estado, 40).toLowerCase();
+      if (['pendiente', 'procesando', 'error', 'validacion_error'].includes(existingRunEstado)) {
+        return {
+          ok: true,
+          status: 200,
+          sorteoId: normalizedSorteoId,
+          idempotente: false,
+          resume: true,
+          runId: existingRunId,
+          snapshotMontos: existingRunData.snapshotMontos || sorteoData.selladoLiquidacionSnapshotMontos || {},
+          sorteoNombre: normalizeString(sorteoData.nombre, 200)
+        };
+      }
+    }
+
     const snapshotMontos = {
       totalporcentaje: roundToSixDecimals(normalizeNumber(sorteoData.totalporcentaje)),
       totalporcentajesu: roundToSixDecimals(normalizeNumber(sorteoData.totalporcentajesu))
@@ -2211,14 +2240,14 @@ async function ejecutarSelladoConLiquidacionAdmin({ db, sorteoId, operadorEmail 
       estado: 'Sellado',
       pdf: 'no',
       selladoLiquidacionEstado: 'pendiente',
-      selladoLiquidacionRunId: runId,
+      selladoLiquidacionRunId: generatedRunId,
       selladoLiquidacionSnapshotMontos: snapshotMontos,
       selladoLiquidacionActualizadoEn: admin.firestore.FieldValue.serverTimestamp(),
       selladoLiquidacionActualizadoPor: operador
     }, { merge: true });
 
     tx.set(runRef, {
-      runId,
+      runId: generatedRunId,
       sorteoId: normalizedSorteoId,
       estado: 'pendiente',
       fase: 'A_completada',
@@ -2233,6 +2262,7 @@ async function ejecutarSelladoConLiquidacionAdmin({ db, sorteoId, operadorEmail 
       status: 200,
       sorteoId: normalizedSorteoId,
       idempotente: false,
+      runId: generatedRunId,
       snapshotMontos,
       sorteoNombre: normalizeString(sorteoData.nombre, 200)
     };
@@ -2241,13 +2271,16 @@ async function ejecutarSelladoConLiquidacionAdmin({ db, sorteoId, operadorEmail 
   if (!faseA.ok || faseA.idempotente) {
     return faseA;
   }
+  runId = normalizeString(faseA.runId, 80) || runId;
+  runRef = sorteoRef.collection('liquidaciones').doc(runId);
+  const operationsRef = db.collection(`sorteos/${normalizedSorteoId}/liquidaciones/${runId}/operaciones`);
 
   const definiciones = [
     { rolInterno: 'agencia', monto: normalizeNumber(faseA.snapshotMontos?.totalporcentaje) },
     { rolInterno: 'desarrollador', monto: normalizeNumber(faseA.snapshotMontos?.totalporcentajesu) }
   ];
   const pagosPorRol = [];
-  const pagosAplicados = [];
+  let pagosAplicados = [];
   const operaciones = [];
 
   for (const def of definiciones) {
@@ -2291,6 +2324,8 @@ async function ejecutarSelladoConLiquidacionAdmin({ db, sorteoId, operadorEmail 
       if (!destinoEmail) continue;
       totalAsignado = roundToSixDecimals(totalAsignado + montoAsignado);
       operaciones.push({
+        opId: `op-${def.rolInterno}-${String(operaciones.length + 1).padStart(6, '0')}`,
+        indice: operaciones.length + 1,
         rolInterno: def.rolInterno,
         montoAsignado,
         destinoEmail
@@ -2305,18 +2340,104 @@ async function ejecutarSelladoConLiquidacionAdmin({ db, sorteoId, operadorEmail 
     });
   }
 
+  const expectedMicros = operaciones.reduce((acc, op) => acc + toMicros(op.montoAsignado), 0);
+  const totalChunks = Math.max(1, Math.ceil(Math.max(operaciones.length, 1) / SELLADO_LIQUIDACION_CHUNK_SIZE));
+
+  const computeProgressSummary = async () => {
+    let lastDoc = null;
+    let processed = 0;
+    let failed = 0;
+    let remaining = 0;
+    let creditedMicros = 0;
+    const applied = [];
+
+    while (true) {
+      let query = operationsRef.orderBy('indice').limit(300);
+      if (lastDoc) query = query.startAfter(lastDoc);
+      const snap = await query.get();
+      if (snap.empty) break;
+      snap.docs.forEach((doc) => {
+        const data = doc.data() || {};
+        const status = normalizeString(data.status, 40).toLowerCase();
+        const montoMicros = toMicros(data.montoAsignado || 0);
+        if (status === 'processed') {
+          processed += 1;
+          creditedMicros += montoMicros;
+          applied.push({
+            transaccionId: normalizeString(data.transaccionId, 200),
+            roleInternal: normalizeString(data.rolInterno, 40),
+            billeteraId: normalizeString(data.destinoEmail, 200),
+            monto: fromMicros(montoMicros)
+          });
+          return;
+        }
+        if (status === 'failed') {
+          failed += 1;
+          return;
+        }
+        remaining += 1;
+      });
+      lastDoc = snap.docs[snap.docs.length - 1];
+      if (snap.size < 300) break;
+    }
+
+    return {
+      processed,
+      failed,
+      remaining,
+      creditedMicros,
+      pagosAplicados: applied.filter((item) => item.transaccionId && item.billeteraId)
+    };
+  };
+
+  const planSnapshot = await operationsRef.limit(1).get();
+  if (planSnapshot.empty) {
+    const planningBatch = db.batch();
+    operaciones.forEach((op) => {
+      const opRef = operationsRef.doc(op.opId);
+      planningBatch.set(opRef, {
+        opId: op.opId,
+        indice: op.indice,
+        status: 'pending',
+        rolInterno: op.rolInterno,
+        destinoEmail: op.destinoEmail,
+        montoAsignado: op.montoAsignado,
+        intentos: 0,
+        creadoEn: admin.firestore.FieldValue.serverTimestamp(),
+        actualizadoEn: admin.firestore.FieldValue.serverTimestamp()
+      }, { merge: true });
+    });
+    planningBatch.set(runRef, {
+      estado: 'procesando',
+      fase: 'B_planificada',
+      expectedTotal: fromMicros(expectedMicros),
+      expectedMicros,
+      operacionesTotales: operaciones.length,
+      loteTamano: SELLADO_LIQUIDACION_CHUNK_SIZE,
+      distribucionCalculadaEn: admin.firestore.FieldValue.serverTimestamp(),
+      actualizadoEn: admin.firestore.FieldValue.serverTimestamp()
+    }, { merge: true });
+    await planningBatch.commit();
+  }
+
   try {
-    for (let offset = 0; offset < operaciones.length; offset += SELLADO_LIQUIDACION_CHUNK_SIZE) {
-      const chunk = operaciones.slice(offset, offset + SELLADO_LIQUIDACION_CHUNK_SIZE);
+    while (true) {
+      const pendingOpsSnap = await operationsRef
+        .where('status', '==', 'pending')
+        .orderBy('indice')
+        .limit(SELLADO_LIQUIDACION_CHUNK_SIZE)
+        .get();
+      if (pendingOpsSnap.empty) break;
+
+      const chunk = pendingOpsSnap.docs.map((doc) => ({ ref: doc.ref, ...(doc.data() || {}) }));
+      const chunkIndex = Math.floor((chunk[0]?.indice || 1) / SELLADO_LIQUIDACION_CHUNK_SIZE) + 1;
       const batch = db.batch();
-      const chunkIndex = Math.floor(offset / SELLADO_LIQUIDACION_CHUNK_SIZE) + 1;
-      const totalChunks = Math.max(1, Math.ceil(operaciones.length / SELLADO_LIQUIDACION_CHUNK_SIZE));
 
       for (const op of chunk) {
         const walletRef = db.collection('Billetera').doc(op.destinoEmail);
         batch.set(walletRef, {
           email: op.destinoEmail,
-          creditos: admin.firestore.FieldValue.increment(op.montoAsignado),
+          creditos: admin.firestore.FieldValue.increment(roundToSixDecimals(op.montoAsignado)),
           actualizadoEn: admin.firestore.FieldValue.serverTimestamp()
         }, { merge: true });
 
@@ -2332,27 +2453,72 @@ async function ejecutarSelladoConLiquidacionAdmin({ db, sorteoId, operadorEmail 
           now
         }));
 
-        pagosAplicados.push({
+        batch.set(op.ref, {
+          status: 'processed',
           transaccionId: txRef.id,
-          roleInternal: op.rolInterno,
-          billeteraId: op.destinoEmail,
-          monto: op.montoAsignado
-        });
+          intentos: admin.firestore.FieldValue.increment(1),
+          procesadoEn: admin.firestore.FieldValue.serverTimestamp(),
+          actualizadoEn: admin.firestore.FieldValue.serverTimestamp()
+        }, { merge: true });
+
       }
 
-      batch.set(runRef, {
+      try {
+        await batch.commit();
+      } catch (chunkError) {
+        for (const op of chunk) {
+          try {
+            const singleBatch = db.batch();
+            const walletRef = db.collection('Billetera').doc(op.destinoEmail);
+            singleBatch.set(walletRef, {
+              email: op.destinoEmail,
+              creditos: admin.firestore.FieldValue.increment(roundToSixDecimals(op.montoAsignado)),
+              actualizadoEn: admin.firestore.FieldValue.serverTimestamp()
+            }, { merge: true });
+            const txRef = db.collection('transacciones').doc();
+            singleBatch.set(txRef, buildAdminLiquidationTransactionPayload({
+              monto: op.montoAsignado,
+              billeteraId: op.destinoEmail,
+              emailVisible: op.destinoEmail,
+              roleInternal: op.rolInterno,
+              sorteoId: normalizedSorteoId,
+              sorteoNombre: faseA.sorteoNombre,
+              creadoPor: operador,
+              now
+            }));
+            singleBatch.set(op.ref, {
+              status: 'processed',
+              transaccionId: txRef.id,
+              intentos: admin.firestore.FieldValue.increment(1),
+              procesadoEn: admin.firestore.FieldValue.serverTimestamp(),
+              actualizadoEn: admin.firestore.FieldValue.serverTimestamp()
+            }, { merge: true });
+            await singleBatch.commit();
+          } catch (singleError) {
+            await op.ref.set({
+              status: 'failed',
+              error: normalizeString(singleError?.message, 260) || 'Error procesando pago administrativo',
+              intentos: admin.firestore.FieldValue.increment(1),
+              actualizadoEn: admin.firestore.FieldValue.serverTimestamp()
+            }, { merge: true });
+          }
+        }
+      }
+
+      const progress = await computeProgressSummary();
+      pagosAplicados = progress.pagosAplicados;
+      await runRef.set({
         estado: 'procesando',
         fase: 'B_en_progreso',
         progreso: {
-          chunkActual: chunkIndex,
+          chunkActual: Math.min(chunkIndex, totalChunks),
           totalChunks,
-          operacionesProcesadas: Math.min(offset + chunk.length, operaciones.length),
-          operacionesTotales: operaciones.length
+          processed: progress.processed,
+          failed: progress.failed,
+          remaining: progress.remaining
         },
         actualizadoEn: admin.firestore.FieldValue.serverTimestamp()
       }, { merge: true });
-
-      await batch.commit();
     }
   } catch (error) {
     const mensaje = normalizeString(error?.message, 260) || 'Error procesando pagos administrativos';
@@ -2375,6 +2541,47 @@ async function ejecutarSelladoConLiquidacionAdmin({ db, sorteoId, operadorEmail 
       status: 500,
       code: 'SELLADO_LIQUIDACION_FASE_B_ERROR',
       error: 'La liquidación administrativa falló en fase B. El sellado permanece aplicado.',
+      sorteoId: normalizedSorteoId,
+      runId,
+      pagosAplicados
+    };
+  }
+
+  const finalProgress = await computeProgressSummary();
+  pagosAplicados = finalProgress.pagosAplicados;
+  const creditedMicros = finalProgress.creditedMicros;
+  const hasPendingOrFailed = finalProgress.remaining > 0 || finalProgress.failed > 0;
+  const montoAcreditadoValido = creditedMicros === expectedMicros;
+  if (hasPendingOrFailed || !montoAcreditadoValido) {
+    const validacionError = !montoAcreditadoValido
+      ? `Monto acreditado inválido. esperado=${fromMicros(expectedMicros)} acreditado=${fromMicros(creditedMicros)}`
+      : 'Existen operaciones pendientes o fallidas en la liquidación administrativa.';
+    await Promise.all([
+      sorteoRef.set({
+        selladoLiquidacionEstado: 'error',
+        selladoLiquidacionError: validacionError,
+        selladoLiquidacionActualizadoEn: admin.firestore.FieldValue.serverTimestamp(),
+        selladoLiquidacionActualizadoPor: operador
+      }, { merge: true }),
+      runRef.set({
+        estado: 'validacion_error',
+        fase: 'B_validacion_monto',
+        error: validacionError,
+        progreso: {
+          processed: finalProgress.processed,
+          failed: finalProgress.failed,
+          remaining: finalProgress.remaining
+        },
+        expectedTotal: fromMicros(expectedMicros),
+        creditedTotal: fromMicros(creditedMicros),
+        actualizadoEn: admin.firestore.FieldValue.serverTimestamp()
+      }, { merge: true })
+    ]);
+    return {
+      ok: false,
+      status: 409,
+      code: 'SELLADO_LIQUIDACION_VALIDACION_ERROR',
+      error: validacionError,
       sorteoId: normalizedSorteoId,
       runId,
       pagosAplicados
@@ -2404,6 +2611,8 @@ async function ejecutarSelladoConLiquidacionAdmin({ db, sorteoId, operadorEmail 
       selladoPagoAdminResumen: {
         pagosPorRol,
         totalTransacciones: pagosAplicados.length,
+        totalEsperado: fromMicros(expectedMicros),
+        totalAcreditado: fromMicros(creditedMicros),
         liquidacionesPendientes
       }
     }, { merge: true }),
@@ -2412,6 +2621,13 @@ async function ejecutarSelladoConLiquidacionAdmin({ db, sorteoId, operadorEmail 
       fase: 'B_completada',
       pagosPorRol,
       totalTransacciones: pagosAplicados.length,
+      expectedTotal: fromMicros(expectedMicros),
+      creditedTotal: fromMicros(creditedMicros),
+      progreso: {
+        processed: finalProgress.processed,
+        failed: finalProgress.failed,
+        remaining: finalProgress.remaining
+      },
       liquidacionesPendientes,
       completadoEn: admin.firestore.FieldValue.serverTimestamp(),
       actualizadoEn: admin.firestore.FieldValue.serverTimestamp()
