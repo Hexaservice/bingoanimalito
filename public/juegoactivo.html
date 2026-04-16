@@ -5174,7 +5174,9 @@
   function actualizarBotonesCartonesPublicados(){
     const haySorteoSeleccionado = Boolean(activeSorteoId);
     const publicadoJugando = esSorteoVisibleJuegoActivo(activeSorteo);
-    const publicadoGanadores = esFlagPublicado(activeSorteo?.cartonesGanadoresPublicados);
+    const publicadoGanadores = esFlagPublicado(activeSorteo?.cartonesGanadoresPublicados)
+      || esFlagPublicado(activeSorteo?.resultadoPublicadoJugadores)
+      || esFlagPublicado(activeSorteo?.pdfresul);
     if(cartonesJugandoBtnEl){
       cartonesJugandoBtnEl.hidden = !haySorteoSeleccionado;
       cartonesJugandoBtnEl.disabled = !publicadoJugando;
