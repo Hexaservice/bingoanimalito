@@ -2157,9 +2157,23 @@ function distribuirMontoEnSeisDecimales(montoTotal = 0, usuarios = []) {
 async function getUsuariosAdministrativosPorRol({ db, roleInternal = '' }) {
   const role = normalizeString(roleInternal, 40).toLowerCase();
   if (!role) return [];
-  const snapshot = await db.collection('users').where('rolinterno', '==', role).get();
+  const valuesByRole = {
+    agencia: ['agencia', 'agencias'],
+    desarrollador: ['desarrollador', 'desarrolladores']
+  };
+  const roleValues = Array.from(new Set([role, ...(valuesByRole[role] || [])])).filter(Boolean);
+  const roleFields = ['rolinterno', 'rolInterno'];
+  const snapshots = await Promise.all(roleFields.map(async (fieldName) => {
+    if (roleValues.length === 1) {
+      return db.collection('users').where(fieldName, '==', roleValues[0]).get();
+    }
+    return db.collection('users').where(fieldName, 'in', roleValues.slice(0, 10)).get();
+  }));
   const usuarios = [];
-  snapshot.forEach((doc) => {
+  const seenUserIds = new Set();
+  snapshots.forEach((snapshot) => snapshot.forEach((doc) => {
+    if (seenUserIds.has(doc.id)) return;
+    seenUserIds.add(doc.id);
     const data = doc.data() || {};
     const email = normalizeString(data.email || data.gmail || doc.id, 200).toLowerCase();
     if (!email) return;
@@ -2170,7 +2184,7 @@ async function getUsuariosAdministrativosPorRol({ db, roleInternal = '' }) {
       name: normalizeString(data.name || data.nombre, 120),
       uid: normalizeString(data.uid, 200)
     });
-  });
+  }));
   return usuarios;
 }
 
