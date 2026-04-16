@@ -170,6 +170,15 @@ A partir de este cambio, el contrato operativo para premios es:
 
 Este contrato reduce superficie de fraude y centraliza trazabilidad de acreditaciones en backend.
 
+### Estados operativos permitidos para pagos/premios
+
+Para evitar divergencias entre endpoints, `uploadServer.js` normaliza estados operativos con una sola función (`normalizeOperationalPaymentState`) y aplica las mismas reglas de error (`code=ESTADO_OPERATIVO_INVALIDO`) en operaciones de acreditación/reconciliación.
+
+| Operación | Endpoint | Estados permitidos (normalizados) | Alias aceptados por normalización |
+| --- | --- | --- | --- |
+| Acreditar premio individual | `POST /acreditarPremioEvento` | `jugando`, `finalizado` | `activo`, `activa`, `en_juego`, `en-juego`, `juego_activo` -> `jugando`; `finalizada`, `terminado`, `terminada`, `cerrado`, `cerrada` -> `finalizado` |
+| Reconciliación masiva de pendientes directos | `POST /admin/reconciliar-premios-pendientes-directos` | `finalizado` | Misma normalización centralizada; cualquier alias de finalización converge a `finalizado` |
+
 ### Ventana temporal de compatibilidad para locks de ganadores por forma
 
 La colección canónica para cierres por forma ganadora es `GanadoresSorteosTiempoReal` con documentos por id `sorteoId__f{idx}`.
