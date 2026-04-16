@@ -1307,6 +1307,17 @@ function buildReconciledPrizeTransactionId(premioId) {
   return `premio_reconciliado_${digest}`;
 }
 
+function buildReconciledPrizeTransactionIdByEvent(eventoGanadorId, premioId = '') {
+  const normalizedEvent = normalizeString(eventoGanadorId, 320).toLowerCase();
+  if (normalizedEvent) {
+    const digest = crypto.createHash('sha256').update(normalizedEvent).digest('hex').slice(0, 32);
+    return `premio_evento_${digest}`;
+  }
+  const normalized = normalizeString(premioId, 320).toLowerCase();
+  const digest = crypto.createHash('sha256').update(normalized).digest('hex').slice(0, 32);
+  return `premio_reconciliado_${digest}`;
+}
+
 async function reconcileSinglePendingPrize({
   db,
   premioDoc,
@@ -1319,9 +1330,6 @@ async function reconcileSinglePendingPrize({
   if (!premioId) {
     return { status: 'omitido', reason: 'premio_id_invalido' };
   }
-
-  const transaccionId = buildReconciledPrizeTransactionId(premioId);
-  const transaccionRef = db.collection('transacciones').doc(transaccionId);
 
   return db.runTransaction(async (tx) => {
     const premioSnap = await tx.get(premioDoc.ref);
@@ -1340,6 +1348,8 @@ async function reconcileSinglePendingPrize({
       eventoGanadorId || premioData.eventoGanadorId,
       320
     );
+    const transaccionId = buildReconciledPrizeTransactionIdByEvent(eventoGanadorIdPremio, premioId);
+    const transaccionRef = db.collection('transacciones').doc(transaccionId);
     const idx = Number.isFinite(Number(premioData.idx)) ? Number(premioData.idx) : null;
     const nombre = normalizeString(premioData.nombre, 200);
     const creditos = Math.max(0, normalizeNumber(premioData.creditos));
@@ -1348,10 +1358,9 @@ async function reconcileSinglePendingPrize({
       normalizeNumber(premioData.cartonesGratis ?? premioData.cartones)
     );
 
-    const transaccionPorPremioQuery = db
-      .collection('transacciones')
-      .where('premioId', '==', premioId)
-      .limit(1);
+    const transaccionPorPremioQuery = eventoGanadorIdPremio
+      ? db.collection('transacciones').where('eventoGanadorId', '==', eventoGanadorIdPremio).limit(1)
+      : db.collection('transacciones').where('premioId', '==', premioId).limit(1);
     const billeteraRef = premioDoc.ref.parent.parent;
     const legacyPremioRef = getLegacyDirectPrizeRefFromPendingRef(premioDoc.ref);
     const ledgerRef = billeteraRef.collection('premiosLedger').doc(premioId);
@@ -3116,23 +3125,11 @@ async function aprobarPagoAdministrativoCentroPagos({ db, pagoId = '', actor = {
 }
 
 app.post('/admin/centropagos/aprobar-pago', verificarToken, async (req, res) => {
-  try {
-    const result = await aprobarPagoAdministrativoCentroPagos({
-      db: admin.firestore(),
-      pagoId: req.body?.pagoId,
-      actor: req.user || {}
-    });
-    return res.status(result.status || 200).json(result);
-  } catch (error) {
-    if (error?.message === 'PAGO_NO_ENCONTRADO') {
-      return res.status(404).json({ ok: false, error: 'Pago no encontrado.' });
-    }
-    if (error?.message === 'PAGO_DATOS_INVALIDOS') {
-      return res.status(400).json({ ok: false, error: 'El pago no tiene billetera o monto válido.' });
-    }
-    console.error('Error aprobando pago administrativo en centro de pagos', error);
-    return res.status(500).json({ ok: false, error: 'No se pudo aprobar el pago.' });
-  }
+  return res.status(410).json({
+    ok: false,
+    code: 'MANUAL_APPROVAL_DISABLED',
+    error: 'La aprobación manual de pagos fue desactivada. Usa el flujo automático de acreditación inmediata.'
+  });
 });
 
 app.post('/admin/centropagos/asignar-colaborador', verificarToken, async (req, res) => {
@@ -4202,7 +4199,8 @@ app.post('/admin/generar-premios-pendientes-directos-oficiales', verificarToken,
     const summary = await generatePendingDirectPrizesFromOfficialResults({
       db: admin.firestore(),
       sorteoId,
-      generadoPor: normalizeString(req.user?.email, 200) || 'sistema:premios-oficiales'
+      generadoPor: normalizeString(req.user?.email, 200) || 'sistema:premios-oficiales',
+      acreditarEnCreacion: true
     });
     return res.json({
       status: 'ok',
@@ -4218,50 +4216,11 @@ app.post('/admin/generar-premios-pendientes-directos-oficiales', verificarToken,
 });
 
 app.post('/admin/reconciliar-premios-pendientes-directos', verificarToken, async (req, res) => {
-  const sorteoId = normalizeString(req.body?.sorteoId, 120);
-  const pageSize = Math.max(10, Math.min(250, Number(req.body?.pageSize) || 100));
-
-  if (!sorteoId) {
-    return res.status(400).json({ error: 'sorteoId es obligatorio' });
-  }
-  if (!PREMIOS_ENGINE_V2_ENABLED) {
-    const disabled = buildPremiosEngineDisabledResponse({ action: 'reconciliar-premios-pendientes-directos', sorteoId, status: 409 });
-    return res.status(disabled.statusCode).json(disabled.payload);
-  }
-
-  try {
-    const db = admin.firestore();
-    const sorteoSnap = await db.collection('sorteos').doc(sorteoId).get();
-    const estadoSorteo = normalizeOperationalPaymentState(sorteoSnap.data()?.estado);
-    if (estadoSorteo !== 'finalizado') {
-      const invalidState = buildInvalidOperationalPaymentStateResponse({
-        operation: 'reconciliacion_masiva',
-        sorteoId,
-        estadoRaw: sorteoSnap.data()?.estado,
-        allowedStates: ['finalizado']
-      });
-      return res.status(invalidState.status).json(invalidState.payload);
-    }
-
-    const resultado = await reconcilePendingPrizesBySorteo({
-      db,
-      sorteoId,
-      pageSize,
-      acreditadoPor: normalizeString(req.user?.email, 200) || 'sistema:reconciliacion',
-      origen: 'premios_pendientes_reconciliados'
-    });
-
-    return res.json({
-      status: 'ok',
-      ...resultado
-    });
-  } catch (error) {
-    console.error('[reconciliar-premios-pendientes-directos] fallo de endpoint', error);
-    return res.status(500).json({
-      error: 'Error reconciliando premios pendientes directos',
-      message: error?.message || String(error)
-    });
-  }
+  return res.status(410).json({
+    ok: false,
+    code: 'MANUAL_RECONCILIATION_DISABLED',
+    error: 'La reconciliación manual fue desactivada. Los premios oficiales se acreditan al crearse.'
+  });
 });
 
 function toPublicImageUrl(req, relativePath) {
