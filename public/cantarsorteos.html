@@ -7015,9 +7015,15 @@
       if(!confirmarSellado) return false;
     }
     try {
-      await db.collection('sorteos').doc(currentSorteoId).update({ estado: 'Sellado', pdf: 'no' });
+      const resultado = await solicitarSelladoConLiquidacionAdmin();
+      if(!resultado || resultado.ok !== true){
+        const mensaje = (resultado && (resultado.error || resultado?.detalle?.mensaje)) || 'No fue posible aplicar el sellado administrativo.';
+        throw new Error(mensaje);
+      }
       conservarLoteriasCacheEnSorteoActual();
-      mensajeEl.textContent = 'El sorteo fue sellado correctamente.';
+      mensajeEl.textContent = resultado.idempotente
+        ? 'El sorteo ya estaba liquidado y quedó sellado sin duplicar pagos.'
+        : 'El sorteo fue sellado y liquidado a cuentas administrativas.';
       sellarBtn.classList.remove('attention');
       return true;
     } catch (err) {
@@ -7025,6 +7031,37 @@
       alert('No fue posible sellar el sorteo.');
       return false;
     }
+  }
+
+  async function solicitarSelladoConLiquidacionAdmin(){
+    const user = auth?.currentUser || null;
+    if(!user){
+      return { ok: false, error: 'No hay sesión activa.' };
+    }
+    const apiBase = resolverBaseApiAdministrativa();
+    if(!apiBase || typeof fetch !== 'function'){
+      return { ok: false, error: 'No hay API administrativa configurada.' };
+    }
+    const token = await user.getIdToken(true);
+    const respuesta = await fetch(`${apiBase}/admin/sellado-liquidacion`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`
+      },
+      body: JSON.stringify({ sorteoId: currentSorteoId })
+    });
+    let payload = null;
+    try{
+      payload = await respuesta.json();
+    }catch(_errorParse){
+      payload = null;
+    }
+    if(payload && typeof payload === 'object'){
+      payload.status = respuesta.status;
+      return payload;
+    }
+    return { ok: false, status: respuesta.status, error: 'Respuesta inválida del backend' };
   }
 
   function sincronizarDatosPdf(datos = {}){
