@@ -836,6 +836,13 @@
       backendChecked: false
     };
     const premiosEngineV2Enabled = ()=>Boolean(runtimePremiosEngineConfig.enabled);
+    const runtimeClientWriteLockConfig = {
+      initialized: false,
+      enabled: resolveRuntimeBooleanFlag(window.__APP_CONFIG__?.bloquearEscriturasClientePremios, false),
+      source: window.__APP_CONFIG__?.bloquearEscriturasClientePremios !== undefined
+        ? 'window.__APP_CONFIG__.bloquearEscriturasClientePremios'
+        : 'default:false'
+    };
 
     const filtrosColaboradores = { gmail:'', creditos:'', tipo:'' };
     const filtrosPremios = { jugador:'', fecha:'', estado:'' };
@@ -885,6 +892,46 @@
         idempotente: true,
         premiosEngineV2Enabled: premiosEngineV2Enabled()
       };
+    }
+
+    function cpBloquearEscriturasClientePremiosActivo(){
+      return Boolean(runtimeClientWriteLockConfig.enabled);
+    }
+
+    function cpAbortarMutacionDirectaSiLock(operacion = ''){
+      if(!cpBloquearEscriturasClientePremiosActivo()) return;
+      const detalle = (operacion || 'operación').toString().trim();
+      const error = new Error(
+        `Mutación directa bloqueada en modo lock (${detalle}). Usa endpoints autenticados de uploadServer.js.`
+      );
+      error.code = 'CLIENT_WRITE_LOCK_ENABLED';
+      throw error;
+    }
+
+    async function cpPostAdminMutation(path, payload = {}){
+      const usuario = authInstance().currentUser;
+      if(!usuario){
+        throw new Error('No hay usuario autenticado para ejecutar la mutación administrativa.');
+      }
+      const apiBase = resolverApiAdminBaseCentroPagos();
+      if(!apiBase){
+        throw new Error('No se pudo resolver la URL base del API administrativo.');
+      }
+      const token = await usuario.getIdToken(true);
+      const response = await fetch(`${apiBase}${path}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify(payload || {})
+      });
+      const body = await response.json().catch(()=>null);
+      if(!response.ok){
+        const detail = body?.error || body?.message || `HTTP ${response.status}`;
+        throw new Error(detail);
+      }
+      return body || {};
     }
 
     function cpRenderResumenReconciliacion(resultado = null, { fuente = 'api', sorteoNombre = '' } = {}){
@@ -1003,11 +1050,16 @@
             runtimePremiosEngineConfig.source = payload?.config?.premiosEngineV2PolicySource || 'backend:/runtime-config';
             runtimePremiosEngineConfig.backendChecked = true;
           }
+          if(payload?.config?.bloquearEscriturasClientePremios !== undefined){
+            runtimeClientWriteLockConfig.enabled = resolveRuntimeBooleanFlag(payload.config.bloquearEscriturasClientePremios, false);
+            runtimeClientWriteLockConfig.source = payload?.config?.bloquearEscriturasClientePremiosSource || 'backend:/runtime-config';
+          }
         }
       }catch(err){
         console.warn('No se pudo validar premiosEngineV2Enabled contra backend', err);
       }finally{
         runtimePremiosEngineConfig.initialized = true;
+        runtimeClientWriteLockConfig.initialized = true;
         cpSincronizarBotonesConEngine();
       }
     }
@@ -2134,156 +2186,22 @@
       return null;
     }
 
-    async function cpActualizarDocumentoCentroPagos(ctx, ref, payload){
-      try {
-        await ctx.db.runTransaction(async tx => {
-          const snap = await tx.get(ref);
-          if(snap.exists){
-            const data = snap.data() || {};
-            const estadoActual = normalizarEstado(data.estado);
-            if(window.EstadosPagoPremio.estaFinalizado(estadoActual)){ return; }
-          }
-          if(payload && Object.prototype.hasOwnProperty.call(payload, 'estado')){
-            payload.estado = validarEstadoGuardado(payload.estado, `CentroPagos:${ref.path}`);
-          }
-          tx.set(ref, payload, { merge: true });
-        });
-      } catch (err) {
-        console.error('Error registrando solicitud en Centro de Pagos', ref.path, err);
-        throw err;
-      }
-    }
-
     async function cpRegistrarSolicitudes(ctx, ganadores, administrativos, colaboradores, totalCreditos, totalCartonesGratis, opciones = {}){
       const incluirPremios = opciones.incluirPremios !== false;
-      const timestamp = firebase.firestore.FieldValue.serverTimestamp();
-      const sorteoNombre = (ctx.sorteoData?.nombre || '').toString();
-      const operaciones = [];
-
-      if(incluirPremios){
-        ganadores.forEach(ganador=>{
-          const email = cpNormalizarEmail(ganador.gmail);
-          const alias = ganador.alias || '';
-          const docId = cpConstruirIdGanador(ctx, ganador);
-          const eventoGanadorId = docId;
-          const payload = {
-          sorteoId: ctx.sorteoId,
-          sorteoNombre,
-          gmail: email || '',
-          email: email || '',
-          alias: alias,
-          aliasJugador: alias,
-          aliasGanador: alias,
-          creditos: Number(ganador.creditos) || 0,
-          creditosGanados: Number(ganador.creditos) || 0,
-          cartonesGratis: Number(ganador.cartonesGratis) || 0,
-          cartonesGanados: Number(ganador.cartonesGanadores) || 0,
-          cartonId: (ganador.cartonesIds?.[0] || ganador.cartonId || '').toString(),
-          formaIdx: Number(ganador?.formas?.[0]?.idx),
-          formasGanadoras: ganador.formas || [],
-            estado: validarEstadoGuardado('PENDIENTE', `PremiosSorteos:${docId}`),
-          fechaGanado: timestamp,
-          fechaRegistro: timestamp,
-          creadoEn: timestamp,
-          actualizadoEn: timestamp,
-          tipoRegistro: 'GANADOR_SORTEO',
-          eventoGanadorId,
-          winnerKey: eventoGanadorId,
-          userIds: ganador.userIds || [],
-          generadoDesde: 'centropagos'
-        };
-        if(email){ payload.idBilletera = email; }
-          operaciones.push(cpActualizarDocumentoCentroPagos(ctx, ctx.db.collection('PremiosSorteos').doc(docId), payload));
-        });
-      }
-
-      administrativos.forEach(administrativo=>{
-        const email = cpNormalizarEmail(administrativo.gmail);
-        const docId = cpConstruirIdSolicitud(`${ctx.sorteoId}_admin_${administrativo.rolInterno || 'admin'}`, email || administrativo.alias || 'admin');
-        const payload = {
-          sorteoId: ctx.sorteoId,
-          sorteoNombre,
-          gmail: email || '',
-          email: email || '',
-          nombre: administrativo.nombre || administrativo.alias || '',
-          alias: administrativo.alias || '',
-          creditos: Number(administrativo.creditos) || 0,
-            estado: validarEstadoGuardado('PENDIENTE', `PagosAdministracion:${docId}`),
-          fechaAsignacion: timestamp,
-          fecha: timestamp,
-          creadoEn: timestamp,
-          actualizadoEn: timestamp,
-          tipoRegistro: 'ADMINISTRATIVO_SORTEO',
-          rolInterno: administrativo.rolInterno || '',
-          montoRolBase: Number(administrativo.montoRolBase) || 0,
-          totalUsuariosRol: Number(administrativo.totalUsuariosRol) || 0,
-          metodoDistribucion: administrativo.metodoDistribucion || '',
-          userIds: administrativo.userIds || [],
-          generadoDesde: 'centropagos'
-        };
-        if(email){ payload.idBilletera = email; }
-        operaciones.push(cpActualizarDocumentoCentroPagos(ctx, ctx.db.collection('PagosAdministracion').doc(docId), payload));
-      });
-
-      const resumenRef = ctx.db.collection('SorteosCentroPagos').doc(ctx.sorteoId);
-      const resumenPayload = {
+      await cpPostAdminMutation('/admin/centropagos/registrar-solicitudes', {
         sorteoId: ctx.sorteoId,
-        sorteoNombre,
-        totalGanadores: incluirPremios ? ganadores.length : 0,
-        totalAdministrativos: administrativos.length,
-        totalColaboradores: colaboradores.length,
-        totalCreditosPremios: incluirPremios ? totalCreditos : 0,
-        totalCartonesGratis: incluirPremios ? totalCartonesGratis : 0,
-        ganadores: incluirPremios ? ganadores.map(item=>({
-          gmail: cpNormalizarEmail(item.gmail || ''),
-          alias: item.alias || '',
-          creditos: Number(item.creditos) || 0,
-          cartonesGratis: Number(item.cartonesGratis) || 0,
-          cartonesGanadores: Number(item.cartonesGanadores) || 0
-        })) : [],
-        administrativos: administrativos.map(item=>({
-          gmail: cpNormalizarEmail(item.gmail || ''),
-          alias: item.alias || '',
-          nombre: item.nombre || '',
-          rolInterno: item.rolInterno || '',
-          creditos: Number(item.creditos) || 0,
-          montoRolBase: Number(item.montoRolBase) || 0,
-          totalUsuariosRol: Number(item.totalUsuariosRol) || 0,
-          metodoDistribucion: item.metodoDistribucion || ''
-        })),
-        colaboradores: colaboradores.map(item=>({
-          gmail: cpNormalizarEmail(item.gmail || ''),
-          alias: item.alias || '',
-          nombre: item.nombre || '',
-          creditos: Number(item.creditos) || 0
-        })),
-        generadoEn: timestamp,
-        generadoDesde: 'centropagos'
-      };
-      operaciones.push(resumenRef.set(resumenPayload, { merge: true }));
-
-      const indicadorPagosPayload = {
-        pagosCentroAprobados: false,
-        pagosCentroActualizadosEn: timestamp
-      };
-      operaciones.push(ctx.db.collection('sorteos').doc(ctx.sorteoId).set(indicadorPagosPayload, { merge: true }));
-      operaciones.push(ctx.db.collection('cantarsorteos').doc(ctx.sorteoId).set(indicadorPagosPayload, { merge: true }).catch(err=>{
-        console.warn('No se pudo marcar el indicador en cantarsorteos para', ctx.sorteoId, err);
-      }));
-
-      await Promise.all(operaciones);
+        sorteoNombre: (ctx.sorteoData?.nombre || '').toString(),
+        ganadores: incluirPremios ? ganadores : [],
+        administrativos,
+        colaboradores,
+        totalCreditosPremios: incluirPremios ? Number(totalCreditos) || 0 : 0,
+        totalCartonesGratis: incluirPremios ? Number(totalCartonesGratis) || 0 : 0,
+        incluirPremios
+      });
     }
 
     async function cpMarcarSolicitudesGeneradas(ctx){
-      const timestamp = firebase.firestore.FieldValue.serverTimestamp();
-      const payload = {
-        solicitudesPagosGeneradas: true,
-        solicitudesPagosActualizadasEn: timestamp
-      };
-      await Promise.all([
-        ctx.db.collection('sorteos').doc(ctx.sorteoId).set(payload, { merge: true }),
-        ctx.db.collection('cantarsorteos').doc(ctx.sorteoId).set(payload, { merge: true })
-      ]);
+      void ctx;
     }
 
     async function cpValidarSolicitudesNoGeneradas(ctx){
@@ -2989,60 +2907,20 @@
       }
     }
 
-    async function registrarTransaccionPremio(enRegistro){
-      const monto = Number(enRegistro.creditos) || 0;
-      if(!enRegistro.billetera || monto <= 0) return;
-      try {
-        if(typeof fechaServidor !== 'function' || typeof horaServidor !== 'function'){
-          await initServerTime();
-        }
-        await dbRef().collection('transacciones').add({
-          tipotrans: (enRegistro.tipotrans || 'pago').toString().toLowerCase(),
-          origen: (enRegistro.origen || 'pagos_administracion').toString().toLowerCase(),
-          Monto: monto,
-          estado: validarEstadoGuardado('APROBADO', 'TransaccionPagoAdministracion'),
-          IDbilletera: enRegistro.billetera,
-          fechasolicitud: '',
-          horasolicitud: '',
-          fechagestion: typeof fechaServidor === 'function' ? fechaServidor() : '',
-          horagestion: typeof horaServidor === 'function' ? horaServidor() : '',
-          usuariogestor: authInstance().currentUser?.email || '',
-          rolusuario: window.currentRole || '',
-          referencia: (enRegistro.referencia || 'PAGO').toString(),
-          sorteoId: enRegistro.sorteoId || '',
-          sorteoNombre: (enRegistro.sorteoNombre || 'Pago a colaborador').toString(),
-          creadoEn: firebase.firestore.FieldValue.serverTimestamp()
-        });
-      } catch (err) {
-        console.error('No se pudo registrar la transacción de pago administrativo', err);
-      }
-    }
-
     async function acreditarPago(enRegistro){
       if(!premiosEngineV2Enabled()){
         throw new Error('PREMIOS_ENGINE_V2_DISABLED: acreditarPago deshabilitado por bandera global.');
       }
-      const db = dbRef();
       if(!enRegistro.billetera) return null;
       const creditos = Number(enRegistro.creditos) || 0;
       if(!creditos) return null;
-      let nuevoSaldo = null;
-      await db.runTransaction(async tx => {
-        const billeteraRef = db.collection('Billetera').doc(enRegistro.billetera);
-        const billeteraDoc = await tx.get(billeteraRef);
-        const datos = billeteraDoc.exists ? billeteraDoc.data() : {};
-        const saldoActual = Number(datos.creditos) || 0;
-        nuevoSaldo = Math.max(0, saldoActual + creditos);
-        tx.set(billeteraRef, { creditos: nuevoSaldo }, { merge: true });
+      const response = await cpPostAdminMutation('/admin/centropagos/asignar-colaborador', {
+        billetera: enRegistro.billetera,
+        monto: creditos,
+        referencia: (enRegistro.referencia || (creditos > 0 ? 'PAGO' : 'AJUSTE_MANUAL')).toString(),
+        sorteoNombre: (enRegistro.sorteoNombre || 'Pago a colaborador').toString()
       });
-      if(creditos > 0){
-        const origenSeguro = enRegistro.origen
-          || ((enRegistro.tipotrans || '').toString().toLowerCase() === 'pago'
-            ? 'pagos_administracion'
-            : '');
-        await registrarTransaccionPremio({ ...enRegistro, creditos, cartones: 0, origen: origenSeguro });
-      }
-      return nuevoSaldo;
+      return Number(response?.saldoNuevo);
     }
 
     async function aprobarPagos(ids){
@@ -3051,30 +2929,13 @@
         alert('Proceso deshabilitado: premiosEngineV2Enabled=false. No se aprobarán pagos administrativos.');
         return;
       }
-      const db = dbRef();
-      await initServerTime();
       const sorteosActualizados = new Set();
       for(const id of ids){
         const registro = pagosAdminMapa.get(id);
         if(!registro){ console.warn('Pago no encontrado', id); continue; }
         if(window.EstadosPagoPremio.estaFinalizado(registro.estado)){ continue; }
         try {
-          await db.runTransaction(async tx => {
-            const ref = db.collection('PagosAdministracion').doc(id);
-            const snap = await tx.get(ref);
-            if(!snap.exists) return;
-            const data = snap.data();
-            const estadoActual = normalizarEstado(data.estado);
-            if(window.EstadosPagoPremio.estaFinalizado(estadoActual)) return;
-            tx.update(ref, {
-              estado: validarEstadoGuardado('APROBADO', `PagosAdministracion:${id}`),
-              fechaGestion: fechaServidor(),
-              horaGestion: horaServidor(),
-              gestionadoPor: authInstance().currentUser?.email || '',
-              rolGestor: window.currentRole || ''
-            });
-          });
-          await acreditarPago({ ...registro, tipotrans: 'pago', origen: 'pagos_administracion' });
+          await cpPostAdminMutation('/admin/centropagos/aprobar-pago', { pagoId: id });
           if(registro.sorteoId){
             sorteosActualizados.add(registro.sorteoId);
           }
@@ -3095,8 +2956,6 @@
 
     async function aprobarPagosColaboradores(ids){
       if(!ids.length) return;
-      await ensureFirebaseListo();
-      await initServerTime();
       const procesados = [];
       let asignacionesPositivas = 0;
       let ajustesNegativos = 0;
@@ -3175,31 +3034,9 @@
 
     async function archivarRegistros(ids, tipo){
       if(!ids.length) return;
-      const db = dbRef();
-      await initServerTime();
-      let coleccionBase = db.collection('PagosAdministracion');
-      let coleccionArchivo = db.collection('PagosAdministracionArchivo');
-      if(tipo === 'premios'){
-        coleccionBase = db.collection('PremiosSorteos');
-        coleccionArchivo = db.collection('PremiosSorteosArchivo');
-      }
       for(const id of ids){
         try {
-          await db.runTransaction(async tx => {
-            const ref = coleccionBase.doc(id);
-            const snap = await tx.get(ref);
-            if(!snap.exists) return;
-            const data = snap.data();
-            const datosArchivo = {
-              ...data,
-              estado: validarEstadoGuardado('ARCHIVADO', `${tipo}:${id}`),
-              archivadoEn: fechaServidor(),
-              horaArchivado: horaServidor(),
-              archivadoPor: authInstance().currentUser?.email || ''
-            };
-            tx.set(coleccionArchivo.doc(id), datosArchivo, { merge: true });
-            tx.delete(ref);
-          });
+          await cpPostAdminMutation('/admin/centropagos/archivar-registro', { tipo, id });
         } catch (err) {
           console.error('Error archivando registro', tipo, err);
           alert('No se pudo archivar uno de los registros seleccionados.');
