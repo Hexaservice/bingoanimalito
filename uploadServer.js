@@ -74,8 +74,6 @@ const AUTO_FINALIZATION_CONTROLLER_LIMIT = Math.max(1, Number(process.env.AUTO_F
 
 let autoFinalizationControllerTimer = null;
 let autoFinalizationControllerRunning = false;
-let cantosResultPersistenceUnsubscribe = null;
-const cantosFinalizationInFlight = new Map();
 
 function getMissingRequiredEnv(env = process.env) {
   return requiredEnv.filter((name) => !env[name]);
@@ -1205,99 +1203,6 @@ async function executeAuthoritativeSorteoFinalization({ db, sorteoId, operadorEm
   });
 }
 
-async function executeImmediateFinalizationAfterResultPersistence({
-  db,
-  sorteoId,
-  operadorEmail = 'sistema:resultado-persistido'
-} = {}) {
-  const normalizedSorteoId = normalizeString(sorteoId, 120);
-  if (!db || !normalizedSorteoId) {
-    return {
-      ok: false,
-      reason: 'invalid_context',
-      finalization: null
-    };
-  }
-
-  const previousInFlight = cantosFinalizationInFlight.get(normalizedSorteoId);
-  if (previousInFlight) {
-    return previousInFlight;
-  }
-
-  const executionPromise = (async () => {
-    try {
-      const finalization = await executeAuthoritativeSorteoFinalization({
-        db,
-        sorteoId: normalizedSorteoId,
-        operadorEmail
-      });
-      return {
-        ok: true,
-        sorteoId: normalizedSorteoId,
-        finalized: Boolean(finalization?.permitido),
-        reason: finalization?.motivo || 'unknown',
-        finalization
-      };
-    } catch (error) {
-      console.error('[auto-finalizacion][persistencia-resultados-error]', {
-        sorteoId: normalizedSorteoId,
-        message: error?.message || 'error_desconocido'
-      });
-      return {
-        ok: false,
-        sorteoId: normalizedSorteoId,
-        finalized: false,
-        reason: 'finalization_error',
-        error: normalizeString(error?.message, 260) || 'error_desconocido',
-        finalization: null
-      };
-    } finally {
-      cantosFinalizationInFlight.delete(normalizedSorteoId);
-    }
-  })();
-
-  cantosFinalizationInFlight.set(normalizedSorteoId, executionPromise);
-  return executionPromise;
-}
-
-function startResultPersistenceFinalizationWatcher({ db } = {}) {
-  if (!db || typeof db.collection !== 'function') {
-    console.warn('[auto-finalizacion] no se inició watcher de persistencia: db no disponible.');
-    return;
-  }
-  if (cantosResultPersistenceUnsubscribe) return;
-
-  cantosResultPersistenceUnsubscribe = db.collection('cantos').onSnapshot((snapshot) => {
-    if (!snapshot || typeof snapshot.docChanges !== 'function') return;
-    snapshot.docChanges().forEach((change) => {
-      if (!change?.doc?.id) return;
-      if (!['added', 'modified'].includes(change.type)) return;
-      executeImmediateFinalizationAfterResultPersistence({
-        db,
-        sorteoId: change.doc.id,
-        operadorEmail: 'sistema:resultado-persistido'
-      }).then((result) => {
-        if (!result?.finalized) return;
-        console.info('[auto-finalizacion][persistencia-resultados]', {
-          sorteoId: change.doc.id,
-          motivo: result?.reason || 'finalizado'
-        });
-      }).catch((error) => {
-        console.error('[auto-finalizacion][persistencia-resultados-unhandled]', {
-          sorteoId: change.doc.id,
-          message: error?.message || 'error_desconocido'
-        });
-      });
-    });
-  }, (error) => {
-    console.error('[auto-finalizacion][persistencia-resultados-listener-error]', {
-      message: error?.message || 'error_desconocido'
-    });
-  });
-
-  console.info('[auto-finalizacion] watcher de persistencia de resultados iniciado (cantos/*).');
-}
-
 async function runAutomaticFinalizationControllerTick({ db } = {}) {
   if (!db) return { ok: false, reason: 'db_missing' };
   if (autoFinalizationControllerRunning) {
@@ -1402,17 +1307,6 @@ function buildReconciledPrizeTransactionId(premioId) {
   return `premio_reconciliado_${digest}`;
 }
 
-function buildReconciledPrizeTransactionIdByEvent(eventoGanadorId, premioId = '') {
-  const normalizedEvent = normalizeString(eventoGanadorId, 320).toLowerCase();
-  if (normalizedEvent) {
-    const digest = crypto.createHash('sha256').update(normalizedEvent).digest('hex').slice(0, 32);
-    return `premio_evento_${digest}`;
-  }
-  const normalized = normalizeString(premioId, 320).toLowerCase();
-  const digest = crypto.createHash('sha256').update(normalized).digest('hex').slice(0, 32);
-  return `premio_reconciliado_${digest}`;
-}
-
 async function reconcileSinglePendingPrize({
   db,
   premioDoc,
@@ -1425,6 +1319,9 @@ async function reconcileSinglePendingPrize({
   if (!premioId) {
     return { status: 'omitido', reason: 'premio_id_invalido' };
   }
+
+  const transaccionId = buildReconciledPrizeTransactionId(premioId);
+  const transaccionRef = db.collection('transacciones').doc(transaccionId);
 
   return db.runTransaction(async (tx) => {
     const premioSnap = await tx.get(premioDoc.ref);
@@ -1443,8 +1340,6 @@ async function reconcileSinglePendingPrize({
       eventoGanadorId || premioData.eventoGanadorId,
       320
     );
-    const transaccionId = buildReconciledPrizeTransactionIdByEvent(eventoGanadorIdPremio, premioId);
-    const transaccionRef = db.collection('transacciones').doc(transaccionId);
     const idx = Number.isFinite(Number(premioData.idx)) ? Number(premioData.idx) : null;
     const nombre = normalizeString(premioData.nombre, 200);
     const creditos = Math.max(0, normalizeNumber(premioData.creditos));
@@ -1453,9 +1348,10 @@ async function reconcileSinglePendingPrize({
       normalizeNumber(premioData.cartonesGratis ?? premioData.cartones)
     );
 
-    const transaccionPorPremioQuery = eventoGanadorIdPremio
-      ? db.collection('transacciones').where('eventoGanadorId', '==', eventoGanadorIdPremio).limit(1)
-      : db.collection('transacciones').where('premioId', '==', premioId).limit(1);
+    const transaccionPorPremioQuery = db
+      .collection('transacciones')
+      .where('premioId', '==', premioId)
+      .limit(1);
     const billeteraRef = premioDoc.ref.parent.parent;
     const legacyPremioRef = getLegacyDirectPrizeRefFromPendingRef(premioDoc.ref);
     const ledgerRef = billeteraRef.collection('premiosLedger').doc(premioId);
@@ -3220,11 +3116,23 @@ async function aprobarPagoAdministrativoCentroPagos({ db, pagoId = '', actor = {
 }
 
 app.post('/admin/centropagos/aprobar-pago', verificarToken, async (req, res) => {
-  return res.status(410).json({
-    ok: false,
-    code: 'MANUAL_APPROVAL_DISABLED',
-    error: 'La aprobación manual de pagos fue desactivada. Usa el flujo automático de acreditación inmediata.'
-  });
+  try {
+    const result = await aprobarPagoAdministrativoCentroPagos({
+      db: admin.firestore(),
+      pagoId: req.body?.pagoId,
+      actor: req.user || {}
+    });
+    return res.status(result.status || 200).json(result);
+  } catch (error) {
+    if (error?.message === 'PAGO_NO_ENCONTRADO') {
+      return res.status(404).json({ ok: false, error: 'Pago no encontrado.' });
+    }
+    if (error?.message === 'PAGO_DATOS_INVALIDOS') {
+      return res.status(400).json({ ok: false, error: 'El pago no tiene billetera o monto válido.' });
+    }
+    console.error('Error aprobando pago administrativo en centro de pagos', error);
+    return res.status(500).json({ ok: false, error: 'No se pudo aprobar el pago.' });
+  }
 });
 
 app.post('/admin/centropagos/asignar-colaborador', verificarToken, async (req, res) => {
@@ -4078,6 +3986,39 @@ async function acreditarPremioEventoHandler(req, res) {
 
 app.post('/acreditarPremioEvento', verificarOperadorPrivilegiadoOJugadorAcreditacion, acreditarPremioEventoHandler);
 
+app.post('/admin/finalizar-sorteo', verificarOperadorFinalizacion, async (req, res) => {
+  const sorteoId = normalizeString(req.body?.sorteoId, 120);
+  if (!sorteoId) {
+    return res.status(400).json({
+      permitido: false,
+      motivo: 'sorteo_id_obligatorio',
+      detalle: { mensaje: 'sorteoId es obligatorio' }
+    });
+  }
+  const db = admin.firestore();
+  try {
+    const resultado = await executeAuthoritativeSorteoFinalization({
+      db,
+      sorteoId,
+      operadorEmail: req.user?.email || 'desconocido'
+    });
+    if (!resultado.permitido && resultado.motivo === 'sorteo_no_encontrado') {
+      return res.status(404).json(resultado);
+    }
+    if (!resultado.permitido) {
+      return res.status(409).json(resultado);
+    }
+    return res.status(200).json(resultado);
+  } catch (error) {
+    console.error('Error en finalización autoritativa del sorteo', { sorteoId, error });
+    return res.status(500).json({
+      permitido: false,
+      motivo: 'error_finalizacion',
+      detalle: { mensaje: 'Error interno al finalizar sorteo', code: normalizeString(error?.code, 80) || null }
+    });
+  }
+});
+
 app.post('/admin/sellado-liquidacion/precheck', verificarOperadorFinalizacion, async (req, res) => {
   const requestId = normalizeString(req.requestId || req.headers['x-request-id'] || req.headers['x-correlation-id'], 120)
     || `sellado-precheck-${Date.now()}`;
@@ -4261,8 +4202,7 @@ app.post('/admin/generar-premios-pendientes-directos-oficiales', verificarToken,
     const summary = await generatePendingDirectPrizesFromOfficialResults({
       db: admin.firestore(),
       sorteoId,
-      generadoPor: normalizeString(req.user?.email, 200) || 'sistema:premios-oficiales',
-      acreditarEnCreacion: true
+      generadoPor: normalizeString(req.user?.email, 200) || 'sistema:premios-oficiales'
     });
     return res.json({
       status: 'ok',
@@ -4278,11 +4218,50 @@ app.post('/admin/generar-premios-pendientes-directos-oficiales', verificarToken,
 });
 
 app.post('/admin/reconciliar-premios-pendientes-directos', verificarToken, async (req, res) => {
-  return res.status(410).json({
-    ok: false,
-    code: 'MANUAL_RECONCILIATION_DISABLED',
-    error: 'La reconciliación manual fue desactivada. Los premios oficiales se acreditan al crearse.'
-  });
+  const sorteoId = normalizeString(req.body?.sorteoId, 120);
+  const pageSize = Math.max(10, Math.min(250, Number(req.body?.pageSize) || 100));
+
+  if (!sorteoId) {
+    return res.status(400).json({ error: 'sorteoId es obligatorio' });
+  }
+  if (!PREMIOS_ENGINE_V2_ENABLED) {
+    const disabled = buildPremiosEngineDisabledResponse({ action: 'reconciliar-premios-pendientes-directos', sorteoId, status: 409 });
+    return res.status(disabled.statusCode).json(disabled.payload);
+  }
+
+  try {
+    const db = admin.firestore();
+    const sorteoSnap = await db.collection('sorteos').doc(sorteoId).get();
+    const estadoSorteo = normalizeOperationalPaymentState(sorteoSnap.data()?.estado);
+    if (estadoSorteo !== 'finalizado') {
+      const invalidState = buildInvalidOperationalPaymentStateResponse({
+        operation: 'reconciliacion_masiva',
+        sorteoId,
+        estadoRaw: sorteoSnap.data()?.estado,
+        allowedStates: ['finalizado']
+      });
+      return res.status(invalidState.status).json(invalidState.payload);
+    }
+
+    const resultado = await reconcilePendingPrizesBySorteo({
+      db,
+      sorteoId,
+      pageSize,
+      acreditadoPor: normalizeString(req.user?.email, 200) || 'sistema:reconciliacion',
+      origen: 'premios_pendientes_reconciliados'
+    });
+
+    return res.json({
+      status: 'ok',
+      ...resultado
+    });
+  } catch (error) {
+    console.error('[reconciliar-premios-pendientes-directos] fallo de endpoint', error);
+    return res.status(500).json({
+      error: 'Error reconciliando premios pendientes directos',
+      message: error?.message || String(error)
+    });
+  }
 });
 
 function toPublicImageUrl(req, relativePath) {
@@ -4589,9 +4568,7 @@ app.use((err, req, res, next) => {
 function startServer() {
   validateRequiredEnv();
   initializeFirebase();
-  const db = admin.firestore();
-  startResultPersistenceFinalizationWatcher({ db });
-  startAutomaticFinalizationController({ db });
+  startAutomaticFinalizationController({ db: admin.firestore() });
 
   const PORT = process.env.PORT || 3000;
   app.listen(PORT, () => {
@@ -4625,10 +4602,8 @@ module.exports = {
   loadOperationalUserProfile,
   buildFinalizationContract,
   executeAuthoritativeSorteoFinalization,
-  executeImmediateFinalizationAfterResultPersistence,
   registerNoWinnerAccumulatedForms,
   runAutomaticFinalizationControllerTick,
-  startResultPersistenceFinalizationWatcher,
   startAutomaticFinalizationController,
   ejecutarSelladoConLiquidacionAdmin,
   buildReconciledPrizeTransactionId,
