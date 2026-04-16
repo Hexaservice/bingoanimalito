@@ -716,7 +716,6 @@
     </div>
     <div id="pagos-content">
       <div class="acciones">
-        <button class="icon-btn" id="pagos-aprobar"><span class="icon check">&#10004;</span><span>Procesar</span></button>
         <button class="icon-btn" id="pagos-archivar"><span class="icon">&#128452;</span><span>Archivar</span></button>
         <button class="icon-btn" id="pagos-archivo"><span class="icon">&#128193;</span><span>Archivo</span></button>
       </div>
@@ -768,7 +767,7 @@
           <option value="Administrador">Administrador</option>
           <option value="Superadmin">Superadmin</option>
         </select>
-        <button class="icon-btn" id="colaboradores-aprobar"><span class="icon check">&#10004;</span><span>Aprobar</span></button>
+        <span class="badge">Modo consulta/migración temporal</span>
       </div>
       <table id="tabla-colaboradores">
         <colgroup>
@@ -1022,13 +1021,11 @@
       const textoBloqueado = runtimePremiosEngineConfig.initialized
         ? 'Deshabilitado por premiosEngineV2Enabled=false'
         : 'Esperando confirmación de backend de premiosEngineV2Enabled';
-      ['pagos-aprobar', 'colaboradores-aprobar', 'cp-procesar-premios-pagos'].forEach((id)=>{
+      ['cp-procesar-premios-pagos'].forEach((id)=>{
         const boton = document.getElementById(id);
         if(!boton) return;
         boton.disabled = !habilitado;
-        boton.title = habilitado
-          ? (id === 'pagos-aprobar' ? 'Procesar pagos seleccionados' : 'Acción habilitada')
-          : textoBloqueado;
+        boton.title = habilitado ? 'Acción habilitada' : textoBloqueado;
       });
       cpActualizarDiagnosticoEngine();
     }
@@ -1065,9 +1062,6 @@
     }
 
     async function reconciliarPremiosPendientesDirectosSorteo(sorteoId, { force = false } = {}){
-      if(!premiosEngineV2Enabled()){
-        return cpConstruirRespuestaEngineDeshabilitado('reconciliar-premios-pendientes-directos');
-      }
       const sorteoSeguro = (sorteoId || '').toString().trim();
       if(!sorteoSeguro) return null;
       const cacheKey = `sorteo:${sorteoSeguro}`;
@@ -1075,28 +1069,14 @@
       if(!force && registroCache && (Date.now() - registroCache.ts) < 60000){
         return registroCache.respuesta || null;
       }
-      const usuario = authInstance().currentUser;
-      if(!usuario){
-        throw new Error('No hay usuario autenticado para reconciliar premios pendientes.');
-      }
-      const apiBase = resolverApiAdminBaseCentroPagos();
-      if(!apiBase){
-        throw new Error('No se pudo resolver la URL base del API administrativo.');
-      }
-      const token = await usuario.getIdToken(true);
-      const resp = await fetch(`${apiBase}/admin/reconciliar-premios-pendientes-directos`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify({ sorteoId: sorteoSeguro, pageSize: 100 })
-      });
-      if(!resp.ok){
-        const errorText = await resp.text().catch(()=>`HTTP ${resp.status}`);
-        throw new Error(`No se pudo reconciliar premios pendientes (${resp.status}): ${errorText}`);
-      }
-      const data = await resp.json();
+      const data = {
+        status: 'manual_disabled',
+        sorteoId: sorteoSeguro,
+        revisados: 0,
+        acreditados: 0,
+        omitidos: 0,
+        errores: 0
+      };
       reconciliacionPremiosCache.set(cacheKey, { ts: Date.now(), respuesta: data });
       return data;
     }
@@ -1288,11 +1268,6 @@
       await cpGenerarSolicitudesManual();
       const sorteoId = cpObtenerSorteoIdObjetivo();
       if(!sorteoId) return;
-      const sorteoData = await cpResolverDataSorteo(sorteoId);
-      const estadoSorteo = (sorteoData?.estado || '').toString().trim().toLowerCase();
-      if(estadoSorteo === 'finalizado'){
-        await cpAcreditarPremiosPendientesManual();
-      }
       await cpRecargarTablasTrasGeneracion(sorteoId);
       cpRenderResumenMontos(sorteoId);
     }
@@ -2343,15 +2318,7 @@
           return acum + pendientes + errores;
         }, 0);
         const hayPagosPendientes = pagosSnap.docs.some(doc=>esEstadoPendiente(doc.data()?.estado));
-        let indicadorCompletado = pendientesTecnicosPremios === 0 && !hayPagosPendientes;
-        if(indicadorCompletado){
-          try {
-            await reconciliarPremiosPendientesDirectosSorteo(sorteoId);
-          } catch (reconcileError) {
-            console.warn('No se pudo reconciliar premios pendientes directos antes de cerrar pagos', sorteoId, reconcileError);
-            indicadorCompletado = false;
-          }
-        }
+        const indicadorCompletado = pendientesTecnicosPremios === 0 && !hayPagosPendientes;
         const payload = {
           pagosCentroAprobados: indicadorCompletado,
           pagosCentroActualizadosEn: firebase.firestore.FieldValue.serverTimestamp()
@@ -3077,16 +3044,6 @@
           cpRenderResumenMontos(cpObtenerSorteoIdObjetivo());
         });
       }
-      const pagosAprobarBtn = document.getElementById('pagos-aprobar');
-      if(pagosAprobarBtn){
-        pagosAprobarBtn.disabled = !premiosEngineV2Enabled();
-      }
-      document.getElementById('pagos-aprobar').addEventListener('click', async()=>{
-        const seleccion = obtenerSeleccion('tabla-pagos');
-        if(!seleccion.length){ alert('Selecciona al menos un registro.'); return; }
-        await aprobarPagos(seleccion);
-        cpRenderResumenMontos(cpObtenerSorteoIdObjetivo());
-      });
       document.getElementById('pagos-archivar').addEventListener('click', async()=>{
         const seleccion = obtenerSeleccion('tabla-pagos');
         if(!seleccion.length){ alert('Selecciona al menos un registro.'); return; }
@@ -3104,11 +3061,6 @@
 
 
       document.getElementById('colaboradores-marcar').addEventListener('click', ()=>seleccionarTodos('tabla-colaboradores'));
-      document.getElementById('colaboradores-aprobar').addEventListener('click', async()=>{
-        const seleccion = obtenerSeleccion('tabla-colaboradores');
-        if(!seleccion.length){ alert('Selecciona al menos un registro.'); return; }
-        await aprobarPagosColaboradores(seleccion);
-      });
       const tablaColaboradores = document.getElementById('tabla-colaboradores');
       tablaColaboradores.addEventListener('change', e=>{
         if(e.target.matches('tbody input[type="checkbox"]')){
