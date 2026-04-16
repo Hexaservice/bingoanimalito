@@ -7031,7 +7031,8 @@
       return true;
     } catch (err) {
       console.error('Error sellando sorteo', err);
-      alert('No fue posible sellar el sorteo.');
+      const mensaje = (err?.message || '').toString().trim();
+      alert(mensaje ? `No fue posible sellar el sorteo.\n${mensaje}` : 'No fue posible sellar el sorteo.');
       return false;
     }
   }
