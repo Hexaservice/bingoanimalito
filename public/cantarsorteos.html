@@ -2031,7 +2031,7 @@
   <script src="js/cantosResultadosClave.js"></script>
   <script src="js/sorteoDataAdapters.js"></script>
   <script>
-  ensureAuth('Administrador');
+  ensureAuth(['Administrador', 'Colaborador']);
   initServerTime().then(()=>{
     inicializarFechaHoraFooter();
     iniciarActualizacionesActuales();

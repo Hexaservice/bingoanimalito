@@ -88,9 +88,16 @@ describe('sellado con liquidación administrativa', () => {
         }
         if (name === 'users') {
           return {
-            where: jest.fn((_field, _op, role) => ({
+            where: jest.fn((_field, op, roleFilter) => ({
               get: jest.fn(async () => ({
-                forEach: (cb) => (usersByRole[role] || []).forEach((u) => cb({ id: u.id, data: () => u.data }))
+                forEach: (cb) => {
+                  const roles = op === 'in' && Array.isArray(roleFilter) ? roleFilter : [roleFilter];
+                  const uniqueUsers = new Map();
+                  roles.forEach((role) => {
+                    (usersByRole[role] || []).forEach((u) => uniqueUsers.set(u.id, u));
+                  });
+                  uniqueUsers.forEach((u) => cb({ id: u.id, data: () => u.data }));
+                }
               }))
             }))
           };
@@ -238,5 +245,46 @@ describe('sellado con liquidación administrativa', () => {
     expect(state.sorteo.estado).toBe('Sellado');
     expect(state.sorteo.pdf).toBe('no');
     expect(Object.keys(state.runs)).toHaveLength(0);
+  });
+
+  test('acepta variantes legacy de rolinterno (agencias/desarrolladores) para liquidación', async () => {
+    jest.resetModules();
+    const { ejecutarSelladoConLiquidacionAdmin } = require('../uploadServer.js');
+
+    const state = {
+      sorteo: {
+        id: 's3',
+        nombre: 'Sorteo Legacy',
+        totalporcentaje: 2,
+        totalporcentajesu: 1,
+        selladoPagoAdminAplicado: false
+      },
+      wallets: {
+        'ag-legacy@test.com': { creditos: 0 },
+        'dev-legacy@test.com': { creditos: 0 }
+      },
+      transacciones: {},
+      runs: {},
+      operaciones: {}
+    };
+
+    const db = buildDbMock({
+      state,
+      usersByRole: {
+        agencias: [
+          { id: 'ag-legacy@test.com', data: { email: 'ag-legacy@test.com', rolinterno: 'agencias' } }
+        ],
+        desarrolladores: [
+          { id: 'dev-legacy@test.com', data: { email: 'dev-legacy@test.com', rolinterno: 'desarrolladores' } }
+        ]
+      }
+    });
+
+    const result = await ejecutarSelladoConLiquidacionAdmin({ db, sorteoId: 's3', operadorEmail: 'colab@test.com' });
+
+    expect(result.ok).toBe(true);
+    expect(state.wallets['ag-legacy@test.com'].creditos).toBe(2);
+    expect(state.wallets['dev-legacy@test.com'].creditos).toBe(1);
+    expect(state.sorteo.selladoLiquidacionEstado).toBe('completado');
   });
 });
