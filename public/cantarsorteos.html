@@ -7020,9 +7020,23 @@
     try {
       const resultado = await solicitarSelladoConLiquidacionAdmin();
       if(!resultado || resultado.ok !== true){
-        const mensaje = (resultado && (resultado.error || resultado?.detalle?.mensaje)) || 'No fue posible aplicar el sellado administrativo.';
-        throw new Error(mensaje);
+        const diagnosticoError = mapearErrorSelladoLiquidacionAdmin(resultado || {});
+        registrarLogSelladoAdmin('sellado_liquidacion_error', {
+          sorteoId: currentSorteoId || 'sin-sorteo',
+          operador: enmascararEmailParaLog(auth?.currentUser?.email || ''),
+          status: Number(resultado?.status || 0),
+          code: diagnosticoError.code,
+          requestId: diagnosticoError.requestId || ''
+        });
+        throw new Error(diagnosticoError.mensajeUI);
       }
+      registrarLogSelladoAdmin('sellado_liquidacion_ok', {
+        sorteoId: currentSorteoId || 'sin-sorteo',
+        operador: enmascararEmailParaLog(auth?.currentUser?.email || ''),
+        status: Number(resultado?.status || 200),
+        code: normalizeStringValue(resultado?.code, 80) || 'OK',
+        requestId: normalizeStringValue(resultado?.requestId, 120) || ''
+      });
       conservarLoteriasCacheEnSorteoActual();
       mensajeEl.textContent = resultado.idempotente
         ? 'El sorteo ya estaba liquidado y quedó sellado sin duplicar pagos.'
@@ -7040,32 +7054,81 @@
   async function solicitarSelladoConLiquidacionAdmin(){
     const user = auth?.currentUser || null;
     if(!user){
-      return { ok: false, error: 'No hay sesión activa.' };
+      return { ok: false, error: 'No hay sesión activa.', code: 'NO_ACTIVE_SESSION' };
     }
     const apiBase = resolverBaseApiAdministrativa();
     if(!apiBase || typeof fetch !== 'function'){
-      return { ok: false, error: 'No hay API administrativa configurada.' };
+      return { ok: false, error: 'No hay API administrativa configurada.', code: 'API_BASE_INVALID' };
     }
     const token = await user.getIdToken(true);
-    const respuesta = await fetch(`${apiBase}/admin/sellado-liquidacion`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`
-      },
-      body: JSON.stringify({ sorteoId: currentSorteoId })
-    });
+    let respuesta = null;
+    try{
+      respuesta = await fetch(`${apiBase}/admin/sellado-liquidacion`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ sorteoId: currentSorteoId })
+      });
+    }catch(fetchError){
+      return {
+        ok: false,
+        status: 0,
+        code: 'NETWORK_OR_CORS_ERROR',
+        error: 'No se pudo contactar el backend administrativo. Verifica CORS, reverse proxy o disponibilidad del servicio.',
+        detalle: { mensaje: normalizeStringValue(fetchError?.message, 220) || 'fetch_failed' }
+      };
+    }
     let payload = null;
     try{
       payload = await respuesta.json();
     }catch(_errorParse){
       payload = null;
     }
+    const requestIdHeader = normalizeStringValue(
+      respuesta.headers?.get('x-request-id')
+      || respuesta.headers?.get('x-correlation-id')
+      || '',
+      120
+    );
+    const payloadRequestId = normalizeStringValue(
+      payload?.requestId
+      || payload?.request_id
+      || payload?.detalle?.requestId
+      || '',
+      120
+    );
+    const requestId = payloadRequestId || requestIdHeader || '';
     if(payload && typeof payload === 'object'){
       payload.status = respuesta.status;
+      payload.code = normalizeStringValue(payload?.code, 80) || '';
+      payload.error = normalizeStringValue(payload?.error || payload?.detalle?.mensaje, 260) || '';
+      payload.requestId = requestId;
       return payload;
     }
-    return { ok: false, status: respuesta.status, error: 'Respuesta inválida del backend' };
+    return {
+      ok: false,
+      status: respuesta.status,
+      code: 'INVALID_BACKEND_RESPONSE',
+      error: 'Respuesta inválida del backend',
+      requestId
+    };
+  }
+
+  function normalizeStringValue(value, maxLength = 200){
+    return typeof value === 'string' ? value.trim().slice(0, maxLength) : '';
+  }
+
+  function registrarLogSelladoAdmin(evento, payload = {}){
+    console.info('[sellado-liquidacion-admin]', {
+      evento: normalizeStringValue(evento, 80) || 'desconocido',
+      sorteoId: normalizeStringValue(payload?.sorteoId, 120) || 'sin-sorteo',
+      operador: normalizeStringValue(payload?.operador, 200) || 'sin-operador',
+      status: Number(payload?.status || 0),
+      code: normalizeStringValue(payload?.code, 80) || 'SIN_CODE',
+      requestId: normalizeStringValue(payload?.requestId, 120) || ''
+    });
   }
 
   function sincronizarDatosPdf(datos = {}){
@@ -7557,6 +7620,34 @@
     return catalogo[motivo] || {
       titulo: 'Error de finalización',
       mensaje: 'No fue posible finalizar el sorteo en este momento.'
+    };
+  }
+
+  function mapearErrorSelladoLiquidacionAdmin(resultado = {}){
+    const status = Number(resultado?.status || 0);
+    const code = normalizeStringValue(resultado?.code, 80).toUpperCase();
+    const error = normalizeStringValue(resultado?.error || resultado?.detalle?.mensaje, 260);
+    const requestId = normalizeStringValue(resultado?.requestId, 120);
+    const catalogo = {
+      NO_ACTIVE_SESSION: 'Tu sesión expiró o no está activa. Inicia sesión nuevamente.',
+      NO_AUTH_HEADER: 'Tu sesión expiró o no es válida. Vuelve a ingresar para reintentar.',
+      TOKEN_INVALID: 'Tu token de sesión es inválido o expiró. Cierra sesión y vuelve a iniciar.',
+      TOKEN_EMAIL_MISSING: 'El token no contiene correo asociado. Inicia sesión nuevamente.',
+      API_BASE_INVALID: 'UPLOAD_ENDPOINT está mal configurado o ausente. Verifica firebase-config.js y el dominio del backend.',
+      NETWORK_OR_CORS_ERROR: 'No se pudo contactar el backend. Revisa CORS, reverse proxy y disponibilidad del API.',
+      CORS_OR_PROXY_ERROR: 'La solicitud fue bloqueada por CORS o reverse proxy. Revisa configuración de orígenes permitidos.',
+      INVALID_BACKEND_RESPONSE: 'El backend respondió con un formato inválido. Revisa logs del servidor.'
+    };
+    const mensajeBase = catalogo[code] || '';
+    const detalleEstado = status ? `HTTP ${status}.` : '';
+    const detalleCodigo = code ? `code=${code}.` : '';
+    const detalleError = error ? `error=${error}.` : '';
+    const detalleRequestId = requestId ? `requestId=${requestId}.` : '';
+    const detalleTecnico = [detalleEstado, detalleCodigo, detalleError, detalleRequestId].filter(Boolean).join(' ');
+    return {
+      code: code || 'UNKNOWN_SELLADO_ERROR',
+      requestId,
+      mensajeUI: [mensajeBase || 'No fue posible aplicar el sellado administrativo.', detalleTecnico].filter(Boolean).join('\n')
     };
   }
 

@@ -456,21 +456,44 @@ async function verificarOperadorPrivilegiadoOJugadorAcreditacion(req, res, next)
 }
 
 async function verificarOperadorFinalizacion(req, res, next) {
+  const requestId = normalizeString(req.headers['x-request-id'] || req.headers['x-correlation-id'], 120)
+    || `sellado-${Date.now()}`;
   const authHeader = req.headers.authorization || '';
   const match = authHeader.match(/^Bearer (.+)$/);
   if (!match) {
-    return res.status(401).json({ permitido: false, motivo: 'sesion_invalida', detalle: { mensaje: 'No autorizado' } });
+    return res.status(401).json({
+      permitido: false,
+      motivo: 'sesion_invalida',
+      code: 'NO_AUTH_HEADER',
+      error: 'No autorizado',
+      requestId,
+      detalle: { mensaje: 'No autorizado', requestId }
+    });
   }
   let decoded;
   try {
     decoded = await admin.auth().verifyIdToken(match[1]);
   } catch (error) {
     console.error('Error verificando token para finalizar sorteo', error);
-    return res.status(401).json({ permitido: false, motivo: 'sesion_invalida', detalle: { mensaje: 'Token inválido' } });
+    return res.status(401).json({
+      permitido: false,
+      motivo: 'sesion_invalida',
+      code: 'TOKEN_INVALID',
+      error: 'Token inválido',
+      requestId,
+      detalle: { mensaje: 'Token inválido', requestId }
+    });
   }
   const email = normalizeString(decoded?.email, 200).toLowerCase();
   if (!email) {
-    return res.status(401).json({ permitido: false, motivo: 'sesion_invalida', detalle: { mensaje: 'Token sin correo asociado' } });
+    return res.status(401).json({
+      permitido: false,
+      motivo: 'sesion_invalida',
+      code: 'TOKEN_EMAIL_MISSING',
+      error: 'Token sin correo asociado',
+      requestId,
+      detalle: { mensaje: 'Token sin correo asociado', requestId }
+    });
   }
   try {
     let userRole = null;
@@ -489,10 +512,36 @@ async function verificarOperadorFinalizacion(req, res, next) {
       });
     }
     req.user = { uid: decoded.uid, email, role: userRole || 'Autenticado' };
+    req.requestId = requestId;
     return next();
   } catch (error) {
     console.error('Error validando operador de finalización', error);
-    return res.status(500).json({ permitido: false, motivo: 'error_interno', detalle: { mensaje: error.message } });
+    return res.status(500).json({
+      permitido: false,
+      motivo: 'error_interno',
+      code: 'OPERATOR_VALIDATION_ERROR',
+      error: normalizeString(error?.message, 200) || 'Error validando operador',
+      requestId,
+      detalle: { mensaje: error.message, requestId }
+    });
+  }
+}
+
+function logSelladoLiquidacion(evento, payload = {}) {
+  const log = {
+    evento: normalizeString(evento, 80) || 'desconocido',
+    sorteoId: normalizeString(payload?.sorteoId, 120) || 'sin-sorteo',
+    operador: normalizeString(payload?.operador, 200) || 'desconocido',
+    code: normalizeString(payload?.code, 80) || 'SIN_CODE',
+    status: Number(payload?.status || 0) || 0,
+    requestId: normalizeString(payload?.requestId, 120) || ''
+  };
+  if (log.status >= 500) {
+    console.error('[sellado-liquidacion]', log);
+  } else if (log.status >= 400) {
+    console.warn('[sellado-liquidacion]', log);
+  } else {
+    console.info('[sellado-liquidacion]', log);
   }
 }
 
@@ -3118,28 +3167,80 @@ app.post('/admin/finalizar-sorteo', verificarOperadorFinalizacion, async (req, r
 });
 
 app.post('/admin/sellado-liquidacion', verificarOperadorFinalizacion, async (req, res) => {
+  const requestId = normalizeString(req.requestId || req.headers['x-request-id'] || req.headers['x-correlation-id'], 120)
+    || `sellado-${Date.now()}`;
   const sorteoId = normalizeString(req.body?.sorteoId, 120);
+  const operador = normalizeString(req.user?.email, 200).toLowerCase() || 'desconocido';
   if (!sorteoId) {
-    return res.status(400).json({ ok: false, error: 'sorteoId es obligatorio' });
+    const respuesta = {
+      ok: false,
+      error: 'sorteoId es obligatorio',
+      code: 'SORTEO_ID_REQUIRED',
+      requestId
+    };
+    logSelladoLiquidacion('sellado_liquidacion_rechazado', {
+      sorteoId,
+      operador,
+      code: respuesta.code,
+      status: 400,
+      requestId
+    });
+    return res.status(400).json(respuesta);
   }
   try {
     const resultado = await ejecutarSelladoConLiquidacionAdmin({
       db: admin.firestore(),
       sorteoId,
-      operadorEmail: req.user?.email || 'desconocido'
+      operadorEmail: operador
     });
-    return res.status(resultado.status || 200).json(resultado);
+    const status = Number(resultado?.status || 200);
+    const respuesta = {
+      ...resultado,
+      code: normalizeString(resultado?.code, 80) || (status >= 400 ? 'SELLADO_LIQUIDACION_FAILED' : 'OK'),
+      error: normalizeString(resultado?.error, 260) || '',
+      requestId
+    };
+    logSelladoLiquidacion('sellado_liquidacion_resultado', {
+      sorteoId,
+      operador,
+      code: respuesta.code,
+      status,
+      requestId
+    });
+    return res.status(status).json(respuesta);
   } catch (error) {
     console.error('Error en sellado con liquidación administrativa', { sorteoId, error });
     const mensaje = normalizeString(error?.message, 200);
     if (mensaje.startsWith('NO_USUARIOS_ROL_')) {
-      return res.status(409).json({
+      const respuesta = {
         ok: false,
         error: 'No existen cuentas administrativas destino para completar la liquidación.',
-        code: mensaje
+        code: mensaje,
+        requestId
+      };
+      logSelladoLiquidacion('sellado_liquidacion_error', {
+        sorteoId,
+        operador,
+        code: respuesta.code,
+        status: 409,
+        requestId
       });
+      return res.status(409).json(respuesta);
     }
-    return res.status(500).json({ ok: false, error: 'Error interno al aplicar sellado con liquidación administrativa.' });
+    const respuesta = {
+      ok: false,
+      error: 'Error interno al aplicar sellado con liquidación administrativa.',
+      code: 'SELLADO_LIQUIDACION_INTERNAL_ERROR',
+      requestId
+    };
+    logSelladoLiquidacion('sellado_liquidacion_error', {
+      sorteoId,
+      operador,
+      code: respuesta.code,
+      status: 500,
+      requestId
+    });
+    return res.status(500).json(respuesta);
   }
 });
 
