@@ -2096,7 +2096,15 @@ async function ejecutarSelladoConLiquidacionAdmin({ db, sorteoId, operadorEmail 
       const usuariosRol = await getUsuariosAdministrativosPorRol({ db, roleInternal: def.rolInterno });
       const usuariosOrdenados = [...usuariosRol].sort((a, b) => a.email.localeCompare(b.email, 'es', { sensitivity: 'base' }));
       if (!usuariosOrdenados.length) {
-        throw new Error(`NO_USUARIOS_ROL_${def.rolInterno.toUpperCase()}`);
+        pagosPorRol.push({
+          rolInterno: def.rolInterno,
+          usuarios: 0,
+          montoRolBase: montoRol,
+          totalAsignado: 0,
+          liquidacionPendiente: true,
+          motivo: `sin_usuarios_${def.rolInterno}`
+        });
+        continue;
       }
 
       const distribucion = adminPayoutDistribution?.distribuirMontoPorUsuarios
@@ -2156,6 +2164,15 @@ async function ejecutarSelladoConLiquidacionAdmin({ db, sorteoId, operadorEmail 
       });
     }
 
+    const liquidacionesPendientes = pagosPorRol
+      .filter((item) => item && item.liquidacionPendiente === true)
+      .map((item) => ({
+        rolInterno: normalizeString(item.rolInterno, 40),
+        montoPendiente: roundToSixDecimals(item.montoRolBase || 0),
+        motivo: normalizeString(item.motivo, 120)
+      }))
+      .filter((item) => item.rolInterno && item.montoPendiente > 0);
+
     tx.set(sorteoRef, {
       estado: 'Sellado',
       pdf: 'no',
@@ -2166,7 +2183,8 @@ async function ejecutarSelladoConLiquidacionAdmin({ db, sorteoId, operadorEmail 
       selladoPagoAdminAplicadoPor: operador,
       selladoPagoAdminResumen: {
         pagosPorRol,
-        totalTransacciones: pagosAplicados.length
+        totalTransacciones: pagosAplicados.length,
+        liquidacionesPendientes
       }
     }, { merge: true });
 
