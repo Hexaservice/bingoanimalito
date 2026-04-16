@@ -3,13 +3,14 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Cantar Sorteos (depuración)</title>
+  <title>Cantar Sorteos</title>
   <style>
     body { font-family: Arial, sans-serif; margin: 0; padding: 16px; background: #f5f5f5; }
     .panel { max-width: 960px; margin: 0 auto; background: #fff; border-radius: 12px; padding: 16px; box-shadow: 0 2px 8px rgba(0,0,0,.1); }
     h1 { margin-top: 0; }
     .row { display: grid; grid-template-columns: repeat(auto-fit,minmax(180px,1fr)); gap: 8px; margin: 12px 0; }
     button { padding: 10px; border-radius: 8px; border: 1px solid #ccc; background: #f2f2f2; font-weight: 600; }
+    button:disabled { opacity: 0.55; cursor: not-allowed; }
     .muted { color: #555; }
     .box { border: 1px dashed #bbb; border-radius: 8px; padding: 10px; min-height: 80px; }
   </style>
@@ -17,19 +18,18 @@
 <body>
   <div class="panel">
     <h1>Cantar Sorteos</h1>
-    <p class="muted">Modo depuración: se removió la lógica operativa del flujo de sorteos en esta pantalla y se mantuvieron únicamente elementos HTML base.</p>
+    <p id="flujo-msg" class="muted">Flujo: Sellado → Publicar PDF cartones jugando → Pasar a Jugando → Publicar PDF resultados.</p>
 
     <div class="row">
-      <button id="salir-btn" type="button" onclick="window.location.href='admin.html'">Salir</button>
+      <button id="salir-btn" type="button">Salir</button>
       <button id="sorteo-btn" type="button" disabled>Sorteo</button>
       <button id="estado-btn" type="button" disabled>Estado</button>
       <button id="sellar-btn" type="button" disabled>Sellar</button>
-      <button id="publicar-btn" type="button" disabled>Publicar PDF</button>
+      <button id="publicar-btn" type="button" disabled>Publicar PDF cartones jugando</button>
       <button id="jugar-btn" type="button" disabled>Pasar a Jugando</button>
-      <button id="finalizar-btn" type="button" disabled>Finalizar</button>
+      <button id="pdf-resultados-btn" type="button" disabled>Publicar PDF resultados</button>
     </div>
 
-    <h2>Paneles conservados (solo estructura)</h2>
     <div class="row">
       <section id="detalle-container" class="box">Detalle del sorteo</section>
       <section id="premios-container" class="box">Premios</section>
@@ -38,7 +38,163 @@
     </div>
 
     <h2>Registro visual</h2>
-    <section id="log-container" class="box">Sin lógica JS asociada.</section>
+    <section id="log-container" class="box">Inicializando...</section>
   </div>
+
+  <script src="https://www.gstatic.com/firebasejs/11.5.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/11.5.0/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/11.5.0/firebase-auth-compat.js"></script>
+  <script src="/firebase-config.js"></script>
+  <script src="js/auth.js"></script>
+  <script>
+  ensureAuth('Administrador');
+
+  const db = firebase.firestore();
+  const auth = firebase.auth();
+  const state = { sorteoId: new URLSearchParams(window.location.search).get('s') || '', sorteo: null };
+
+  function log(msg){
+    const el = document.getElementById('log-container');
+    if(el) el.textContent = `${new Date().toLocaleTimeString()} - ${msg}`;
+  }
+
+  function normalizarFlagSiNo(valor){
+    return (valor || '').toString().trim().toLowerCase() === 'si' ? 'si' : 'no';
+  }
+
+  function normalizarRolOperativo(valor){
+    const role = (valor || '').toString().trim().toLowerCase();
+    return role || 'desconocido';
+  }
+  function extraerRolClaimOperativo(claims = {}){
+    return claims?.role || claims?.rol || claims?.operationalRole || '';
+  }
+  async function validarPermisoEfectivoFinalizarSorteo(){
+    const user = auth?.currentUser;
+    if(!user?.email){
+      return { permitido: false, claimsRole: '', userRole: '', motivo: 'NO_AUTH' };
+    }
+    const token = await user.getIdTokenResult();
+    const claimsRole = extraerRolClaimOperativo(token?.claims || {});
+    let userRole = '';
+    try{
+      const snap = await db.collection('users').doc(user.email).get();
+      userRole = snap.exists ? (snap.data()?.role || '') : '';
+    }catch(err){
+      console.warn('[cantarsorteos] No se pudo leer users/{email}.role', err);
+    }
+    return { permitido: true, claimsRole, userRole: normalizarRolOperativo(userRole) === 'desconocido' ? userRole : userRole, motivo: 'SESION_ACTIVA' };
+  }
+
+  function mapearErrorFinalizacionFirestore(error){
+    const code = (error?.code || 'desconocido').toString();
+    if(code === 'permission-denied'){
+      return { code, tipo: 'permisos', titulo: 'Permiso insuficiente', mensajeUI: 'No tienes permisos para esta operación. Verifica users/{email}.role y tu sesión.' };
+    }
+    if(code === 'failed-precondition'){
+      return { code, tipo: 'precondicion', titulo: 'Precondición inválida', mensajeUI: 'Refresca la pantalla y valida el estado actual del sorteo antes de continuar.' };
+    }
+    return { code, tipo: 'desconocido', titulo: 'Error de finalización', mensajeUI: error?.message || 'Error inesperado.' };
+  }
+  function registrarTelemetriaFinalizacion(nombreEvento, payload = {}){
+    console.info('[cantarsorteos][telemetria-finalizacion]', nombreEvento, payload);
+  }
+
+  function extraerResumenPremiosDirectosOficiales(data = {}){
+    return {
+      creados: Number(data?.creados || 0),
+      duplicados: Number(data?.duplicados || 0),
+      evaluados: Number(data?.evaluados || 0)
+    };
+  }
+  async function generarPremiosPendientesDirectosOficiales(sorteoId){
+    const flagActivo = false;
+    if(!flagActivo){
+      return { ok: false, omitido: true, idempotente: true, statusCode: 409, motivo: 'premios_engine_v2_disabled', resumen: extraerResumenPremiosDirectosOficiales() };
+    }
+    return { ok: true, idempotente: false, statusCode: 200, resumen: extraerResumenPremiosDirectosOficiales() };
+  }
+
+  async function finalizarSorteo(){
+    return { ok: false, omitido: true, motivo: 'manual_finalizar_disabled' };
+  }
+
+  async function confirmarAccion(mensaje){
+    return window.confirm(mensaje);
+  }
+
+  async function invocarSelladoConLiquidacion(sorteoId){
+    const token = await auth.currentUser.getIdToken();
+    const base = (window.UPLOAD_ENDPOINT || '').replace(/\/upload\/?$/, '');
+    const url = `${base}/admin/sellado-liquidacion`;
+    const res = await fetch(url, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ sorteoId, runId: `sellado-ui-${Date.now()}` })
+    });
+    if(!res.ok) throw new Error(`Sellado falló (${res.status})`);
+    return res.json();
+  }
+
+  function resolverFlagsFlujo(sorteo){
+    const estado = (sorteo?.estado || '').toString().toLowerCase();
+    const publicadoJugadores = normalizarFlagSiNo(sorteo?.publicadoJugadores) === 'si' || normalizarFlagSiNo(sorteo?.pdf) === 'si' || normalizarFlagSiNo(sorteo?.cartonesJugandoPublicados) === 'si';
+    const publicadoResultados = normalizarFlagSiNo(sorteo?.cartonesGanadoresPublicados) === 'si' || normalizarFlagSiNo(sorteo?.resultadoPublicadoJugadores) === 'si' || normalizarFlagSiNo(sorteo?.pdfresul) === 'si';
+    return { estado, publicadoJugadores, publicadoResultados };
+  }
+
+  function actualizarUI(){
+    const sorteo = state.sorteo || {};
+    const { estado, publicadoJugadores, publicadoResultados } = resolverFlagsFlujo(sorteo);
+    document.getElementById('sorteo-btn').textContent = `Sorteo: ${state.sorteoId || '-'}`;
+    document.getElementById('estado-btn').textContent = `Estado: ${sorteo.estado || '-'}`;
+    document.getElementById('sellar-btn').disabled = !state.sorteoId || (estado !== 'activo' && estado !== 'sellado');
+    document.getElementById('publicar-btn').disabled = !state.sorteoId || estado !== 'sellado';
+    document.getElementById('jugar-btn').disabled = !state.sorteoId || estado !== 'sellado' || !publicadoJugadores;
+    document.getElementById('pdf-resultados-btn').disabled = !state.sorteoId || estado !== 'finalizado' || publicadoResultados;
+  }
+
+  async function aplicarPublicacionCartonesJugando(){
+    if(!(await confirmarAccion('¿Confirmas publicar PDF/cartones jugando para jugadores?'))) return;
+    const payload = { pdf: 'si', cartonesJugandoPublicados: 'si', publicadoJugadores: 'si', actualizadoEn: firebase.firestore.FieldValue.serverTimestamp() };
+    await Promise.all([
+      db.collection('sorteos').doc(state.sorteoId).set(payload, { merge: true }),
+      db.collection('cantarsorteos').doc(state.sorteoId).set(payload, { merge: true })
+    ]);
+    log('PDF/cartones jugando publicados para jugadores.');
+  }
+
+  async function pasarAJugando(){
+    await db.collection('sorteos').doc(state.sorteoId).set({ estado: 'Jugando', visibleJuegoActivo: 'si' }, { merge: true });
+    log('Sorteo actualizado a estado Jugando.');
+  }
+
+  async function publicarPdfResultados(){
+    if(!(await confirmarAccion('¿Confirmas publicar PDF resultados y habilitar Cartones ganadores?'))) return;
+    const payload = { pdfresul: 'si', resultadoPublicadoJugadores: 'si', cartonesGanadoresPublicados: 'si', visibleJuegoActivo: 'si', actualizadoEn: firebase.firestore.FieldValue.serverTimestamp() };
+    await Promise.all([
+      db.collection('sorteos').doc(state.sorteoId).set(payload, { merge: true }),
+      db.collection('cantarsorteos').doc(state.sorteoId).set(payload, { merge: true })
+    ]);
+    log('PDF resultados publicado y cartones ganadores habilitados.');
+  }
+
+  async function cargarSorteo(){
+    if(!state.sorteoId){ log('Falta parámetro ?s=<idSorteo>.'); return; }
+    const snap = await db.collection('sorteos').doc(state.sorteoId).get();
+    state.sorteo = snap.exists ? (snap.data() || {}) : {};
+    actualizarUI();
+  }
+
+  document.getElementById('salir-btn').addEventListener('click', ()=>{ window.location.href = 'admin.html'; });
+  document.getElementById('sellar-btn').addEventListener('click', async ()=>{
+    try{ await invocarSelladoConLiquidacion(state.sorteoId); log('Sellado + liquidación ejecutado.'); await cargarSorteo(); }
+    catch(error){ log(mapearErrorFinalizacionFirestore(error).mensajeUI); }
+  });
+  document.getElementById('publicar-btn').addEventListener('click', async ()=>{ try{ await aplicarPublicacionCartonesJugando(); await cargarSorteo(); }catch(error){ log(error.message); } });
+  document.getElementById('jugar-btn').addEventListener('click', async ()=>{ try{ await pasarAJugando(); await cargarSorteo(); }catch(error){ log(error.message); } });
+  document.getElementById('pdf-resultados-btn').addEventListener('click', async ()=>{ try{ await publicarPdfResultados(); await cargarSorteo(); }catch(error){ log(error.message); } });
+
+  cargarSorteo().catch(err=>log(err.message));
+  </script>
 </body>
 </html>
