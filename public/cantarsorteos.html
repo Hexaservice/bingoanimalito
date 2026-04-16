@@ -7258,17 +7258,24 @@
 
   async function fetchConFallbackUpload(apiBase, endpoint, requestOptions){
     const rutas = construirVariantesRutaAdmin(apiBase, endpoint);
+    const tieneRutaFallbackUpload = rutas.some((ruta)=>ruta.esFallbackUpload === true);
     let ultimaRespuesta = null;
     for(const ruta of rutas){
       const respuesta = await fetch(ruta.url, requestOptions);
       if(!respuesta) continue;
+      const tipoContenido = (respuesta.headers?.get('content-type') || '').toLowerCase();
+      const pareceHtml = tipoContenido.includes('text/html');
       if(!ruta.esFallbackUpload) {
         ultimaRespuesta = respuesta;
-        if(respuesta.status !== 404) return respuesta;
+        if(
+          respuesta.status !== 404
+          && !(tieneRutaFallbackUpload && respuesta.ok && pareceHtml)
+        ){
+          return respuesta;
+        }
         continue;
       }
       if(ruta.esFallbackUpload){
-        const tipoContenido = (respuesta.headers?.get('content-type') || '').toLowerCase();
         if(respuesta.ok || tipoContenido.includes('application/json')){
           return respuesta;
         }
