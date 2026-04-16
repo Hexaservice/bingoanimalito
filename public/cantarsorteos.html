@@ -1915,8 +1915,8 @@
           </svg>
         </span>
       </button>
-      <button id="centro-pagos-btn" class="estado-btn" title="Ir al centro de pagos">
-        <img src="https://api.iconify.design/mdi/cash-multiple.svg?color=%230c7a43" alt="Centro de pagos" width="28" height="28">
+      <button id="centro-pagos-btn" class="estado-btn" title="Centro de pagos / estadísticas">
+        <img src="https://api.iconify.design/mdi/cash-multiple.svg?color=%230c7a43" alt="Centro de pagos y estadísticas" width="28" height="28">
       </button>
     </div>
   </section>
@@ -2130,6 +2130,11 @@
   let pdfDestinoUrl = '';
   let promesaCargaSorteos = null;
   let verificacionAutomaticaPromesa = null;
+  let finalizacionAutomaticaTemporizador = null;
+  let finalizacionAutomaticaEnCurso = false;
+  let finalizacionAutomaticaClaveEnCurso = '';
+  const finalizacionAutomaticaCompletada = new Set();
+  let navegacionResultadosAutomaticaPendiente = false;
   let ultimaCargaSorteos = 0;
   const INTERVALO_CACHE_SORTEOS_MS = 30000;
   const TAM_MAX_CONSULTA_IN = 10;
@@ -2724,9 +2729,13 @@
     resultadoBtn.addEventListener('click', manejarClickResultadoBtn);
   }
   jugarBtn.addEventListener('click', cambiarAJugando);
-  finalizarBtn.addEventListener('click', finalizarSorteo);
   if(centroPagosBtn){
     centroPagosBtn.addEventListener('click', ()=>{
+      const estadoActual = obtenerEstadoActualNormalizado();
+      if(estadoActual === 'finalizado'){
+        abrirPdfResultados();
+        return;
+      }
       window.location.href = 'centropagos.html';
     });
   }
@@ -5967,13 +5976,13 @@
     const totalFormasSinGanador = formasSinGanador.length;
     const todasConGanador = totalFormasSinGanador === 0;
     const resultadosCompletos = resultadosCompletosLoterias();
-    const puedeFinalizar = estadoActual === 'jugando' && (todasConGanador || resultadosCompletos);
+    const puedeFinalizar = estadoActual === 'jugando' && resultadosCompletos;
     let motivoBloqueo = '';
     if(estadoActual !== 'jugando'){
       motivoBloqueo = 'El sorteo debe estar en estado Jugando para finalizar.';
-    }else if(!todasConGanador && !resultadosCompletos){
+    }else if(!resultadosCompletos){
       const faltantes = Math.max(0, obtenerTotalResultadosRequeridos() - obtenerTotalResultadosCargados());
-      motivoBloqueo = `Aún faltan resultados por cargar para poder finalizar sin ganadores en algunas formas (${faltantes} bloques pendientes).`;
+      motivoBloqueo = `Aún faltan resultados por cargar por loterías/bloques (${faltantes} bloques pendientes).`;
     }
     return {
       estadoActual,
@@ -6109,13 +6118,24 @@
     if(!currentSorteoData) return;
     const estadoLower = obtenerEstadoActualNormalizado();
     const pdfEstado = (currentSorteoData.pdf || '').toString().toLowerCase();
+    const pdfResultadoEstado = (currentSorteoData.pdfresul || '').toString().toLowerCase();
     if(estadoLower === 'activo'){
       sellarBtn.classList.add('attention');
     } else if(estadoLower === 'sellado'){
       if(pdfEstado === 'si') jugarBtn.classList.add('attention');
       else pdfBtn.classList.add('attention');
     } else if(estadoLower === 'jugando'){
-      finalizarBtn.classList.add('attention');
+      const diagnostico = obtenerDiagnosticoFinalizacion();
+      if(diagnostico.puedeFinalizar){
+        resultadoBtn.classList.add('attention');
+      }
+    } else if(estadoLower === 'finalizado'){
+      if(pdfResultadoEstado === 'si'){
+        resultadoBtn.classList.add('attention');
+        if(centroPagosBtn){
+          centroPagosBtn.classList.add('attention');
+        }
+      }
     }
   }
 
@@ -6156,10 +6176,10 @@
     pdfBtn.disabled = estado !== 'sellado';
     jugarBtn.disabled = estado !== 'sellado' || pdfEstado !== 'si';
     const diagnosticoFinalizacion = obtenerDiagnosticoFinalizacion();
-    finalizarBtn.disabled = !diagnosticoFinalizacion.puedeFinalizar;
+    finalizarBtn.disabled = true;
     finalizarBtn.title = diagnosticoFinalizacion.puedeFinalizar
-      ? 'Finalizar sorteo'
-      : (diagnosticoFinalizacion.motivoBloqueo || 'El sorteo no cumple condiciones para finalizar');
+      ? 'Finalización automática en curso por carga completa de resultados.'
+      : (diagnosticoFinalizacion.motivoBloqueo || 'La finalización del sorteo es automática cuando se complete la carga de resultados.');
     if(resultadoBtn){
       resultadoBtn.disabled = !esFinalizado;
     }
@@ -6184,7 +6204,7 @@
       }
     }
     if(finalizarBtn){
-      finalizarBtn.style.display = mostrar ? 'none' : 'flex';
+      finalizarBtn.style.display = 'none';
     }
   }
 
@@ -6332,6 +6352,7 @@
     actualizarBotones();
     actualizarAnimaciones();
     actualizarTablaEstado();
+    programarFinalizacionAutomatica();
   }
 
   async function asegurarDbListo(){
@@ -7531,6 +7552,174 @@
     }
   }
 
+  function construirClaveFinalizacionAutomatica(diagnostico = null){
+    const diag = diagnostico || obtenerDiagnosticoFinalizacion();
+    const totalRequeridos = Math.max(0, Number(obtenerTotalResultadosRequeridos()) || 0);
+    const totalCargados = Math.max(0, Number(obtenerTotalResultadosCargados()) || 0);
+    return [
+      currentSorteoId || 'sin-sorteo',
+      diag.estadoActual || 'sin-estado',
+      `${totalCargados}/${totalRequeridos}`
+    ].join('|');
+  }
+
+  async function bloquearFinalizacionAutomaticaBackend(claveOperacion){
+    if(!db || !currentSorteoId){
+      return { permitido: false, motivo: 'sin-contexto' };
+    }
+    const ref = db.collection('cantarsorteos').doc(currentSorteoId);
+    return db.runTransaction(async tx=>{
+      const snap = await tx.get(ref);
+      const data = snap.exists ? (snap.data() || {}) : {};
+      const lock = data.finalizacionAutomatica && typeof data.finalizacionAutomatica === 'object'
+        ? data.finalizacionAutomatica
+        : {};
+      const estadoLock = (lock.estado || '').toString().trim().toLowerCase();
+      const claveLock = (lock.clave || '').toString().trim();
+      if(estadoLock === 'completada' && claveLock === claveOperacion){
+        return { permitido: false, motivo: 'ya_completada' };
+      }
+      if(estadoLock === 'en_proceso' && claveLock === claveOperacion){
+        return { permitido: false, motivo: 'ya_en_proceso' };
+      }
+      tx.set(ref, {
+        finalizacionAutomatica: {
+          estado: 'en_proceso',
+          clave: claveOperacion,
+          origen: 'resultados_loterias_bloques',
+          solicitadoPor: auth?.currentUser?.uid || '',
+          solicitadoEn: getServerTimestamp() || getPreciseTimestamp(),
+          actualizadoEn: getServerTimestamp() || getPreciseTimestamp()
+        }
+      }, { merge: true });
+      return { permitido: true };
+    });
+  }
+
+  async function marcarEstadoFinalizacionAutomatica(estado, detalle = {}){
+    if(!db || !currentSorteoId) return;
+    const payload = {
+      finalizacionAutomatica: {
+        estado: (estado || '').toString().trim().toLowerCase() || 'desconocido',
+        clave: finalizacionAutomaticaClaveEnCurso || '',
+        origen: 'resultados_loterias_bloques',
+        actualizadoEn: getServerTimestamp() || getPreciseTimestamp(),
+        ...detalle
+      }
+    };
+    try {
+      await db.collection('cantarsorteos').doc(currentSorteoId).set(payload, { merge: true });
+    } catch (errorLock) {
+      console.warn('No se pudo persistir estado de finalización automática.', errorLock);
+    }
+  }
+
+  async function ejecutarFinalizacionAutomatica(){
+    if(!currentSorteoId || !currentSorteoData || finalizacionAutomaticaEnCurso){
+      return;
+    }
+    const diagnostico = obtenerDiagnosticoFinalizacion();
+    if(!diagnostico.puedeFinalizar){
+      return;
+    }
+    const claveOperacion = construirClaveFinalizacionAutomatica(diagnostico);
+    if(finalizacionAutomaticaCompletada.has(claveOperacion)){
+      return;
+    }
+    finalizacionAutomaticaEnCurso = true;
+    finalizacionAutomaticaClaveEnCurso = claveOperacion;
+    try {
+      const lock = await bloquearFinalizacionAutomaticaBackend(claveOperacion);
+      if(!lock?.permitido){
+        return;
+      }
+      const resultadoFinalizacion = await solicitarFinalizacionAutoritativaBackend();
+      if(!resultadoFinalizacion?.permitido){
+        const motivo = (resultadoFinalizacion?.motivo || '').toString().trim().toLowerCase();
+        await marcarEstadoFinalizacionAutomatica('error', {
+          motivo: motivo || 'finalizacion_rechazada',
+          detalle: resultadoFinalizacion?.detalle?.mensaje || ''
+        });
+        if(motivo === 'estado_no_jugando'){
+          finalizacionAutomaticaCompletada.add(claveOperacion);
+        }
+        return;
+      }
+      const detalleFinalizacion = resultadoFinalizacion?.detalle || {};
+      if(currentSorteoData){
+        currentSorteoData.estado = 'Finalizado';
+        currentSorteoData.pdfresul = 'si';
+        currentSorteoData.visibleJuegoActivo = 'si';
+      }
+      const indiceSorteoFinalizado = sorteos.findIndex(s=>s && s.id === currentSorteoId);
+      if(indiceSorteoFinalizado >= 0){
+        sorteos[indiceSorteoFinalizado] = {
+          ...sorteos[indiceSorteoFinalizado],
+          estado: 'Finalizado',
+          pdfresul: 'si',
+          visibleJuegoActivo: 'si'
+        };
+      }
+      const formasSinGanadorBackend = Array.isArray(detalleFinalizacion?.formasSinGanador)
+        ? detalleFinalizacion.formasSinGanador
+        : [];
+      let resumenAcumulado = null;
+      if(detalleFinalizacion?.resultadosCompletos && formasSinGanadorBackend.length > 0){
+        const formasSinGanadorConDetalle = formasSinGanadorBackend.map(item=>{
+          const idx = Number(item?.idx);
+          const formaLocal = formasActivas.find(forma=>Number(forma?.idx) === idx) || null;
+          return { idx, forma: formaLocal || item?.forma || { idx, nombre: item?.nombre || `Forma ${idx}` } };
+        });
+        resumenAcumulado = await registrarAcumuladoFormasSinGanador(formasSinGanadorConDetalle);
+      }
+      mensajeEl.textContent = resumenAcumulado?.montoCreditos
+        ? `Sorteo finalizado automáticamente. Se registró un acumulado de ${formatearNumero(resumenAcumulado.montoCreditos)} créditos.`
+        : 'Sorteo finalizado automáticamente por carga completa de resultados.';
+      finalizacionAutomaticaCompletada.add(claveOperacion);
+      await marcarEstadoFinalizacionAutomatica('completada', {
+        completadoEn: getServerTimestamp() || getPreciseTimestamp(),
+        resumen: {
+          resultadosCompletos: true,
+          totalFormasSinGanador: formasSinGanadorBackend.length
+        }
+      });
+      if(!navegacionResultadosAutomaticaPendiente){
+        navegacionResultadosAutomaticaPendiente = true;
+        setTimeout(()=>{
+          if(obtenerEstadoActualNormalizado() === 'finalizado'){
+            abrirPdfResultados();
+          }
+          navegacionResultadosAutomaticaPendiente = false;
+        }, 350);
+      }
+      conservarLoteriasCacheEnSorteoActual();
+      actualizarBotones();
+      actualizarAnimaciones();
+      mostrarDatos();
+    } catch (errorFinalizarAuto) {
+      console.error('Error en finalización automática del sorteo', errorFinalizarAuto);
+      await marcarEstadoFinalizacionAutomatica('error', {
+        motivo: 'error_no_controlado',
+        detalle: errorFinalizarAuto?.message || 'error_desconocido'
+      });
+    } finally {
+      finalizacionAutomaticaEnCurso = false;
+      finalizacionAutomaticaClaveEnCurso = '';
+    }
+  }
+
+  function programarFinalizacionAutomatica(){
+    if(finalizacionAutomaticaTemporizador){
+      clearTimeout(finalizacionAutomaticaTemporizador);
+    }
+    finalizacionAutomaticaTemporizador = setTimeout(()=>{
+      finalizacionAutomaticaTemporizador = null;
+      ejecutarFinalizacionAutomatica().catch(error=>{
+        console.error('No se pudo ejecutar la finalización automática.', error);
+      });
+    }, 160);
+  }
+
   async function finalizarSorteo(){
     if(!currentSorteoId || !currentSorteoData){
       alert('Selecciona un sorteo primero.');
@@ -7681,11 +7870,9 @@
       return;
     }
     const estadoPdfResultado = (currentSorteoData.pdfresul || '').toString().trim().toLowerCase();
-    if(estadoPdfResultado === 'si'){
-      mostrarAvisoSimple('El PDF de resultados confirmado se abre desde el icono flotante del botón.', 'PDF disponible');
-      return;
+    if(estadoPdfResultado !== 'si'){
+      mostrarAvisoSimple('Se abrirá el PDF de resultados para confirmar su descarga.', 'PDF pendiente');
     }
-    mostrarAvisoSimple('Se abrirá el PDF de resultados para que confirmes su descarga.', 'PDF pendiente');
     abrirPdfResultados();
   }
 
