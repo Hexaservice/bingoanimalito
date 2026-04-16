@@ -416,7 +416,11 @@
       display: none;
     }
     #jugar-btn { background: linear-gradient(#4b0082,#ffffff); }
-    #finalizar-btn { background: linear-gradient(#8b0000,#ffffff); }
+    #pdf-resultados-btn {
+      background: linear-gradient(165deg, #0f6f1f 0%, #43a047 55%, #7cfcba 100%);
+      border-color: #c5e1a5;
+      box-shadow: 0 6px 14px rgba(56, 142, 60, 0.32);
+    }
     #centro-pagos-btn {
       background: linear-gradient(180deg, #ff9800 0%, #ffb74d 55%, #ffffff 100%);
       border-color: #ffcc80;
@@ -1884,8 +1888,8 @@
       <button id="jugar-btn" class="estado-btn" title="Cambiar a Jugando">
         <img src="https://api.iconify.design/mdi/slot-machine.svg?color=white" alt="Jugar">
       </button>
-      <button id="finalizar-btn" class="estado-btn" title="Finalizar sorteo">
-        <img src="https://api.iconify.design/mdi/flag-checkered.svg?color=white" alt="Finalizar">
+      <button id="pdf-resultados-btn" class="estado-btn" title="PDF resultados" aria-label="Publicar y abrir PDF de resultados">
+        <img src="https://api.iconify.design/mdi/file-pdf-box.svg?color=white" alt="PDF resultados">
       </button>
       <button id="resultado-btn" class="estado-btn" title="Resultado en PDF" aria-label="Descargar resultado en PDF">
         <svg class="pdf-btn-icon" viewBox="0 0 48 48" role="img" aria-label="Documento PDF de resultados">
@@ -2079,7 +2083,7 @@
   const sellarBtn = document.getElementById('sellar-btn');
   const pdfBtn = document.getElementById('pdf-btn');
   const jugarBtn = document.getElementById('jugar-btn');
-  const finalizarBtn = document.getElementById('finalizar-btn');
+  const pdfResultadosBtn = document.getElementById('pdf-resultados-btn');
   const resultadoBtn = document.getElementById('resultado-btn');
   const pdfGeneradoFloatingIcon = pdfBtn ? pdfBtn.querySelector('.pdf-floating-icon') : null;
   const pdfResultadosFloatingIcon = resultadoBtn ? resultadoBtn.querySelector('.pdf-floating-icon') : null;
@@ -2727,6 +2731,9 @@
   }
   if(resultadoBtn){
     resultadoBtn.addEventListener('click', manejarClickResultadoBtn);
+  }
+  if(pdfResultadosBtn){
+    pdfResultadosBtn.addEventListener('click', manejarClickResultadoBtn);
   }
   jugarBtn.addEventListener('click', cambiarAJugando);
   if(centroPagosBtn){
@@ -3377,9 +3384,14 @@
 
   function actualizarCantosSeleccionados(lista){
     const valores = Array.isArray(lista) ? lista : [];
-    cantosSeleccionados = new Set(valores
-      .map(v=>window.CantosCanonicos?.normalizarNumeroCanonico(v))
-      .filter(Boolean));
+    cantosSeleccionados = new Set();
+    valores.forEach(v=>{
+      const canonico = window.CantosCanonicos?.normalizarNumeroCanonico(v);
+      if(!canonico) return;
+      const estado = (cantosResultadoMap instanceof Map ? cantosResultadoMap.get(canonico) : '').toString().trim().toLowerCase();
+      if(estado === 'p') return;
+      cantosSeleccionados.add(canonico);
+    });
     cantoCeldas.forEach((celda, clave)=>{
       if(cantosSeleccionados.has(clave)) celda.classList.add('selected');
       else celda.classList.remove('selected');
@@ -3617,8 +3629,8 @@
       });
     });
     const numeros = Array.isArray(payload.numeros) ? payload.numeros : [];
-    actualizarCantosSeleccionados(numeros);
     procesarCantos(payload);
+    actualizarCantosSeleccionados(numeros);
   }
 
   function obtenerFormaPorIndice(indice){
@@ -3979,13 +3991,16 @@
     });
     const normalizados = [];
     const resultadoMapa = new Map();
+    const limiteGanadorLocal = obtenerIndiceLimiteGanador(listaNumeros.length);
     listaNumeros.forEach((valor, idx)=>{
       const numero = normalizarNumero(valor);
       if(numero === null) return;
       normalizados.push(numero);
       const infoDetalle = detallesMap.get(numero);
       let estado = infoDetalle?.estado;
-      if(estado !== 'g' && estado !== 'p'){
+      if(Number.isInteger(limiteGanadorLocal) && limiteGanadorLocal >= 0 && idx > limiteGanadorLocal){
+        estado = 'p';
+      }else if(estado !== 'g' && estado !== 'p'){
         estado = 'g';
       }
       resultadoMapa.set(numero, estado);
@@ -5118,8 +5133,9 @@
       const fila=document.createElement('article');
       fila.className='ganadores-alerta-item';
       fila.style.setProperty('--ganador-alerta-color',item.color||'#0b7a28');
-      const totalAlias = Number(item.totalAlias || 0);
-      fila.innerHTML=`<div class="forma">${item.forma}</div><div class="alias">Alias: ${item.alias||'Sin alias'}</div><div class="detalle">Cartón: ${item.carton} · Tipo: ${item.tipo}</div><div class="detalle">Premio total del alias: ${formatearNumero(totalAlias)} créditos</div>`;
+      const totalForma = Number(item.total || item.cantidad || 0);
+      const detalleCantidad = totalForma === 1 ? '1 ganador' : `${formatearNumero(totalForma)} ganadores`;
+      fila.innerHTML=`<div class="forma">${item.forma}</div><div class="detalle">Cantidad detectada: ${detalleCantidad}</div>`;
       ganadoresAlertaListaEl.appendChild(fila);
     });
     ganadoresAlertaModalEl.classList.add('activa');
@@ -5233,9 +5249,7 @@
     const actual = Number(longitudActual) || 0;
     if(actual <= anterior) return;
     const nuevos = [];
-    const detallesGanadoresNuevos = [];
     const formasNuevas = new Set();
-    const totalesAlias = calcularTotalesAliasGanadores();
     cartonesGanadoresPorForma.forEach((registro, indice)=>{
       const idxNumero = Number(indice);
       if(!Number.isFinite(idxNumero)) return;
@@ -5248,23 +5262,6 @@
         const colorForma = obtenerColorParaForma(forma?.idx || idxNumero || 1);
         nuevos.push({ nombre: nombreForma, color: colorForma, total: totalActual });
         if(!fueNotificadaFormaGanadora(currentSorteoId, idxNumero)){
-          const ganadoresOrdenados=(registro?.cartones||[]).slice().sort((a,b)=>{
-            const na=Number(a?.cartonNum ?? a?.Ncarton);
-            const nb=Number(b?.cartonNum ?? b?.Ncarton);
-            if(Number.isFinite(na) && Number.isFinite(nb)) return na-nb;
-            return (a?.id||'').localeCompare(b?.id||'');
-          });
-          ganadoresOrdenados.forEach(carton=>{
-            const alias = (carton?.alias || '').toString().trim() || 'Sin alias';
-            detallesGanadoresNuevos.push({
-              forma:nombreForma,
-              color:colorForma,
-              alias,
-              carton:formatearNumeroCarton(carton),
-              tipo:normalizarTipoCarton(carton).toUpperCase(),
-              totalAlias: Number(totalesAlias.get(alias) || 0)
-            });
-          });
           marcarFormaGanadoraNotificada(currentSorteoId, idxNumero);
         }
         formasNuevas.add(idxNumero);
@@ -5280,9 +5277,11 @@
       sincronizarPremiosDirectosEnCaliente(formasNuevasLista);
     }
     if(esPrimerProcesamiento || !nuevos.length) return;
-    if(detallesGanadoresNuevos.length){
-      abrirModalAlertaGanadores(detallesGanadoresNuevos);
-    }
+    abrirModalAlertaGanadores(nuevos.map(item=>({
+      forma: item.nombre,
+      color: item.color,
+      cantidad: item.total
+    })));
   }
 
   function buildPremioId({ sorteoId, formaIdx, cartonId, prefijo = '' } = {}){
@@ -6113,7 +6112,7 @@
   }
 
   function actualizarAnimaciones(){
-    [sellarBtn, pdfBtn, jugarBtn, finalizarBtn, resultadoBtn].forEach(btn=>{ if(btn) btn.classList.remove('attention'); });
+    [sellarBtn, pdfBtn, jugarBtn, pdfResultadosBtn, resultadoBtn].forEach(btn=>{ if(btn) btn.classList.remove('attention'); });
     actualizarBotones();
     if(!currentSorteoData) return;
     const estadoLower = obtenerEstadoActualNormalizado();
@@ -6155,7 +6154,7 @@
 
   function actualizarBotones(){
     if(!currentSorteoData){
-      [sellarBtn, pdfBtn, jugarBtn, finalizarBtn, resultadoBtn].forEach(btn=>{ if(btn) btn.disabled = true; });
+      [sellarBtn, pdfBtn, jugarBtn, pdfResultadosBtn, resultadoBtn].forEach(btn=>{ if(btn) btn.disabled = true; });
       pdfBtn.classList.remove('pdf-disponible');
       if(resultadoBtn){
         resultadoBtn.classList.remove('pdf-disponible');
@@ -6176,10 +6175,15 @@
     pdfBtn.disabled = estado !== 'sellado';
     jugarBtn.disabled = estado !== 'sellado' || pdfEstado !== 'si';
     const diagnosticoFinalizacion = obtenerDiagnosticoFinalizacion();
-    finalizarBtn.disabled = true;
-    finalizarBtn.title = diagnosticoFinalizacion.puedeFinalizar
-      ? 'Finalización automática en curso por carga completa de resultados.'
-      : (diagnosticoFinalizacion.motivoBloqueo || 'La finalización del sorteo es automática cuando se complete la carga de resultados.');
+    if(pdfResultadosBtn){
+      const puedePublicarResultados = estado === 'jugando'
+        ? diagnosticoFinalizacion.todasConGanador
+        : esFinalizado;
+      pdfResultadosBtn.disabled = !puedePublicarResultados;
+      pdfResultadosBtn.title = puedePublicarResultados
+        ? 'Publicar y abrir PDF de resultados'
+        : 'Se habilita cuando todas las formas tengan ganador o al finalizar el sorteo';
+    }
     if(resultadoBtn){
       resultadoBtn.disabled = !esFinalizado;
     }
@@ -6203,8 +6207,8 @@
         resultadoBtn.disabled = false;
       }
     }
-    if(finalizarBtn){
-      finalizarBtn.style.display = 'none';
+    if(pdfResultadosBtn){
+      pdfResultadosBtn.style.display = 'flex';
     }
   }
 
@@ -6245,7 +6249,7 @@
       tipoEl.innerHTML = '';
       if(detalleContainer) detalleContainer.classList.remove('estado-sellado','estado-pdf','estado-jugando','estado-finalizado');
       mensajeEl.textContent = 'Selecciona un sorteo para administrar su estado.';
-      [sellarBtn, pdfBtn, jugarBtn, finalizarBtn, resultadoBtn].forEach(btn=>{ if(btn) btn.disabled = true; });
+      [sellarBtn, pdfBtn, jugarBtn, pdfResultadosBtn, resultadoBtn].forEach(btn=>{ if(btn) btn.disabled = true; });
       pdfBtn.classList.remove('pdf-disponible');
       if(resultadoBtn){
         resultadoBtn.classList.remove('pdf-disponible');
@@ -7119,6 +7123,38 @@
     return payloadPublicacion;
   }
 
+  async function confirmarPublicacionPdfResultados(){
+    if(!currentSorteoId || !currentSorteoData || !db){
+      return false;
+    }
+    const estadoPublicado = (currentSorteoData.cartonesGanadoresPublicados || '').toString().trim().toLowerCase();
+    if(estadoPublicado === 'si'){
+      return true;
+    }
+    const confirmar = await preguntarAccionEstado('¿Confirmas publicar el PDF de resultados y habilitar "Cartones ganadores" en juegoactivo?');
+    if(!confirmar){
+      return false;
+    }
+    const timestamp = firebase.firestore.FieldValue.serverTimestamp();
+    const payload = {
+      cartonesGanadoresPublicados: 'si',
+      cartonesGanadoresPublicadoEn: timestamp
+    };
+    const batch = db.batch();
+    batch.set(db.collection('sorteos').doc(currentSorteoId), payload, { merge: true });
+    batch.set(db.collection('cantarsorteos').doc(currentSorteoId), payload, { merge: true });
+    await batch.commit();
+    if(currentSorteoData){
+      currentSorteoData = { ...currentSorteoData, ...payload };
+    }
+    const indice = sorteos.findIndex(s=>s && s.id === currentSorteoId);
+    if(indice >= 0){
+      sorteos[indice] = { ...sorteos[indice], ...payload };
+    }
+    mostrarAvisoSimple('Publicación de resultados confirmada. Se habilitó "Cartones ganadores" en juegoactivo.', 'Resultados publicados');
+    return true;
+  }
+
   async function abrirPDF(){
     if(!currentSorteoId || !currentSorteoData){ alert('Selecciona un sorteo primero.'); return; }
 
@@ -7735,7 +7771,9 @@
       mensajeEl.textContent = resumenAcumulado?.montoCreditos
         ? `Sorteo finalizado. Se registró un acumulado de ${formatearNumero(resumenAcumulado.montoCreditos)} créditos.`
         : 'Sorteo finalizado correctamente. El PDF de resultados quedó publicado para jugadores.';
-      finalizarBtn.classList.remove('attention');
+      if(pdfResultadosBtn){
+        pdfResultadosBtn.classList.remove('attention');
+      }
       conservarLoteriasCacheEnSorteoActual();
       actualizarBotones();
       actualizarAnimaciones();
@@ -7792,15 +7830,20 @@
       return;
     }
     const estadoActual = obtenerEstadoActualNormalizado();
-    if(estadoActual !== 'finalizado'){
-      alert('El sorteo debe estar finalizado para ver los resultados.');
+    const diagnostico = obtenerDiagnosticoFinalizacion();
+    if(estadoActual !== 'finalizado' && !diagnostico.todasConGanador){
+      alert('Para publicar resultados, todas las formas deben tener ganador o el sorteo debe estar finalizado.');
       return;
     }
-    const estadoPdfResultado = (currentSorteoData.pdfresul || '').toString().trim().toLowerCase();
-    if(estadoPdfResultado !== 'si'){
-      mostrarAvisoSimple('Se abrirá el PDF de resultados para confirmar su descarga.', 'PDF pendiente');
-    }
-    abrirPdfResultados();
+    confirmarPublicacionPdfResultados()
+      .then(confirmado=>{
+        if(!confirmado) return;
+        abrirPdfResultados();
+      })
+      .catch(error=>{
+        console.error('No se pudo confirmar la publicación de resultados', error);
+        mostrarAvisoSimple('No se pudo confirmar la publicación de resultados.', 'Error');
+      });
   }
 
   function manejarClickPdfResultadosAlmacenado(evento){
@@ -7811,17 +7854,20 @@
       return;
     }
     const estadoActual = obtenerEstadoActualNormalizado();
-    if(estadoActual !== 'finalizado'){
-      alert('El sorteo debe estar finalizado para ver los resultados.');
+    const diagnostico = obtenerDiagnosticoFinalizacion();
+    if(estadoActual !== 'finalizado' && !diagnostico.todasConGanador){
+      alert('Para publicar resultados, todas las formas deben tener ganador o el sorteo debe estar finalizado.');
       return;
     }
-    const estadoPdfResultado = (currentSorteoData.pdfresul || '').toString().trim().toLowerCase();
-    if(estadoPdfResultado !== 'si'){
-      mostrarAvisoSimple('Se abrirá el PDF de resultados para confirmar su descarga.', 'PDF pendiente');
-    } else {
-      mostrarAvisoSimple('Abriendo el PDF de resultados confirmado para este sorteo.', 'PDF disponible');
-    }
-    abrirPdfResultados();
+    confirmarPublicacionPdfResultados()
+      .then(confirmado=>{
+        if(!confirmado) return;
+        abrirPdfResultados();
+      })
+      .catch(error=>{
+        console.error('No se pudo confirmar la publicación de resultados', error);
+        mostrarAvisoSimple('No se pudo confirmar la publicación de resultados.', 'Error');
+      });
   }
 
   async function inicializar(){

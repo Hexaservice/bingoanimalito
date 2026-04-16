@@ -5094,7 +5094,7 @@
   function actualizarBotonesCartonesPublicados(){
     const haySorteoSeleccionado = Boolean(activeSorteoId);
     const publicadoJugando = esSorteoVisibleJuegoActivo(activeSorteo);
-    const publicadoGanadores = esFlagPublicado(activeSorteo?.cartonesGanadoresPublicados) || esFlagPublicado(activeSorteo?.pdfresul);
+    const publicadoGanadores = esFlagPublicado(activeSorteo?.cartonesGanadoresPublicados);
     if(cartonesJugandoBtnEl){
       cartonesJugandoBtnEl.hidden = !haySorteoSeleccionado;
       cartonesJugandoBtnEl.disabled = !publicadoJugando;
@@ -12321,7 +12321,10 @@
     const etiquetas=[];
     const resultadoMapa=new Map();
     const hayDetalles=detallesNormalizados.size>0;
-    valoresBase.forEach(valor=>{
+    const limiteGanadorLocal = (todasFormasConGanadores && Number.isInteger(indiceUltimoGanador))
+      ? indiceUltimoGanador
+      : (valoresBase.length - 1);
+    valoresBase.forEach((valor, indiceLista)=>{
       const numero=normalizarNumero(valor);
       if(numero===null) return;
       normalizados.push(numero);
@@ -12338,7 +12341,9 @@
       etiquetas.push(etiqueta);
       const infoDetalle=detallesNormalizados.get(numero);
       const estadoNormalizado=typeof infoDetalle?.estado==='string'?infoDetalle.estado.trim().toLowerCase():'';
-      if(estadoNormalizado==='g' || estadoNormalizado==='p'){
+      if(Number.isInteger(limiteGanadorLocal) && limiteGanadorLocal >= 0 && indiceLista > limiteGanadorLocal){
+        resultadoMapa.set(numero,'p');
+      }else if(estadoNormalizado==='g' || estadoNormalizado==='p'){
         resultadoMapa.set(numero,estadoNormalizado);
       }else if(hayDetalles){
         resultadoMapa.set(numero,'g');
