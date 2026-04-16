@@ -298,8 +298,12 @@ async function validarUsuarioSuperadmin(decodedToken) {
   }
 
   try {
-    const doc = await admin.firestore().collection('users').doc(email).get();
-    const role = doc.exists ? doc.data().role : undefined;
+    const profile = await loadOperationalUserProfile({
+      db: admin.firestore(),
+      email,
+      uid: decoded.uid
+    });
+    const role = profile.role;
     if (role !== 'Superadmin') {
       return { ok: false, status: 403, body: { error: 'Acceso restringido a Superadmin' } };
     }
@@ -331,8 +335,12 @@ async function verificarToken(req, res, next) {
   }
 
   try {
-    const doc = await admin.firestore().collection('users').doc(email).get();
-    const role = doc.exists ? doc.data().role : undefined;
+    const profile = await loadOperationalUserProfile({
+      db: admin.firestore(),
+      email,
+      uid: decoded.uid
+    });
+    const role = profile.role;
     if (!['Superadmin', 'Administrador'].includes(role)) {
       return res.status(403).json({ error: 'Acceso restringido a roles administrativos' });
     }
@@ -385,8 +393,12 @@ async function verificarOperadorPrivilegiado(req, res, next) {
   }
 
   try {
-    const doc = await admin.firestore().collection('users').doc(email).get();
-    const role = doc.exists ? doc.data().role : undefined;
+    const profile = await loadOperationalUserProfile({
+      db: admin.firestore(),
+      email,
+      uid: decoded.uid
+    });
+    const role = profile.role;
     if (!['Superadmin', 'Administrador', 'Colaborador'].includes(role)) {
       return res.status(403).json({ error: 'Acceso restringido a operadores autorizados' });
     }
@@ -419,8 +431,12 @@ async function verificarOperadorPrivilegiadoOJugadorAcreditacion(req, res, next)
   }
 
   try {
-    const doc = await admin.firestore().collection('users').doc(email).get();
-    const role = normalizeOperationalRole(doc.exists ? doc.data()?.role : null) || 'Jugador';
+    const profile = await loadOperationalUserProfile({
+      db: admin.firestore(),
+      email,
+      uid: normalizeString(decoded?.uid, 200)
+    });
+    const role = profile.role || 'Jugador';
     const isOperador = ['Superadmin', 'Administrador', 'Colaborador'].includes(role);
     req.user = {
       uid: normalizeString(decoded?.uid, 200),
@@ -453,8 +469,12 @@ async function verificarOperadorFinalizacion(req, res, next) {
     return res.status(401).json({ permitido: false, motivo: 'sesion_invalida', detalle: { mensaje: 'Token sin correo asociado' } });
   }
   try {
-    const userDoc = await admin.firestore().collection('users').doc(email).get();
-    const userRole = normalizeOperationalRole(userDoc.exists ? userDoc.data()?.role : null);
+    const profile = await loadOperationalUserProfile({
+      db: admin.firestore(),
+      email,
+      uid: normalizeString(decoded?.uid, 200)
+    });
+    const userRole = profile.role;
     if (!ROLES_OPERATIVOS_FINALIZACION.has(userRole)) {
       return res.status(403).json({
         permitido: false,
@@ -510,6 +530,37 @@ function normalizeOperationalRole(value) {
     return 'Jugador';
   }
   return raw || null;
+}
+
+function extractOperationalRoleFromUserDocData(data = {}) {
+  if (!data || typeof data !== 'object') return null;
+  return normalizeOperationalRole(data.role || data.rol || data.rolinterno || data.rolInterno || null);
+}
+
+async function loadOperationalUserProfile({ db, email = '', uid = '' }) {
+  const normalizedEmail = normalizeString(email, 200).toLowerCase();
+  const normalizedUid = normalizeString(uid, 200);
+  if (!db || !normalizedEmail) {
+    return { role: null, source: 'sin_email' };
+  }
+
+  const users = db.collection('users');
+  const uniqueIds = new Set(
+    [normalizedEmail, normalizeString(email, 200), normalizedUid]
+      .map((value) => normalizeString(value, 200))
+      .filter(Boolean)
+  );
+
+  for (const docId of uniqueIds) {
+    const userDoc = await users.doc(docId).get();
+    if (!userDoc.exists) continue;
+    const role = extractOperationalRoleFromUserDocData(userDoc.data() || {});
+    if (role) {
+      return { role, source: `users/${userDoc.id}` };
+    }
+  }
+
+  return { role: null, source: 'no_role_match' };
 }
 
 function normalizeScheduleLabel(value) {
@@ -3548,6 +3599,8 @@ module.exports = {
   isSorteoEligibleForAutoPrize,
   normalizePendingPrizeState,
   normalizeOperationalRole,
+  extractOperationalRoleFromUserDocData,
+  loadOperationalUserProfile,
   buildFinalizationContract,
   executeAuthoritativeSorteoFinalization,
   registerNoWinnerAccumulatedForms,
