@@ -74,6 +74,8 @@ const AUTO_FINALIZATION_CONTROLLER_LIMIT = Math.max(1, Number(process.env.AUTO_F
 
 let autoFinalizationControllerTimer = null;
 let autoFinalizationControllerRunning = false;
+let cantosResultPersistenceUnsubscribe = null;
+const cantosFinalizationInFlight = new Map();
 
 function getMissingRequiredEnv(env = process.env) {
   return requiredEnv.filter((name) => !env[name]);
@@ -1201,6 +1203,99 @@ async function executeAuthoritativeSorteoFinalization({ db, sorteoId, operadorEm
       }
     };
   });
+}
+
+async function executeImmediateFinalizationAfterResultPersistence({
+  db,
+  sorteoId,
+  operadorEmail = 'sistema:resultado-persistido'
+} = {}) {
+  const normalizedSorteoId = normalizeString(sorteoId, 120);
+  if (!db || !normalizedSorteoId) {
+    return {
+      ok: false,
+      reason: 'invalid_context',
+      finalization: null
+    };
+  }
+
+  const previousInFlight = cantosFinalizationInFlight.get(normalizedSorteoId);
+  if (previousInFlight) {
+    return previousInFlight;
+  }
+
+  const executionPromise = (async () => {
+    try {
+      const finalization = await executeAuthoritativeSorteoFinalization({
+        db,
+        sorteoId: normalizedSorteoId,
+        operadorEmail
+      });
+      return {
+        ok: true,
+        sorteoId: normalizedSorteoId,
+        finalized: Boolean(finalization?.permitido),
+        reason: finalization?.motivo || 'unknown',
+        finalization
+      };
+    } catch (error) {
+      console.error('[auto-finalizacion][persistencia-resultados-error]', {
+        sorteoId: normalizedSorteoId,
+        message: error?.message || 'error_desconocido'
+      });
+      return {
+        ok: false,
+        sorteoId: normalizedSorteoId,
+        finalized: false,
+        reason: 'finalization_error',
+        error: normalizeString(error?.message, 260) || 'error_desconocido',
+        finalization: null
+      };
+    } finally {
+      cantosFinalizationInFlight.delete(normalizedSorteoId);
+    }
+  })();
+
+  cantosFinalizationInFlight.set(normalizedSorteoId, executionPromise);
+  return executionPromise;
+}
+
+function startResultPersistenceFinalizationWatcher({ db } = {}) {
+  if (!db || typeof db.collection !== 'function') {
+    console.warn('[auto-finalizacion] no se inició watcher de persistencia: db no disponible.');
+    return;
+  }
+  if (cantosResultPersistenceUnsubscribe) return;
+
+  cantosResultPersistenceUnsubscribe = db.collection('cantos').onSnapshot((snapshot) => {
+    if (!snapshot || typeof snapshot.docChanges !== 'function') return;
+    snapshot.docChanges().forEach((change) => {
+      if (!change?.doc?.id) return;
+      if (!['added', 'modified'].includes(change.type)) return;
+      executeImmediateFinalizationAfterResultPersistence({
+        db,
+        sorteoId: change.doc.id,
+        operadorEmail: 'sistema:resultado-persistido'
+      }).then((result) => {
+        if (!result?.finalized) return;
+        console.info('[auto-finalizacion][persistencia-resultados]', {
+          sorteoId: change.doc.id,
+          motivo: result?.reason || 'finalizado'
+        });
+      }).catch((error) => {
+        console.error('[auto-finalizacion][persistencia-resultados-unhandled]', {
+          sorteoId: change.doc.id,
+          message: error?.message || 'error_desconocido'
+        });
+      });
+    });
+  }, (error) => {
+    console.error('[auto-finalizacion][persistencia-resultados-listener-error]', {
+      message: error?.message || 'error_desconocido'
+    });
+  });
+
+  console.info('[auto-finalizacion] watcher de persistencia de resultados iniciado (cantos/*).');
 }
 
 async function runAutomaticFinalizationControllerTick({ db } = {}) {
@@ -3983,39 +4078,6 @@ async function acreditarPremioEventoHandler(req, res) {
 
 app.post('/acreditarPremioEvento', verificarOperadorPrivilegiadoOJugadorAcreditacion, acreditarPremioEventoHandler);
 
-app.post('/admin/finalizar-sorteo', verificarOperadorFinalizacion, async (req, res) => {
-  const sorteoId = normalizeString(req.body?.sorteoId, 120);
-  if (!sorteoId) {
-    return res.status(400).json({
-      permitido: false,
-      motivo: 'sorteo_id_obligatorio',
-      detalle: { mensaje: 'sorteoId es obligatorio' }
-    });
-  }
-  const db = admin.firestore();
-  try {
-    const resultado = await executeAuthoritativeSorteoFinalization({
-      db,
-      sorteoId,
-      operadorEmail: req.user?.email || 'desconocido'
-    });
-    if (!resultado.permitido && resultado.motivo === 'sorteo_no_encontrado') {
-      return res.status(404).json(resultado);
-    }
-    if (!resultado.permitido) {
-      return res.status(409).json(resultado);
-    }
-    return res.status(200).json(resultado);
-  } catch (error) {
-    console.error('Error en finalización autoritativa del sorteo', { sorteoId, error });
-    return res.status(500).json({
-      permitido: false,
-      motivo: 'error_finalizacion',
-      detalle: { mensaje: 'Error interno al finalizar sorteo', code: normalizeString(error?.code, 80) || null }
-    });
-  }
-});
-
 app.post('/admin/sellado-liquidacion/precheck', verificarOperadorFinalizacion, async (req, res) => {
   const requestId = normalizeString(req.requestId || req.headers['x-request-id'] || req.headers['x-correlation-id'], 120)
     || `sellado-precheck-${Date.now()}`;
@@ -4527,7 +4589,9 @@ app.use((err, req, res, next) => {
 function startServer() {
   validateRequiredEnv();
   initializeFirebase();
-  startAutomaticFinalizationController({ db: admin.firestore() });
+  const db = admin.firestore();
+  startResultPersistenceFinalizationWatcher({ db });
+  startAutomaticFinalizationController({ db });
 
   const PORT = process.env.PORT || 3000;
   app.listen(PORT, () => {
@@ -4561,8 +4625,10 @@ module.exports = {
   loadOperationalUserProfile,
   buildFinalizationContract,
   executeAuthoritativeSorteoFinalization,
+  executeImmediateFinalizationAfterResultPersistence,
   registerNoWinnerAccumulatedForms,
   runAutomaticFinalizationControllerTick,
+  startResultPersistenceFinalizationWatcher,
   startAutomaticFinalizationController,
   ejecutarSelladoConLiquidacionAdmin,
   buildReconciledPrizeTransactionId,
