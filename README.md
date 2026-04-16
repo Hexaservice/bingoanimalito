@@ -283,6 +283,33 @@ Respuesta esperada (ejemplo):
 
 Si `/health` responde correctamente pero `/wallet/transfer-credits` falla, el problema ya no es “API caída” sino configuración/autorización del flujo de billetera.
 
+### Checklist obligatorio por ambiente (`UPLOAD_ENDPOINT` + `ALLOWED_ORIGINS`)
+
+> Ejecutar este checklist antes de cada deploy. Si algún punto falla, **no publicar**.
+
+#### Producción
+
+- `UPLOAD_ENDPOINT` apunta al backend real HTTPS (ejemplo: `https://api.tu-dominio.com/upload`) y **no** al hosting estático.
+- `ALLOWED_ORIGINS` incluye **todos** los frontends reales:
+  - `https://bingoanimalito.web.app`
+  - `https://bingoanimalito.firebaseapp.com`
+  - `https://bingoanimalito.juega-online.com`
+  - `https://www.bingoanimalito.juega-online.com`
+- Verificar `GET /health` desde la URL base efectiva de API.
+- Confirmar en `billetera.html?debug=1` la base activa usada por billetera y su fuente.
+
+#### Staging / QA
+
+- `UPLOAD_ENDPOINT` apunta al backend de staging (dominio aislado de producción).
+- `ALLOWED_ORIGINS` contiene solo dominios reales de staging/QA y nunca mezcla dominios de otros proyectos.
+- `GET /health` responde `200` con JSON antes de validar transferencias.
+
+#### Desarrollo local
+
+- `UPLOAD_ENDPOINT` local o túnel seguro (por ejemplo `http://localhost:3000/upload` en dev local).
+- `ALLOWED_ORIGINS` incluye `http://localhost:3000` y cualquier origen local adicional usado por el frontend.
+- Probar `/health` y luego `/wallet/transfer-credits` con token válido para descartar CORS y endpoint inválido.
+
 ### Troubleshooting rápido: mensajes genéricos al transferir créditos
 
 Cuando la UI muestra un error genérico en transferencias, validar en este orden:

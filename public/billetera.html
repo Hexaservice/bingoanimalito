@@ -1305,12 +1305,60 @@
       document.getElementById('transferencia-alias').focus();
     }
 
+    function normalizarBaseApiBilletera(valor){
+      if(typeof valor!=='string') return '';
+      const limpio=valor.trim();
+      if(!limpio) return '';
+      return limpio.replace(/\/upload\/?$/,'').replace(/\/+$/,'');
+    }
+
+    function construirCandidatosApiBilletera(){
+      const dominiosAutorizados=Array.isArray(window.__FIREBASE_AUTH_SETTINGS__?.authorizedDomains)
+        ? window.__FIREBASE_AUTH_SETTINGS__.authorizedDomains
+        : [];
+      const dominioPublicado=dominiosAutorizados
+        .map((item)=>String(item||'').trim().toLowerCase())
+        .find((dominio)=>
+          dominio &&
+          !dominio.includes('localhost') &&
+          !dominio.endsWith('.web.app') &&
+          !dominio.endsWith('.firebaseapp.com')
+        );
+      const candidatoDominioPublicado=dominioPublicado
+        ? [`https://${dominioPublicado}`, `https://www.${dominioPublicado.replace(/^www\./,'')}`]
+        : [];
+      const candidatoAdminApiBase=typeof getAdminApiBase==='function'
+        ? getAdminApiBase()
+        : '';
+      const candidatas=[
+        {source:'getAdminApiBase',base:normalizarBaseApiBilletera(candidatoAdminApiBase)},
+        {source:'window.UPLOAD_ENDPOINT',base:normalizarBaseApiBilletera(window.UPLOAD_ENDPOINT||'')},
+        {source:'window.__APP_CONFIG__.uploadEndpoint',base:normalizarBaseApiBilletera(window.__APP_CONFIG__?.uploadEndpoint||'')},
+        ...candidatoDominioPublicado.map((url)=>({source:'authorizedDomains',base:normalizarBaseApiBilletera(url)})),
+        {source:'window.location.origin',base:normalizarBaseApiBilletera(window.location?.origin||'')}
+      ];
+      const unicas=new Map();
+      candidatas.forEach((item)=>{
+        if(!item.base || unicas.has(item.base)) return;
+        unicas.set(item.base,item);
+      });
+      return Array.from(unicas.values());
+    }
+
     function getWalletApiBase(){
-      if(typeof getAdminApiBase==='function'){
-        const apiBase=getAdminApiBase();
-        if(apiBase) return apiBase;
+      const candidatas=construirCandidatosApiBilletera();
+      const activa=candidatas[0]||null;
+      window.__walletApiBaseSelectionDebug={
+        selectedBase:activa?.base||'',
+        selectedSource:activa?.source||'sin-base',
+        candidates:candidatas
+      };
+      if(activa?.base){
+        console.info(`[billetera] API base activa: ${activa.base} (fuente: ${activa.source})`);
+      }else{
+        console.warn('[billetera] No se encontró API base válida para billetera');
       }
-      return (window.location?.origin||'').trim();
+      return activa?.base||'';
     }
 
     function shouldShowWalletApiDebug(rol){
@@ -1331,42 +1379,78 @@
       }
       const apiBase=getWalletApiBase();
       const endpointConfigurado=(window.UPLOAD_ENDPOINT||window.__APP_CONFIG__?.uploadEndpoint||'').toString().trim()||'(vacío)';
+      const seleccionApi=window.__walletApiBaseSelectionDebug||{};
+      const segmentoSeleccion=seleccionApi.selectedSource
+        ? ` · Fuente base activa: ${seleccionApi.selectedSource}`
+        : '';
       const detalleFallo=window.__walletTransferDebugLastFailure;
       const segmentoFallo=detalleFallo
         ? ` · Último intento: ${detalleFallo.apiBase||'(sin base)'} · Motivo: ${detalleFallo.errorType||'desconocido'}${Number.isFinite(detalleFallo.status)?` (HTTP ${detalleFallo.status})`:''}`
         : '';
-      el.textContent=`Diagnóstico API billetera · Base efectiva: ${apiBase||'(vacía)'} · UPLOAD_ENDPOINT: ${endpointConfigurado}${segmentoFallo}`;
+      el.textContent=`Diagnóstico API billetera · Base efectiva: ${apiBase||'(vacía)'}${segmentoSeleccion} · UPLOAD_ENDPOINT: ${endpointConfigurado}${segmentoFallo}`;
       el.classList.add('visible');
     }
 
     function construirBasesApiBilletera(){
-      const normalizarBase=(valor)=>{
-        if(typeof valor!=='string') return '';
-        const limpio=valor.trim();
-        if(!limpio) return '';
-        return limpio.replace(/\/upload\/?$/,'').replace(/\/+$/,'');
-      };
-      const dominiosAutorizados=Array.isArray(window.__FIREBASE_AUTH_SETTINGS__?.authorizedDomains)
-        ? window.__FIREBASE_AUTH_SETTINGS__.authorizedDomains
-        : [];
-      const dominioPublicado=dominiosAutorizados
-        .map((item)=>String(item||'').trim().toLowerCase())
-        .find((dominio)=>
-          dominio &&
-          !dominio.includes('localhost') &&
-          !dominio.endsWith('.web.app') &&
-          !dominio.endsWith('.firebaseapp.com')
-        );
-      const candidatoDominioPublicado=dominioPublicado
-        ? [`https://${dominioPublicado}`, `https://www.${dominioPublicado.replace(/^www\./,'')}`]
-        : [];
-      const candidatas=[
-        normalizarBase(getWalletApiBase()),
-        normalizarBase(window.UPLOAD_ENDPOINT||''),
-        normalizarBase(window.__APP_CONFIG__?.uploadEndpoint||''),
-        ...candidatoDominioPublicado.map((url)=>normalizarBase(url))
-      ];
-      return Array.from(new Set(candidatas.filter(Boolean)));
+      return construirCandidatosApiBilletera().map((item)=>item.base).filter(Boolean);
+    }
+
+    async function diagnosticarApiBilletera(apiBase){
+      const endpointHealth=`${apiBase}/health`;
+      try{
+        const response=await fetch(endpointHealth,{method:'GET'});
+        const contentType=(response.headers.get('content-type')||'').toLowerCase();
+        const cuerpo=await response.text();
+        let payload=null;
+        if(cuerpo){
+          try{
+            payload=JSON.parse(cuerpo);
+          }catch(parseError){
+            return {
+              ok:false,
+              type:'invalid-json',
+              message:'El endpoint de diagnóstico respondió contenido no JSON.',
+              status:response.status,
+              endpointHealth,
+              parseError
+            };
+          }
+        }
+        if(!response.ok){
+          const esBackendCaido=[502,503,504].includes(response.status);
+          return {
+            ok:false,
+            type:esBackendCaido?'backend-down':'invalid-endpoint',
+            message:esBackendCaido
+              ? 'El backend parece caído o no disponible.'
+              : 'La API respondió error en /health; revisa UPLOAD_ENDPOINT.',
+            status:response.status,
+            endpointHealth,
+            payload
+          };
+        }
+        if(!contentType.includes('application/json')){
+          return {
+            ok:false,
+            type:'invalid-json',
+            message:'El endpoint de diagnóstico no devolvió JSON.',
+            status:response.status,
+            endpointHealth
+          };
+        }
+        return {ok:true,status:response.status,endpointHealth,payload};
+      }catch(fetchError){
+        const mensaje=(fetchError?.message||'').toString().toLowerCase();
+        return {
+          ok:false,
+          type:mensaje.includes('cors')?'cors':'backend-down',
+          message:mensaje.includes('cors')
+            ? 'No se pudo consultar /health por política CORS.'
+            : 'No se pudo conectar con /health del backend.',
+          endpointHealth,
+          error:fetchError
+        };
+      }
     }
 
     async function ejecutarTransferenciaCreditos(){
@@ -1402,6 +1486,14 @@
         const intentosTransferencia=[];
         window.__walletTransferDebugLastFailure=null;
         for(const apiBase of apiBases){
+          const diagnostico=await diagnosticarApiBilletera(apiBase);
+          if(!diagnostico.ok){
+            const intento={apiBase,errorType:diagnostico.type,status:diagnostico.status??null};
+            intentosTransferencia.push(intento);
+            window.__walletTransferDebugLastFailure=intento;
+            console.error('Diagnóstico previo a transferencia falló',{...intento,diagnostico});
+            continue;
+          }
           try{
             const response=await fetch(`${apiBase}/wallet/transfer-credits`,{
               method:'POST',
@@ -1445,9 +1537,7 @@
             break;
           }catch(fetchError){
             const mensaje=(fetchError?.message||'').toString().toLowerCase();
-            const tipo=mensaje.includes('cors')
-              ? 'cors'
-              : 'network';
+            const tipo=mensaje.includes('cors') ? 'cors' : 'backend-down';
             const intento={apiBase,errorType:tipo,status:null};
             intentosTransferencia.push(intento);
             window.__walletTransferDebugLastFailure=intento;
@@ -1458,14 +1548,20 @@
           actualizarDiagnosticoWalletApi(window.currentRole||'');
           const tipos=new Set(intentosTransferencia.map((i)=>i.errorType));
           const huboNoJson=tipos.has('non-json');
-          const ultimoIntentoNoJson=[...intentosTransferencia].reverse().find((i)=>i.errorType==='non-json');
-          const mensajeNoJson=(ultimoIntentoNoJson?.status===404 || ultimoIntentoNoJson?.status===502 || ultimoIntentoNoJson?.status===503)
-            ? 'La URL de la API de billetera parece incorrecta o no disponible (respuesta no JSON). Verifica UPLOAD_ENDPOINT y CORS.'
-            : 'El backend respondió un formato inválido.';
+          const huboDiagnosticoNoJson=tipos.has('invalid-json');
+          const huboEndpointInvalido=tipos.has('invalid-endpoint');
+          const huboBackendDown=tipos.has('backend-down');
+          const huboCors=tipos.has('cors');
           const mensajeUsuario=huboNoJson
-            ? mensajeNoJson
-            : (tipos.has('cors') || tipos.has('network'))
-              ? 'No se pudo conectar con el servidor de billetera (CORS o endpoint).'
+            ? 'La respuesta de transferencia no llegó en formato JSON válido.'
+            : huboDiagnosticoNoJson
+              ? 'La API respondió contenido no JSON en /health. Verifica endpoint y proxy.'
+              : huboEndpointInvalido
+                ? 'El endpoint configurado para billetera parece inválido. Verifica UPLOAD_ENDPOINT.'
+                : huboCors
+                  ? 'Bloqueado por CORS al consultar la API de billetera.'
+                  : huboBackendDown
+                    ? 'El backend de billetera no está disponible en este momento.'
               : (ultimoErrorBackend||'No se pudo completar la transferencia en este momento. Inténtalo nuevamente.');
           setMensajeTransferencia(mensajeUsuario);
           return;
