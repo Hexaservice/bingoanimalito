@@ -7088,16 +7088,17 @@
       return { ok: false, permitido: false, error: 'No hay API administrativa configurada.', code: 'API_BASE_INVALID' };
     }
     const token = await user.getIdToken(true);
+    const requestOptions = {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`
+      },
+      body: JSON.stringify({ sorteoId: currentSorteoId })
+    };
     let respuesta = null;
     try{
-      respuesta = await fetch(`${apiBase}/admin/sellado-liquidacion/precheck`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify({ sorteoId: currentSorteoId })
-      });
+      respuesta = await fetchConFallbackUpload(apiBase, '/admin/sellado-liquidacion/precheck', requestOptions);
     }catch(fetchError){
       return {
         ok: false,
@@ -7108,12 +7109,7 @@
         detalle: { mensaje: normalizeStringValue(fetchError?.message, 220) || 'fetch_failed' }
       };
     }
-    let payload = null;
-    try{
-      payload = await respuesta.json();
-    }catch(_errorParse){
-      payload = null;
-    }
+    const payload = await parsearPayloadJsonSeguro(respuesta);
     const requestId = normalizeStringValue(
       (respuesta.headers?.get('x-request-id') || '')
       || payload?.requestId
@@ -7171,16 +7167,17 @@
       return { ok: false, error: 'No hay API administrativa configurada.', code: 'API_BASE_INVALID' };
     }
     const token = await user.getIdToken(true);
+    const requestOptions = {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`
+      },
+      body: JSON.stringify({ sorteoId: currentSorteoId })
+    };
     let respuesta = null;
     try{
-      respuesta = await fetch(`${apiBase}/admin/sellado-liquidacion`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify({ sorteoId: currentSorteoId })
-      });
+      respuesta = await fetchConFallbackUpload(apiBase, '/admin/sellado-liquidacion', requestOptions);
     }catch(fetchError){
       return {
         ok: false,
@@ -7190,12 +7187,7 @@
         detalle: { mensaje: normalizeStringValue(fetchError?.message, 220) || 'fetch_failed' }
       };
     }
-    let payload = null;
-    try{
-      payload = await respuesta.json();
-    }catch(_errorParse){
-      payload = null;
-    }
+    const payload = await parsearPayloadJsonSeguro(respuesta);
     const requestIdHeader = normalizeStringValue(
       respuesta.headers?.get('x-request-id')
       || respuesta.headers?.get('x-correlation-id')
@@ -7217,6 +7209,15 @@
       payload.requestId = requestId;
       return payload;
     }
+    if(respuesta.ok){
+      return {
+        ok: true,
+        status: respuesta.status,
+        code: 'OK_EMPTY_BODY',
+        idempotente: false,
+        requestId
+      };
+    }
     return {
       ok: false,
       status: respuesta.status,
@@ -7224,6 +7225,57 @@
       error: 'Respuesta inválida del backend',
       requestId
     };
+  }
+
+  async function parsearPayloadJsonSeguro(respuesta){
+    if(!respuesta || typeof respuesta.text !== 'function') return null;
+    let body = '';
+    try{
+      body = await respuesta.text();
+    }catch(_errorRead){
+      body = '';
+    }
+    if(!body || !body.trim()) return null;
+    try{
+      return JSON.parse(body);
+    }catch(_errorParse){
+      return null;
+    }
+  }
+
+  function construirVariantesRutaAdmin(apiBase = '', endpoint = ''){
+    const base = (apiBase || '').toString().trim().replace(/\/+$/, '');
+    const path = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+    if(!base || !path){
+      return [{ url: `${base}${path}`, esFallbackUpload: false }];
+    }
+    const rutas = [{ url: `${base}${path}`, esFallbackUpload: false }];
+    if(!/\/upload$/i.test(base)){
+      rutas.push({ url: `${base}/upload${path}`, esFallbackUpload: true });
+    }
+    return rutas;
+  }
+
+  async function fetchConFallbackUpload(apiBase, endpoint, requestOptions){
+    const rutas = construirVariantesRutaAdmin(apiBase, endpoint);
+    let ultimaRespuesta = null;
+    for(const ruta of rutas){
+      const respuesta = await fetch(ruta.url, requestOptions);
+      if(!respuesta) continue;
+      if(!ruta.esFallbackUpload) {
+        ultimaRespuesta = respuesta;
+        if(respuesta.status !== 404) return respuesta;
+        continue;
+      }
+      if(ruta.esFallbackUpload){
+        const tipoContenido = (respuesta.headers?.get('content-type') || '').toLowerCase();
+        if(respuesta.ok || tipoContenido.includes('application/json')){
+          return respuesta;
+        }
+      }
+      if(!ultimaRespuesta) ultimaRespuesta = respuesta;
+    }
+    return ultimaRespuesta;
   }
 
   function normalizeStringValue(value, maxLength = 200){
