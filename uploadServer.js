@@ -2211,6 +2211,111 @@ async function acreditarPremioEventoHandler(req, res) {
   const db = admin.firestore();
 
   try {
+    const lookupPendingPrizeDoc = async ({
+      dbInstance,
+      billeteraObjetivo: billeteraTarget,
+      normalizedPremioId,
+      normalizedEventoGanadorId,
+      playerScoped
+    }) => {
+      let resolvedPremioDoc = null;
+
+      if (billeteraTarget && normalizedEventoGanadorId) {
+        const premioCanonicalId = buildOfficialPendingPrizeId(normalizedEventoGanadorId);
+        if (premioCanonicalId) {
+          const canonicalSnap = await dbInstance
+            .collection('Billetera')
+            .doc(billeteraTarget)
+            .collection('premiosPendientesDirectos')
+            .doc(premioCanonicalId)
+            .get();
+          if (canonicalSnap.exists) resolvedPremioDoc = canonicalSnap;
+        }
+        if (!resolvedPremioDoc) {
+          const premioByEventoWalletSnap = await dbInstance
+            .collection('Billetera')
+            .doc(billeteraTarget)
+            .collection('premiosPendientesDirectos')
+            .where('eventoGanadorId', '==', normalizedEventoGanadorId)
+            .limit(2)
+            .get();
+          if (premioByEventoWalletSnap.size > 1) {
+            return {
+              error: {
+                status: 409,
+                payload: {
+                  error: 'Se encontraron múltiples premios pendientes para el evento indicado en la billetera del jugador.',
+                  eventoGanadorId: normalizedEventoGanadorId,
+                  billeteraId: billeteraTarget
+                }
+              }
+            };
+          }
+          if (!premioByEventoWalletSnap.empty) {
+            resolvedPremioDoc = premioByEventoWalletSnap.docs[0];
+          }
+        }
+      }
+
+      if (!resolvedPremioDoc && billeteraTarget && normalizedPremioId) {
+        const premioByWalletRef = dbInstance
+          .collection('Billetera')
+          .doc(billeteraTarget)
+          .collection('premiosPendientesDirectos')
+          .doc(normalizedPremioId);
+        const premioByWalletSnap = await premioByWalletRef.get();
+        if (premioByWalletSnap.exists) {
+          resolvedPremioDoc = premioByWalletSnap;
+        }
+      }
+
+      if (!resolvedPremioDoc && !playerScoped && normalizedEventoGanadorId) {
+        const premioByEventoSnap = await dbInstance
+          .collectionGroup('premiosPendientesDirectos')
+          .where('eventoGanadorId', '==', normalizedEventoGanadorId)
+          .limit(2)
+          .get();
+        if (premioByEventoSnap.size > 1) {
+          return {
+            error: {
+              status: 409,
+              payload: {
+                error: 'Se encontraron múltiples premios pendientes para el evento indicado.',
+                eventoGanadorId: normalizedEventoGanadorId
+              }
+            }
+          };
+        }
+        if (!premioByEventoSnap.empty) {
+          resolvedPremioDoc = premioByEventoSnap.docs[0];
+        }
+      }
+
+      if (!resolvedPremioDoc && normalizedPremioId) {
+        const premioByIdSnap = await dbInstance
+          .collectionGroup('premiosPendientesDirectos')
+          .where('premioId', '==', normalizedPremioId)
+          .limit(2)
+          .get();
+        if (premioByIdSnap.size > 1) {
+          return {
+            error: {
+              status: 409,
+              payload: {
+                error: 'Se encontraron múltiples premios pendientes con el premioId indicado.',
+                premioId: normalizedPremioId
+              }
+            }
+          };
+        }
+        if (!premioByIdSnap.empty) {
+          resolvedPremioDoc = premioByIdSnap.docs[0];
+        }
+      }
+
+      return { premioDoc: resolvedPremioDoc };
+    };
+
     const isPlayerScopedCall = req.user?.authScope === 'jugador';
     const userEmail = normalizeString(req.user?.email, 200).toLowerCase();
     const userUid = normalizeString(req.user?.uid, 200);
@@ -2241,84 +2346,38 @@ async function acreditarPremioEventoHandler(req, res) {
       }
     }
     const billeteraObjetivo = isPlayerScopedCall ? resolvedPlayerWalletId : billeteraId;
-
-    let premioDoc = null;
-    if (billeteraObjetivo && eventoGanadorId) {
-      const premioCanonicalId = buildOfficialPendingPrizeId(eventoGanadorId);
-      if (premioCanonicalId) {
-        const canonicalSnap = await db
-          .collection('Billetera')
-          .doc(billeteraObjetivo)
-          .collection('premiosPendientesDirectos')
-          .doc(premioCanonicalId)
-          .get();
-        if (canonicalSnap.exists) premioDoc = canonicalSnap;
-      }
-      if (!premioDoc) {
-        const premioByEventoWalletSnap = await db
-          .collection('Billetera')
-          .doc(billeteraObjetivo)
-          .collection('premiosPendientesDirectos')
-          .where('eventoGanadorId', '==', eventoGanadorId)
-          .limit(2)
-          .get();
-        if (premioByEventoWalletSnap.size > 1) {
-          return res.status(409).json({
-            error: 'Se encontraron múltiples premios pendientes para el evento indicado en la billetera del jugador.',
-            eventoGanadorId,
-            billeteraId: billeteraObjetivo
-          });
-        }
-        if (!premioByEventoWalletSnap.empty) {
-          premioDoc = premioByEventoWalletSnap.docs[0];
-        }
-      }
+    let lookupResult = await lookupPendingPrizeDoc({
+      dbInstance: db,
+      billeteraObjetivo,
+      normalizedPremioId: premioId,
+      normalizedEventoGanadorId: eventoGanadorId,
+      playerScoped: isPlayerScopedCall
+    });
+    if (lookupResult?.error) {
+      return res.status(lookupResult.error.status).json(lookupResult.error.payload);
     }
+    let premioDoc = lookupResult?.premioDoc || null;
 
-    if (!premioDoc && billeteraObjetivo && premioId) {
-      const premioByWalletRef = db
-        .collection('Billetera')
-        .doc(billeteraObjetivo)
-        .collection('premiosPendientesDirectos')
-        .doc(premioId);
-      const premioByWalletSnap = await premioByWalletRef.get();
-      if (premioByWalletSnap.exists) {
-        premioDoc = premioByWalletSnap;
+    const sorteoIdDerivadoDelEvento = extractEventoGanadorIdComponents(eventoGanadorId)?.sorteoId || '';
+    const sorteoIdSolicitud = normalizeString(req.body?.sorteoId, 120);
+    const sorteoIdPreferidoGeneracion = sorteoIdSolicitud || sorteoIdDerivadoDelEvento;
+    if (!premioDoc && eventoGanadorId && sorteoIdPreferidoGeneracion && PREMIOS_ENGINE_V2_ENABLED) {
+      await generatePendingDirectPrizesFromOfficialResults({
+        db,
+        sorteoId: sorteoIdPreferidoGeneracion,
+        generadoPor: normalizeString(req.user?.email, 200) || 'sistema:acreditar-premio-evento'
+      });
+      lookupResult = await lookupPendingPrizeDoc({
+        dbInstance: db,
+        billeteraObjetivo,
+        normalizedPremioId: premioId,
+        normalizedEventoGanadorId: eventoGanadorId,
+        playerScoped: isPlayerScopedCall
+      });
+      if (lookupResult?.error) {
+        return res.status(lookupResult.error.status).json(lookupResult.error.payload);
       }
-    }
-
-    if (!premioDoc && !isPlayerScopedCall && eventoGanadorId) {
-      const premioByEventoSnap = await db
-        .collectionGroup('premiosPendientesDirectos')
-        .where('eventoGanadorId', '==', eventoGanadorId)
-        .limit(2)
-        .get();
-      if (premioByEventoSnap.size > 1) {
-        return res.status(409).json({
-          error: 'Se encontraron múltiples premios pendientes para el evento indicado.',
-          eventoGanadorId
-        });
-      }
-      if (!premioByEventoSnap.empty) {
-        premioDoc = premioByEventoSnap.docs[0];
-      }
-    }
-
-    if (!premioDoc && premioId) {
-      const premioByIdSnap = await db
-        .collectionGroup('premiosPendientesDirectos')
-        .where('premioId', '==', premioId)
-        .limit(2)
-        .get();
-      if (premioByIdSnap.size > 1) {
-        return res.status(409).json({
-          error: 'Se encontraron múltiples premios pendientes con el premioId indicado.',
-          premioId
-        });
-      }
-      if (!premioByIdSnap.empty) {
-        premioDoc = premioByIdSnap.docs[0];
-      }
+      premioDoc = lookupResult?.premioDoc || null;
     }
 
     if (!premioDoc || !premioDoc.exists) {
@@ -2510,8 +2569,27 @@ app.post('/admin/cerrar-forma-ganadora', verificarOperadorFinalizacion, async (r
       pasoCierre: Number.isFinite(pasoCierre) ? pasoCierre : null,
       cerradoPor: req.user?.email || 'desconocido'
     });
+    let premiosPendientesResumen = null;
+    if (result?.ok && PREMIOS_ENGINE_V2_ENABLED) {
+      try {
+        premiosPendientesResumen = await generatePendingDirectPrizesFromOfficialResults({
+          db: admin.firestore(),
+          sorteoId,
+          generadoPor: normalizeString(req.user?.email, 200) || 'sistema:cerrar-forma-ganadora'
+        });
+      } catch (errorPremios) {
+        console.error('[cerrar-forma-ganadora] lock cerrado, pero falló la generación de premios pendientes', {
+          sorteoId,
+          formaIdx,
+          error: errorPremios?.message || errorPremios
+        });
+      }
+    }
     const httpStatus = result?.status === 'already_closed' ? 200 : 201;
-    return res.status(httpStatus).json(result);
+    return res.status(httpStatus).json({
+      ...result,
+      premiosPendientesDirectosOficiales: premiosPendientesResumen
+    });
   } catch (error) {
     console.error('[cerrar-forma-ganadora] fallo', { sorteoId, formaIdx, error });
     return res.status(500).json({
