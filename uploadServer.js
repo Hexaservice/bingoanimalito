@@ -301,7 +301,8 @@ async function validarUsuarioSuperadmin(decodedToken) {
     const profile = await loadOperationalUserProfile({
       db: admin.firestore(),
       email,
-      uid: decoded.uid
+      uid: decoded.uid,
+      claims: decoded
     });
     const role = profile.role;
     if (role !== 'Superadmin') {
@@ -338,7 +339,8 @@ async function verificarToken(req, res, next) {
     const profile = await loadOperationalUserProfile({
       db: admin.firestore(),
       email,
-      uid: decoded.uid
+      uid: decoded.uid,
+      claims: decoded
     });
     const role = profile.role;
     if (!['Superadmin', 'Administrador'].includes(role)) {
@@ -396,7 +398,8 @@ async function verificarOperadorPrivilegiado(req, res, next) {
     const profile = await loadOperationalUserProfile({
       db: admin.firestore(),
       email,
-      uid: decoded.uid
+      uid: decoded.uid,
+      claims: decoded
     });
     const role = profile.role;
     if (!['Superadmin', 'Administrador', 'Colaborador'].includes(role)) {
@@ -434,7 +437,8 @@ async function verificarOperadorPrivilegiadoOJugadorAcreditacion(req, res, next)
     const profile = await loadOperationalUserProfile({
       db: admin.firestore(),
       email,
-      uid: normalizeString(decoded?.uid, 200)
+      uid: normalizeString(decoded?.uid, 200),
+      claims: decoded
     });
     const role = profile.role || 'Jugador';
     const isOperador = ['Superadmin', 'Administrador', 'Colaborador'].includes(role);
@@ -474,7 +478,8 @@ async function verificarOperadorFinalizacion(req, res, next) {
       const profile = await loadOperationalUserProfile({
         db: admin.firestore(),
         email,
-        uid: normalizeString(decoded?.uid, 200)
+        uid: normalizeString(decoded?.uid, 200),
+        claims: decoded
       });
       userRole = profile.role || null;
     } catch (profileError) {
@@ -538,9 +543,10 @@ function extractOperationalRoleFromUserDocData(data = {}) {
   return normalizeOperationalRole(data.role || data.rol || data.rolinterno || data.rolInterno || null);
 }
 
-async function loadOperationalUserProfile({ db, email = '', uid = '' }) {
+async function loadOperationalUserProfile({ db, email = '', uid = '', claims = {} }) {
   const normalizedEmail = normalizeString(email, 200).toLowerCase();
   const normalizedUid = normalizeString(uid, 200);
+  const safeClaims = claims && typeof claims === 'object' ? claims : {};
   if (!db || !normalizedEmail) {
     return { role: null, source: 'sin_email' };
   }
@@ -559,6 +565,11 @@ async function loadOperationalUserProfile({ db, email = '', uid = '' }) {
     if (role) {
       return { role, source: `users/${userDoc.id}` };
     }
+  }
+
+  const claimRole = normalizeOperationalRole(safeClaims.role || (Array.isArray(safeClaims.roles) ? safeClaims.roles.find((item) => typeof item === 'string' && item.trim()) : null));
+  if (['Superadmin', 'Administrador', 'Colaborador', 'Jugador'].includes(claimRole)) {
+    return { role: claimRole, source: 'custom_claims' };
   }
 
   return { role: null, source: 'no_role_match' };
@@ -2318,7 +2329,6 @@ app.post('/wallet/transfer-credits', verificarUsuarioAutenticado, async (req, re
       email: receptorEmail,
       uid: normalizeString(receptorUserData?.uid, 200),
       extraCandidates: [
-        normalizeString(receptorUserData?.uid, 200),
         normalizeString(receptorUserData?.IDbilletera, 200)
       ]
     });
