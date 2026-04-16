@@ -642,7 +642,6 @@
     <select id="cp-sorteo-selector" aria-label="Seleccionar sorteo para generar solicitudes">
       <option value="">Selecciona un sorteo</option>
     </select>
-    <button id="cp-procesar-premios-pagos" class="btn-pagos-pendientes" type="button">PROCESAR PREMIOS Y PAGOS</button>
   </div>
   <div id="cp-resumen-reconciliacion" class="oculto" aria-live="polite"></div>
   <div id="cp-resumen-montos" aria-live="polite"></div>
@@ -656,7 +655,6 @@
     </div>
     <div id="premios-content">
       <div class="acciones">
-        <button class="icon-btn" id="premios-aprobar"><span class="icon check">&#10004;</span><span>Procesar</span></button>
         <button class="icon-btn" id="premios-archivar"><span class="icon">&#128452;</span><span>Archivar</span></button>
         <button class="icon-btn" id="premios-archivo"><span class="icon">&#128193;</span><span>Archivo</span></button>
       </div>
@@ -3148,32 +3146,8 @@
           cpRenderResumenMontos(selectorSorteo.value);
         });
       }
-      const botonProcesarPremiosPagos = document.getElementById('cp-procesar-premios-pagos');
-      if(botonProcesarPremiosPagos){
-        botonProcesarPremiosPagos.disabled = !premiosEngineV2Enabled;
-        botonProcesarPremiosPagos.title = premiosEngineV2Enabled
-          ? 'Genera pagos administrativos y acredita premios pendientes del sorteo finalizado'
-          : 'Deshabilitado por premiosEngineV2Enabled=false';
-        botonProcesarPremiosPagos.addEventListener('click', async()=>{
-          await cpProcesarPremiosYPagosManual();
-        });
-      }
-
-
       document.getElementById('premios-marcar').addEventListener('click', ()=>seleccionarTodos('tabla-premios'));
       document.getElementById('pagos-marcar').addEventListener('click', ()=>seleccionarTodos('tabla-pagos'));
-
-      const premiosAprobarBtn = document.getElementById('premios-aprobar');
-      if(premiosAprobarBtn){
-        premiosAprobarBtn.disabled = !premiosEngineV2Enabled;
-        premiosAprobarBtn.title = premiosEngineV2Enabled
-          ? 'Ejecuta el cierre de premios del sorteo por reconciliación directa'
-          : 'Deshabilitado por premiosEngineV2Enabled=false';
-        premiosAprobarBtn.addEventListener('click', async()=>{
-          await cpAcreditarPremiosPendientesManual();
-          cpRenderResumenMontos(cpObtenerSorteoIdObjetivo());
-        });
-      }
       const premiosArchivarBtn = document.getElementById('premios-archivar');
       if(premiosArchivarBtn){
         premiosArchivarBtn.addEventListener('click', async()=>{

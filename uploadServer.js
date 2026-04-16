@@ -1037,7 +1037,7 @@ async function reconcileSinglePendingPrize({
       transaccionRef,
       {
         tipotrans: 'premio',
-        origen: 'premios_pendientes_reconciliados',
+        origen: normalizeString(origen, 120) || 'premios_pendientes_reconciliados',
         estado: 'APROBADO',
         premioId,
         sorteoId,
@@ -1045,7 +1045,7 @@ async function reconcileSinglePendingPrize({
         IDbilletera: billeteraRef.id,
         Monto: creditos,
         cartonesGratis: cartones,
-        referencia: 'PREMIO_RECONCILIADO',
+        referencia: 'PREMIO',
         usuariogestor: acreditadoPor,
         rolusuario: 'sistema',
         creadoEn: admin.firestore.FieldValue.serverTimestamp(),
@@ -1184,7 +1184,7 @@ function computeWinnerPrizeAmounts(forma = {}, totalGanadores = 1) {
     0,
     cartonesPorGanador !== null
       ? cartonesPorGanador
-      : (cartonesBase / total)
+      : cartonesBase
   );
   return {
     creditos: Number(creditos.toFixed(6)),
@@ -1314,7 +1314,9 @@ async function resolveWinnerLocksForSorteo({ db, sorteoId, sorteoData = null } =
 async function generatePendingDirectPrizesFromOfficialResults({
   db,
   sorteoId,
-  generadoPor = 'sistema:premios-oficiales'
+  generadoPor = 'sistema:premios-oficiales',
+  acreditarEnCreacion = false,
+  origenAcreditacion = 'premios_automaticos_cierre_forma'
 }) {
   const normalizedSorteoId = normalizeString(sorteoId, 120);
   if (!normalizedSorteoId) {
@@ -1350,6 +1352,8 @@ async function generatePendingDirectPrizesFromOfficialResults({
   let evaluados = 0;
   let creados = 0;
   let duplicados = 0;
+  let acreditados = 0;
+  let acreditacionErrores = 0;
   let bloqueadosTotales = 0;
 
   for (const lockValue of winnerLocks) {
@@ -1488,10 +1492,36 @@ async function generatePendingDirectPrizesFromOfficialResults({
         await premioRef.set(payloadPremioPendiente, { merge: false });
       }
       creados += 1;
+      if (acreditarEnCreacion) {
+        try {
+          const resultadoAcreditacion = await reconcileSinglePendingPrize({
+            db,
+            premioDoc: { id: premioId, ref: premioRef },
+            sorteoId: normalizedSorteoId,
+            acreditadoPor: normalizeString(generadoPor, 200) || 'sistema:premios-oficiales',
+            origen: normalizeString(origenAcreditacion, 120) || 'premios_automaticos_cierre_forma',
+            eventoGanadorId
+          });
+          if (resultadoAcreditacion?.status === 'acreditado') {
+            acreditados += 1;
+          } else if (resultadoAcreditacion?.status === 'omitido' && resultadoAcreditacion?.reason === 'premio_duplicado') {
+            duplicados += 1;
+          }
+        } catch (errorAcreditacion) {
+          acreditacionErrores += 1;
+          console.error('[premios-directos-oficiales][acreditacion-inmediata] fallo', {
+            sorteoId: normalizedSorteoId,
+            premioId,
+            eventoGanadorId,
+            error: errorAcreditacion?.message || errorAcreditacion
+          });
+        }
+      }
       console.info('[premios-directos-oficiales][control]', {
         sorteoId: normalizedSorteoId,
         evaluados,
         creados,
+        acreditados,
         duplicados,
         billeteraId,
         eventoGanadorId,
@@ -1505,6 +1535,8 @@ async function generatePendingDirectPrizesFromOfficialResults({
     sorteoId: normalizedSorteoId,
     evaluados,
     creados,
+    acreditados,
+    acreditacionErrores,
     duplicados,
     bloqueadosTotales
   });
@@ -1522,6 +1554,8 @@ async function generatePendingDirectPrizesFromOfficialResults({
     sorteoId: normalizedSorteoId,
     evaluados,
     creados,
+    acreditados,
+    acreditacionErrores,
     duplicados,
     bloqueadosTotales
   };
@@ -2808,7 +2842,9 @@ app.post('/admin/cerrar-forma-ganadora', verificarOperadorFinalizacion, async (r
         premiosPendientesResumen = await generatePendingDirectPrizesFromOfficialResults({
           db: admin.firestore(),
           sorteoId,
-          generadoPor: normalizeString(req.user?.email, 200) || 'sistema:cerrar-forma-ganadora'
+          generadoPor: normalizeString(req.user?.email, 200) || 'sistema:cerrar-forma-ganadora',
+          acreditarEnCreacion: true,
+          origenAcreditacion: 'premios_automaticos_cierre_forma'
         });
       } catch (errorPremios) {
         console.error('[cerrar-forma-ganadora] lock cerrado, pero falló la generación de premios pendientes', {
