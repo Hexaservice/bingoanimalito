@@ -594,12 +594,33 @@ function normalizePendingPrizeState(value) {
   return normalizeString(value, 40).toLowerCase();
 }
 
-function normalizeSorteoEstadoForAcreditacion(value) {
+function normalizeOperationalPaymentState(value) {
   const estado = normalizeString(value, 40).toLowerCase();
-  if (['activo', 'activa', 'en_juego', 'en-juego'].includes(estado)) {
+  if (!estado) return '';
+  if (['activo', 'activa', 'en_juego', 'en-juego', 'jugando', 'juego_activo'].includes(estado)) {
     return 'jugando';
   }
+  if (['finalizado', 'finalizada', 'terminado', 'terminada', 'cerrado', 'cerrada'].includes(estado)) {
+    return 'finalizado';
+  }
   return estado;
+}
+
+function buildInvalidOperationalPaymentStateResponse({ operation, sorteoId = '', estadoRaw = '', allowedStates = [] }) {
+  const estadoNormalizado = normalizeOperationalPaymentState(estadoRaw);
+  return {
+    status: 422,
+    payload: {
+      error: 'El estado operativo del sorteo no permite esta operación de pagos.',
+      code: 'ESTADO_OPERATIVO_INVALIDO',
+      operacion: normalizeString(operation, 120) || 'desconocida',
+      sorteoId: normalizeString(sorteoId, 120) || null,
+      estadoSorteo: estadoNormalizado || 'desconocido',
+      estadoSorteoOriginal: normalizeString(estadoRaw, 40) || null,
+      estadosPermitidos: Array.isArray(allowedStates) ? allowedStates : [],
+      premiosEngineV2Enabled: PREMIOS_ENGINE_V2_ENABLED
+    }
+  };
 }
 
 const MAX_FILAS_RESULTADOS = 13;
@@ -3536,15 +3557,15 @@ async function acreditarPremioEventoHandler(req, res) {
       });
     }
     const sorteoSnap = await db.collection('sorteos').doc(sorteoId).get();
-    const estadoSorteo = normalizeSorteoEstadoForAcreditacion(sorteoSnap.data()?.estado);
+    const estadoSorteo = normalizeOperationalPaymentState(sorteoSnap.data()?.estado);
     if (!['jugando', 'finalizado'].includes(estadoSorteo)) {
-      return res.status(422).json({
-        error: 'Solo se permite acreditar premios cuando el sorteo está en estado Jugando o Finalizado.',
-        code: 'ESTADO_SORTEO_INVALIDO',
-        premiosEngineV2Enabled: PREMIOS_ENGINE_V2_ENABLED,
+      const invalidState = buildInvalidOperationalPaymentStateResponse({
+        operation: 'acreditar_individual',
         sorteoId,
-        estadoSorteo: estadoSorteo || 'desconocido'
+        estadoRaw: sorteoSnap.data()?.estado,
+        allowedStates: ['jugando', 'finalizado']
       });
+      return res.status(invalidState.status).json(invalidState.payload);
     }
 
     const acreditadoPor = normalizeString(req.user?.email, 200) || 'sistema:acreditar-premio-evento';
@@ -3889,15 +3910,15 @@ app.post('/admin/reconciliar-premios-pendientes-directos', verificarToken, async
   try {
     const db = admin.firestore();
     const sorteoSnap = await db.collection('sorteos').doc(sorteoId).get();
-    const estadoSorteo = normalizeString(sorteoSnap.data()?.estado, 40).toLowerCase();
+    const estadoSorteo = normalizeOperationalPaymentState(sorteoSnap.data()?.estado);
     if (estadoSorteo !== 'finalizado') {
-      return res.status(422).json({
-        error: 'Solo se permite acreditar premios pendientes cuando el sorteo está en estado Finalizado.',
-        code: 'SORTEO_NO_FINALIZADO',
+      const invalidState = buildInvalidOperationalPaymentStateResponse({
+        operation: 'reconciliacion_masiva',
         sorteoId,
-        estadoSorteo: estadoSorteo || 'desconocido',
-        premiosEngineV2Enabled: PREMIOS_ENGINE_V2_ENABLED
+        estadoRaw: sorteoSnap.data()?.estado,
+        allowedStates: ['finalizado']
       });
+      return res.status(invalidState.status).json(invalidState.payload);
     }
 
     const resultado = await reconcilePendingPrizesBySorteo({
