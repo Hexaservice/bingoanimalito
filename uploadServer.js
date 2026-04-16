@@ -20,7 +20,32 @@ const {
 } = require('./public/js/billeteraIdentity.js');
 
 const requiredEnv = ['GOOGLE_APPLICATION_CREDENTIALS', 'FIREBASE_STORAGE_BUCKET'];
-const PREMIOS_ENGINE_V2_ENABLED = String(process.env.PREMIOS_ENGINE_V2_ENABLED || 'false').trim().toLowerCase() === 'true';
+function resolveBooleanEnvFlag(value, fallback = false) {
+  const normalized = String(value ?? '').trim().toLowerCase();
+  if (!normalized) return Boolean(fallback);
+  if (['1', 'true', 'yes', 'on', 'si'].includes(normalized)) return true;
+  if (['0', 'false', 'no', 'off'].includes(normalized)) return false;
+  return Boolean(fallback);
+}
+
+function resolvePremiosEngineV2Policy(env = process.env) {
+  const environment = String(env.APP_ENV || env.NODE_ENV || 'development').trim().toLowerCase();
+  const explicitValue = env.PREMIOS_ENGINE_V2_ENABLED;
+  const hasExplicitValue = String(explicitValue ?? '').trim() !== '';
+  const defaultEnabledByEnvironment = environment === 'production';
+  const enabled = hasExplicitValue
+    ? resolveBooleanEnvFlag(explicitValue, defaultEnabledByEnvironment)
+    : defaultEnabledByEnvironment;
+
+  return {
+    enabled,
+    environment,
+    source: hasExplicitValue ? 'env:PREMIOS_ENGINE_V2_ENABLED' : `default:${environment}`
+  };
+}
+
+const PREMIOS_ENGINE_V2_POLICY = resolvePremiosEngineV2Policy(process.env);
+const PREMIOS_ENGINE_V2_ENABLED = PREMIOS_ENGINE_V2_POLICY.enabled;
 const PREMIOS_PAGOS_DIRECTOS_MIRROR_ENABLED = String(process.env.PREMIOS_PAGOS_DIRECTOS_MIRROR_ENABLED || 'false').trim().toLowerCase() === 'true';
 const WINNER_LOCKS_LEGACY_READ_ENABLED = String(process.env.WINNER_LOCKS_LEGACY_READ_ENABLED || 'true').trim().toLowerCase() !== 'false';
 const WINNER_LOCKS_COLLECTION = 'GanadoresSorteosTiempoReal';
@@ -118,6 +143,17 @@ app.get('/health', (req, res) => {
     ok: true,
     service: 'uploadServer',
     timestamp: new Date().toISOString()
+  });
+});
+
+app.get('/runtime-config', (req, res) => {
+  res.status(200).json({
+    ok: true,
+    config: {
+      premiosEngineV2Enabled: PREMIOS_ENGINE_V2_ENABLED,
+      premiosEngineV2PolicySource: PREMIOS_ENGINE_V2_POLICY.source,
+      environment: PREMIOS_ENGINE_V2_POLICY.environment
+    }
   });
 });
 
