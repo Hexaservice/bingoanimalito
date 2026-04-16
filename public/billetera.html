@@ -2443,6 +2443,8 @@
 
     function normalizarTransaccionParaTabla(id,data){
       const payload={...(data||{})};
+      payload.fechasolicitud=normalizarFechaTransaccion(payload.fechasolicitud, payload.creadoEn || payload.solicitudTimestamp);
+      payload.fechagestion=normalizarFechaTransaccion(payload.fechagestion, payload.gestionTimestamp || payload.actualizadoEn);
       payload.fechasolicitud=formatearFecha(payload.fechasolicitud);
       payload.fechagestion=formatearFecha(payload.fechagestion);
       const tipoNormalizado = normalizarTipoTransaccion(payload);
@@ -2474,6 +2476,31 @@
         return db-da;
       });
       filtrarTransacciones();
+    }
+
+    function normalizarFechaTransaccion(fechaTexto, valorTimestamp){
+      if(typeof fechaTexto==='string' && fechaTexto.trim()) return fechaTexto.trim();
+      const fecha = parseFechaDesdeFirestore(valorTimestamp);
+      if(!(fecha instanceof Date) || isNaN(fecha.getTime())) return '';
+      const d=String(fecha.getUTCDate()).padStart(2,'0');
+      const m=String(fecha.getUTCMonth()+1).padStart(2,'0');
+      const y=fecha.getUTCFullYear();
+      return `${d}/${m}/${y}`;
+    }
+
+    function parseFechaDesdeFirestore(valor){
+      if(!valor) return null;
+      if(valor instanceof Date) return valor;
+      if(typeof valor?.toDate==='function'){
+        try{ return valor.toDate(); }catch(_error){ return null; }
+      }
+      if(typeof valor?._seconds==='number'){
+        return new Date(valor._seconds*1000);
+      }
+      if(typeof valor?.seconds==='number'){
+        return new Date(valor.seconds*1000);
+      }
+      return null;
     }
 
     function suscribirTransaccionesUsuario(){

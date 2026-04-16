@@ -11,6 +11,7 @@ const fs = require('fs/promises');
 const admin = require('firebase-admin');
 const EstadosPagoPremio = require('./public/js/estadoPagoPremio.js');
 const { isSorteoEligibleForAutoPrize } = require('./public/js/sorteoAutoPrizeEligibility.js');
+const adminPayoutDistribution = require('./public/js/admin-payout-distribution.js');
 const { construirEventoGanadorIdCanonico } = require('./lib/premiosPendientesIds');
 const {
   buildBilleteraIdentity,
@@ -1692,6 +1693,212 @@ async function resolveWinnerIdentity({
   };
 }
 
+function roundToSixDecimals(value) {
+  return Number((Number(value) || 0).toFixed(6));
+}
+
+function distribuirMontoEnSeisDecimales(montoTotal = 0, usuarios = []) {
+  const montoNormalizado = roundToSixDecimals(montoTotal);
+  if (montoNormalizado <= 0 || !Array.isArray(usuarios) || !usuarios.length) return [];
+  const usuariosOrdenados = [...usuarios].sort((a, b) => {
+    const emailA = normalizeString(a?.email, 200).toLowerCase();
+    const emailB = normalizeString(b?.email, 200).toLowerCase();
+    return emailA.localeCompare(emailB, 'es', { sensitivity: 'base' });
+  });
+  const unidades = Math.round(montoNormalizado * 1e6);
+  const base = Math.floor(unidades / usuariosOrdenados.length);
+  const remanente = unidades - (base * usuariosOrdenados.length);
+  return usuariosOrdenados.map((usuario, idx) => ({
+    usuario,
+    montoAsignado: (base + (idx < remanente ? 1 : 0)) / 1e6
+  }));
+}
+
+async function getUsuariosAdministrativosPorRol({ db, roleInternal = '' }) {
+  const role = normalizeString(roleInternal, 40).toLowerCase();
+  if (!role) return [];
+  const snapshot = await db.collection('users').where('rolinterno', '==', role).get();
+  const usuarios = [];
+  snapshot.forEach((doc) => {
+    const data = doc.data() || {};
+    const email = normalizeString(data.email || data.gmail || doc.id, 200).toLowerCase();
+    if (!email) return;
+    usuarios.push({
+      id: doc.id,
+      email,
+      alias: normalizeString(data.alias, 80),
+      name: normalizeString(data.name || data.nombre, 120),
+      uid: normalizeString(data.uid, 200)
+    });
+  });
+  return usuarios;
+}
+
+function buildAdminLiquidationTransactionPayload({
+  monto = 0,
+  billeteraId = '',
+  emailVisible = '',
+  roleInternal = '',
+  sorteoId = '',
+  sorteoNombre = '',
+  creadoPor = '',
+  now = new Date()
+}) {
+  const fecha = `${String(now.getUTCDate()).padStart(2, '0')}/${String(now.getUTCMonth() + 1).padStart(2, '0')}/${now.getUTCFullYear()}`;
+  const hora = `${String(now.getUTCHours()).padStart(2, '0')}:${String(now.getUTCMinutes()).padStart(2, '0')}`;
+  return {
+    tipotrans: 'pago',
+    Monto: roundToSixDecimals(monto),
+    IDbilletera: emailVisible || billeteraId,
+    idBilleteraInterna: billeteraId || emailVisible,
+    billeteraVisibleEmail: emailVisible || billeteraId,
+    estado: 'ACEPTADO',
+    referencia: 'PAGO',
+    comentario: `Liquidación administrativa ${roleInternal || 'sin_rol'}`.trim(),
+    origen: 'sellado_liquidacion_admin',
+    sorteoId,
+    sorteoNombre: normalizeString(sorteoNombre, 200),
+    rolInternoDestino: normalizeString(roleInternal, 40),
+    usuariogestor: normalizeString(creadoPor, 200),
+    rolusuario: 'Administrador',
+    fechasolicitud: fecha,
+    horasolicitud: hora,
+    fechagestion: fecha,
+    horagestion: hora,
+    nota: '',
+    requiereAprobacionManual: false,
+    creadoEn: admin.firestore.FieldValue.serverTimestamp(),
+    gestionTimestamp: admin.firestore.FieldValue.serverTimestamp()
+  };
+}
+
+async function ejecutarSelladoConLiquidacionAdmin({ db, sorteoId, operadorEmail }) {
+  const normalizedSorteoId = normalizeString(sorteoId, 120);
+  const operador = normalizeString(operadorEmail, 200).toLowerCase() || 'desconocido';
+  if (!normalizedSorteoId) {
+    return { ok: false, status: 400, error: 'sorteoId es obligatorio' };
+  }
+
+  const sorteoRef = db.collection('sorteos').doc(normalizedSorteoId);
+  const now = new Date();
+  const resultado = await db.runTransaction(async (tx) => {
+    const sorteoSnap = await tx.get(sorteoRef);
+    if (!sorteoSnap.exists) {
+      return { ok: false, status: 404, error: 'Sorteo no encontrado', sorteoId: normalizedSorteoId };
+    }
+    const sorteoData = sorteoSnap.data() || {};
+    if (sorteoData.selladoPagoAdminAplicado === true) {
+      tx.set(sorteoRef, {
+        estado: 'Sellado',
+        pdf: 'no',
+        actualizadoEn: admin.firestore.FieldValue.serverTimestamp()
+      }, { merge: true });
+      return { ok: true, status: 200, sorteoId: normalizedSorteoId, idempotente: true, pagosAplicados: [] };
+    }
+
+    const definiciones = [
+      { rolInterno: 'agencia', monto: normalizeNumber(sorteoData.totalporcentaje) },
+      { rolInterno: 'desarrollador', monto: normalizeNumber(sorteoData.totalporcentajesu) }
+    ];
+    const pagosAplicados = [];
+    const pagosPorRol = [];
+
+    for (const def of definiciones) {
+      const montoRol = roundToSixDecimals(def.monto);
+      if (montoRol <= 0) {
+        pagosPorRol.push({ rolInterno: def.rolInterno, usuarios: 0, montoRolBase: montoRol, totalAsignado: 0 });
+        continue;
+      }
+      const usuariosRol = await getUsuariosAdministrativosPorRol({ db, roleInternal: def.rolInterno });
+      const usuariosOrdenados = [...usuariosRol].sort((a, b) => a.email.localeCompare(b.email, 'es', { sensitivity: 'base' }));
+      if (!usuariosOrdenados.length) {
+        throw new Error(`NO_USUARIOS_ROL_${def.rolInterno.toUpperCase()}`);
+      }
+
+      const distribucion = adminPayoutDistribution?.distribuirMontoPorUsuarios
+        ? adminPayoutDistribution.distribuirMontoPorUsuarios({
+          montoRol,
+          usuarios: usuariosOrdenados,
+          rolInterno: def.rolInterno
+        })
+        : null;
+      const usarDistribucionEntera = Array.isArray(distribucion) && distribucion.every((item) => Number.isInteger(Number(item?.montoAsignado || 0)));
+      const pagos = usarDistribucionEntera
+        ? distribucion.map((item) => ({ usuario: item.usuario, montoAsignado: Number(item.montoAsignado) || 0 }))
+        : distribuirMontoEnSeisDecimales(montoRol, usuariosOrdenados);
+
+      let totalAsignado = 0;
+      for (const pago of pagos) {
+        const montoAsignado = roundToSixDecimals(pago?.montoAsignado);
+        if (montoAsignado <= 0) continue;
+        const destinoEmail = normalizeString(pago?.usuario?.email, 200).toLowerCase();
+        if (!destinoEmail) continue;
+        const walletRef = db.collection('Billetera').doc(destinoEmail);
+        const walletSnap = await tx.get(walletRef);
+        const walletData = walletSnap.exists ? (walletSnap.data() || {}) : {};
+        const creditosActuales = roundToSixDecimals(walletData.creditos || 0);
+        tx.set(walletRef, {
+          email: destinoEmail,
+          creditos: roundToSixDecimals(creditosActuales + montoAsignado),
+          creditostransito: roundToSixDecimals(walletData.creditostransito || 0),
+          CartonesGratis: Number(walletData.CartonesGratis ?? walletData.cartonesGratis ?? 0) || 0,
+          actualizadoEn: admin.firestore.FieldValue.serverTimestamp()
+        }, { merge: true });
+
+        const txRef = db.collection('transacciones').doc();
+        tx.set(txRef, buildAdminLiquidationTransactionPayload({
+          monto: montoAsignado,
+          billeteraId: destinoEmail,
+          emailVisible: destinoEmail,
+          roleInternal: def.rolInterno,
+          sorteoId: normalizedSorteoId,
+          sorteoNombre: normalizeString(sorteoData.nombre, 200),
+          creadoPor: operador,
+          now
+        }));
+        totalAsignado = roundToSixDecimals(totalAsignado + montoAsignado);
+        pagosAplicados.push({
+          transaccionId: txRef.id,
+          roleInternal: def.rolInterno,
+          billeteraId: destinoEmail,
+          monto: montoAsignado
+        });
+      }
+      pagosPorRol.push({
+        rolInterno: def.rolInterno,
+        usuarios: usuariosOrdenados.length,
+        montoRolBase: montoRol,
+        totalAsignado
+      });
+    }
+
+    tx.set(sorteoRef, {
+      estado: 'Sellado',
+      pdf: 'no',
+      totalporcentaje: 0,
+      totalporcentajesu: 0,
+      selladoPagoAdminAplicado: true,
+      selladoPagoAdminAplicadoEn: admin.firestore.FieldValue.serverTimestamp(),
+      selladoPagoAdminAplicadoPor: operador,
+      selladoPagoAdminResumen: {
+        pagosPorRol,
+        totalTransacciones: pagosAplicados.length
+      }
+    }, { merge: true });
+
+    return {
+      ok: true,
+      status: 200,
+      sorteoId: normalizedSorteoId,
+      idempotente: false,
+      pagosAplicados,
+      pagosPorRol
+    };
+  });
+
+  return resultado;
+}
+
 app.post('/wallet/transfer-credits', verificarUsuarioAutenticado, async (req, res) => {
   const db = admin.firestore();
   const userEmail = normalizeString(req.user?.email, 200).toLowerCase();
@@ -2546,6 +2753,32 @@ app.post('/admin/finalizar-sorteo', verificarOperadorFinalizacion, async (req, r
   }
 });
 
+app.post('/admin/sellado-liquidacion', verificarOperadorFinalizacion, async (req, res) => {
+  const sorteoId = normalizeString(req.body?.sorteoId, 120);
+  if (!sorteoId) {
+    return res.status(400).json({ ok: false, error: 'sorteoId es obligatorio' });
+  }
+  try {
+    const resultado = await ejecutarSelladoConLiquidacionAdmin({
+      db: admin.firestore(),
+      sorteoId,
+      operadorEmail: req.user?.email || 'desconocido'
+    });
+    return res.status(resultado.status || 200).json(resultado);
+  } catch (error) {
+    console.error('Error en sellado con liquidación administrativa', { sorteoId, error });
+    const mensaje = normalizeString(error?.message, 200);
+    if (mensaje.startsWith('NO_USUARIOS_ROL_')) {
+      return res.status(409).json({
+        ok: false,
+        error: 'No existen cuentas administrativas destino para completar la liquidación.',
+        code: mensaje
+      });
+    }
+    return res.status(500).json({ ok: false, error: 'Error interno al aplicar sellado con liquidación administrativa.' });
+  }
+});
+
 app.post('/admin/cerrar-forma-ganadora', verificarOperadorFinalizacion, async (req, res) => {
   const sorteoId = normalizeString(req.body?.sorteoId, 120);
   const formaIdx = Number(req.body?.formaIdx);
@@ -3012,6 +3245,7 @@ module.exports = {
   normalizeOperationalRole,
   buildFinalizationContract,
   executeAuthoritativeSorteoFinalization,
+  ejecutarSelladoConLiquidacionAdmin,
   buildReconciledPrizeTransactionId,
   reconcileSinglePendingPrize,
   reconcilePendingPrizesBySorteo,

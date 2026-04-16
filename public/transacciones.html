@@ -460,12 +460,31 @@
     }
     function formatearFecha(f){
       if(!f) return '';
+      if(typeof f==='object'){
+        const fechaTs=extraerFechaFirestore(f);
+        if(fechaTs){
+          const d=String(fechaTs.getUTCDate()).padStart(2,'0');
+          const m=String(fechaTs.getUTCMonth()+1).padStart(2,'0');
+          const y=fechaTs.getUTCFullYear();
+          return `${d}/${m}/${y}`;
+        }
+      }
       if(f.includes('-')){
         const[y,m,d]=f.split('-');
         return `${d.padStart(2,'0')}/${m.padStart(2,'0')}/${y}`;
       }
       const[d,m,y]=f.split('/');
       return `${d.padStart(2,'0')}/${m.padStart(2,'0')}/${y}`;
+    }
+    function extraerFechaFirestore(valor){
+      if(!valor) return null;
+      if(valor instanceof Date) return valor;
+      if(typeof valor?.toDate==='function'){
+        try{return valor.toDate();}catch(_err){return null;}
+      }
+      if(typeof valor?._seconds==='number') return new Date(valor._seconds*1000);
+      if(typeof valor?.seconds==='number') return new Date(valor.seconds*1000);
+      return null;
     }
     function parseFecha(f){
       if(!f) return 0;
