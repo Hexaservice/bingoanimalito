@@ -467,6 +467,17 @@
           justify-content: center;
           flex-wrap: wrap;
       }
+      #premios-engine-diagnostico {
+          margin-top: 3px;
+          padding: 4px 10px;
+          border-radius: 999px;
+          border: 1px solid rgba(26, 115, 232, 0.22);
+          background: rgba(255,255,255,0.76);
+          color: #1f3f72;
+          font-size: 0.68rem;
+          font-weight: 600;
+          letter-spacing: 0.2px;
+      }
       .sin-sorteo-contenedor {
           display: none;
           width: 100%;
@@ -4499,6 +4510,7 @@
       </div>
       <div id="sorteo-resumen" class="sorteo-titulo-basico" hidden aria-hidden="true"></div>
       <div id="sorteo-detalles" hidden aria-hidden="true"></div>
+      <div id="premios-engine-diagnostico" aria-live="polite">Premios Engine: validando backend…</div>
       <div id="sin-sorteo-mensaje" class="sin-sorteo-mensaje" hidden aria-hidden="true">EN ESTE MOMENTO NO HAY SORTEOS JUGANDO</div>
     </header>
     <section id="panel-superior">
@@ -4731,7 +4743,75 @@
   const { obtenerLoteriasAsignadas, resolverLoteriasAsignadas, normalizarMiniaturaLoteria, formatearNumeroAnimalVisual, normalizarClaveResultado } = window.SorteoDataAdapters;
   const premiosPendientesIdsApi = window.PremiosPendientesIds || {};
   const billeteraIdentityApi = window.BilleteraIdentity || {};
-  const premiosEngineV2Enabled = true;
+  const resolveRuntimeBooleanFlag = (value, fallback = false)=>{
+    if(typeof value === 'boolean') return value;
+    const normalized = String(value ?? '').trim().toLowerCase();
+    if(!normalized) return Boolean(fallback);
+    if(['1','true','yes','on','si'].includes(normalized)) return true;
+    if(['0','false','no','off'].includes(normalized)) return false;
+    return Boolean(fallback);
+  };
+  const runtimePremiosEngineConfig = {
+    initialized: false,
+    enabled: resolveRuntimeBooleanFlag(window.__APP_CONFIG__?.premiosEngineV2Enabled, false),
+    source: window.__APP_CONFIG__?.premiosEngineV2Enabled !== undefined
+      ? 'window.__APP_CONFIG__.premiosEngineV2Enabled'
+      : 'default:false',
+    backendChecked: false
+  };
+  const premiosEngineV2Enabled = ()=>Boolean(runtimePremiosEngineConfig.enabled);
+
+  function actualizarDiagnosticoPremiosEngineUI(){
+    const diagnosticoEl = document.getElementById('premios-engine-diagnostico');
+    if(!diagnosticoEl) return;
+    const estado = premiosEngineV2Enabled() ? 'ACTIVO' : 'INACTIVO';
+    const backend = runtimePremiosEngineConfig.backendChecked ? 'sí' : 'no';
+    diagnosticoEl.textContent =
+      `Premios Engine V2: ${estado} · fuente: ${runtimePremiosEngineConfig.source} · backend validado: ${backend}`;
+  }
+
+  function normalizarApiBaseRuntime(valor=''){
+    const limpio = String(valor || '').trim();
+    if(!limpio) return '';
+    return limpio.replace(/\/upload\/?$/,'').replace(/\/+$/,'');
+  }
+
+  function resolverApiBaseBackendRuntime(){
+    const candidatas = [
+      typeof getAdminApiBase === 'function' ? normalizarApiBaseRuntime(getAdminApiBase()) : '',
+      normalizarApiBaseRuntime(window.UPLOAD_ENDPOINT || ''),
+      normalizarApiBaseRuntime(window.__APP_CONFIG__?.uploadEndpoint || ''),
+      normalizarApiBaseRuntime(window.location?.origin || '')
+    ];
+    return Array.from(new Set(candidatas.filter(Boolean)))[0] || '';
+  }
+
+  async function sincronizarPremiosEngineConBackend(){
+    actualizarDiagnosticoPremiosEngineUI();
+    const apiBase = resolverApiBaseBackendRuntime();
+    if(!apiBase){
+      runtimePremiosEngineConfig.initialized = true;
+      actualizarDiagnosticoPremiosEngineUI();
+      return;
+    }
+    try{
+      const resp = await fetch(`${apiBase}/runtime-config`, { method: 'GET' });
+      if(resp.ok){
+        const payload = await resp.json().catch(()=>null);
+        const backendValue = payload?.config?.premiosEngineV2Enabled;
+        if(backendValue !== undefined){
+          runtimePremiosEngineConfig.enabled = resolveRuntimeBooleanFlag(backendValue, false);
+          runtimePremiosEngineConfig.source = payload?.config?.premiosEngineV2PolicySource || 'backend:/runtime-config';
+          runtimePremiosEngineConfig.backendChecked = true;
+        }
+      }
+    }catch(err){
+      console.warn('No se pudo sincronizar premiosEngineV2Enabled con backend', err);
+    }finally{
+      runtimePremiosEngineConfig.initialized = true;
+      actualizarDiagnosticoPremiosEngineUI();
+    }
+  }
 
   initBingoAudioControl({
     containerId: 'audio-control-game',
@@ -10560,7 +10640,8 @@
         || estadoPremio === 'pendiente';
       const mostrarAcreditar = !esSimulacion
         && !detalle?.perdido
-        && premiosEngineV2Enabled
+        && runtimePremiosEngineConfig.initialized
+        && premiosEngineV2Enabled()
         && premioPendienteDetectado;
       modalCelebracionListaEl.appendChild(crearLineaCelebracionGanador(detalle, { mostrarAcreditar }));
     });
@@ -10689,7 +10770,9 @@
     const estadoSorteoActual = ['activo', 'activa', 'en_juego', 'en-juego'].includes(estadoSorteoActualRaw)
       ? 'jugando'
       : estadoSorteoActualRaw;
-    const premiosEngineEnabled = typeof premiosEngineV2Enabled === 'boolean' ? premiosEngineV2Enabled : true;
+    const premiosEngineEnabled = typeof premiosEngineV2Enabled === 'function'
+      ? premiosEngineV2Enabled()
+      : (typeof premiosEngineV2Enabled === 'boolean' ? premiosEngineV2Enabled : true);
     if(estadoSorteoActual && estadoSorteoActual !== 'jugando' && estadoSorteoActual !== 'finalizado'){
       alert('Solo puedes acreditar premios cuando el sorteo esté Activo/Jugando o Finalizado (422).');
       return;
@@ -12919,6 +13002,7 @@
   }
 
   aplicarEstadoVistaConducto();
+  sincronizarPremiosEngineConBackend();
 
   initFirebase()
     .then(()=>{

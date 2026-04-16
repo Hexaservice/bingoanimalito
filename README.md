@@ -222,6 +222,20 @@ PREMIOS_PAGOS_DIRECTOS_MIRROR_ENABLED=true
 3. Verificar en logs de `premios-directos-oficiales` y reconciliación que vuelva a existir la escritura espejo legacy.
 4. Criterio de abortar deploy sugerido: aumento sostenido de errores de acreditación (`status=error`) o discrepancias entre pendiente/acreditado durante los primeros 15 minutos post-deploy.
 
+### Política única de activación de `PREMIOS_ENGINE_V2_ENABLED` (backend + frontend)
+
+Para evitar defaults contradictorios entre backend y frontend, la política oficial queda unificada así:
+
+1. **Fuente canónica**: backend `uploadServer.js`.
+2. **Regla por entorno**:
+   - `NODE_ENV=production` (o `APP_ENV=production`) ⇒ default `PREMIOS_ENGINE_V2_ENABLED=true`.
+   - Cualquier otro entorno (`development`, `test`, `staging`, etc.) ⇒ default `PREMIOS_ENGINE_V2_ENABLED=false`.
+3. **Override explícito**: si se define la variable `PREMIOS_ENGINE_V2_ENABLED`, ese valor (`true/false`) tiene prioridad sobre el default del entorno.
+4. **Consumo frontend**:
+   - `public/centropagos.html` y `public/juegoactivo.html` leen primero `window.__APP_CONFIG__.premiosEngineV2Enabled` como fallback de runtime.
+   - Luego validan contra `GET /runtime-config` y usan ese valor efectivo para habilitar/deshabilitar acciones de **procesar/acreditar**.
+5. **Diagnóstico operativo visible**: ambas vistas muestran en UI el estado efectivo (`ACTIVO/INACTIVO`) y la fuente usada (`env` o `default`) para soporte en producción.
+
 ### Checklist operativo explícito para `/wallet/transfer-credits`
 
 Antes de validar “transferencia rota”, ejecutar este checklist en orden:

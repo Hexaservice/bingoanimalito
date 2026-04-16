@@ -406,6 +406,19 @@
     #cp-resumen-reconciliacion.oculto {
       display: none;
     }
+    #cp-diagnostico-engine {
+      margin: 6px auto 10px;
+      max-width: 1280px;
+      font-family: Calibri, Arial, sans-serif;
+      font-size: 0.84rem;
+      font-weight: 700;
+      color: #4a148c;
+      background: rgba(255,255,255,0.78);
+      border: 1px solid rgba(74,20,140,0.22);
+      border-radius: 8px;
+      padding: 6px 10px;
+      text-align: left;
+    }
     .cp-kpis-globales {
       display: grid;
       grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -643,6 +656,7 @@
       <option value="">Selecciona un sorteo</option>
     </select>
   </div>
+  <div id="cp-diagnostico-engine" aria-live="polite"></div>
   <div id="cp-resumen-reconciliacion" class="oculto" aria-live="polite"></div>
   <div id="cp-resumen-montos" aria-live="polite"></div>
   <section class="section" id="premios-section">
@@ -805,7 +819,23 @@
 
     const dbRef = ()=>firebase.firestore();
     const authInstance = ()=>firebase.auth();
-    const premiosEngineV2Enabled = true;
+    const resolveRuntimeBooleanFlag = (value, fallback = false)=>{
+      if(typeof value === 'boolean') return value;
+      const normalized = String(value ?? '').trim().toLowerCase();
+      if(!normalized) return Boolean(fallback);
+      if(['1','true','yes','on','si'].includes(normalized)) return true;
+      if(['0','false','no','off'].includes(normalized)) return false;
+      return Boolean(fallback);
+    };
+    const runtimePremiosEngineConfig = {
+      initialized: false,
+      enabled: resolveRuntimeBooleanFlag(window.__APP_CONFIG__?.premiosEngineV2Enabled, false),
+      source: window.__APP_CONFIG__?.premiosEngineV2Enabled !== undefined
+        ? 'window.__APP_CONFIG__.premiosEngineV2Enabled'
+        : 'default:false',
+      backendChecked: false
+    };
+    const premiosEngineV2Enabled = ()=>Boolean(runtimePremiosEngineConfig.enabled);
 
     const filtrosColaboradores = { gmail:'', creditos:'', tipo:'' };
     const filtrosPremios = { jugador:'', fecha:'', estado:'' };
@@ -853,7 +883,7 @@
         code: 'PREMIOS_ENGINE_V2_DISABLED',
         action,
         idempotente: true,
-        premiosEngineV2Enabled
+        premiosEngineV2Enabled: premiosEngineV2Enabled()
       };
     }
 
@@ -929,8 +959,61 @@
       return (window.location?.origin || '').replace(/\/+$/,'');
     }
 
+    function cpActualizarDiagnosticoEngine(){
+      const diagnosticoEl = document.getElementById('cp-diagnostico-engine');
+      if(!diagnosticoEl) return;
+      const estado = premiosEngineV2Enabled() ? 'ACTIVO' : 'INACTIVO';
+      const validacionBackend = runtimePremiosEngineConfig.backendChecked ? 'sí' : 'no';
+      diagnosticoEl.innerHTML =
+        `<strong>Diagnóstico premiosEngineV2Enabled:</strong> ${estado} ` +
+        `· Fuente: ${escapeHtml(runtimePremiosEngineConfig.source || 'desconocida')} ` +
+        `· Backend validado: ${validacionBackend}`;
+    }
+
+    function cpSincronizarBotonesConEngine(){
+      const habilitado = premiosEngineV2Enabled();
+      const textoBloqueado = runtimePremiosEngineConfig.initialized
+        ? 'Deshabilitado por premiosEngineV2Enabled=false'
+        : 'Esperando confirmación de backend de premiosEngineV2Enabled';
+      ['pagos-aprobar', 'colaboradores-aprobar', 'cp-procesar-premios-pagos'].forEach((id)=>{
+        const boton = document.getElementById(id);
+        if(!boton) return;
+        boton.disabled = !habilitado;
+        boton.title = habilitado
+          ? (id === 'pagos-aprobar' ? 'Procesar pagos seleccionados' : 'Acción habilitada')
+          : textoBloqueado;
+      });
+      cpActualizarDiagnosticoEngine();
+    }
+
+    async function cpSincronizarEngineConBackend(){
+      const apiBase = resolverApiAdminBaseCentroPagos();
+      if(!apiBase){
+        runtimePremiosEngineConfig.initialized = true;
+        cpSincronizarBotonesConEngine();
+        return;
+      }
+      try{
+        const resp = await fetch(`${apiBase}/runtime-config`, { method: 'GET' });
+        if(resp.ok){
+          const payload = await resp.json().catch(()=>null);
+          const backendValue = payload?.config?.premiosEngineV2Enabled;
+          if(backendValue !== undefined){
+            runtimePremiosEngineConfig.enabled = resolveRuntimeBooleanFlag(backendValue, false);
+            runtimePremiosEngineConfig.source = payload?.config?.premiosEngineV2PolicySource || 'backend:/runtime-config';
+            runtimePremiosEngineConfig.backendChecked = true;
+          }
+        }
+      }catch(err){
+        console.warn('No se pudo validar premiosEngineV2Enabled contra backend', err);
+      }finally{
+        runtimePremiosEngineConfig.initialized = true;
+        cpSincronizarBotonesConEngine();
+      }
+    }
+
     async function reconciliarPremiosPendientesDirectosSorteo(sorteoId, { force = false } = {}){
-      if(!premiosEngineV2Enabled){
+      if(!premiosEngineV2Enabled()){
         return cpConstruirRespuestaEngineDeshabilitado('reconciliar-premios-pendientes-directos');
       }
       const sorteoSeguro = (sorteoId || '').toString().trim();
@@ -967,7 +1050,7 @@
     }
 
     async function cpAcreditarPremiosPendientesManual(){
-      if(!premiosEngineV2Enabled){
+      if(!premiosEngineV2Enabled()){
         alert('Acreditación deshabilitada: premiosEngineV2Enabled=false.');
         return;
       }
@@ -1089,7 +1172,7 @@
 
     async function cpGenerarSolicitudesManual(){
       if(generacionSolicitudesEnCurso) return;
-      if(!premiosEngineV2Enabled){
+      if(!premiosEngineV2Enabled()){
         alert('Generación deshabilitada: premiosEngineV2Enabled=false. No se crearán solicitudes de premios/pagos.');
         return;
       }
@@ -2936,7 +3019,7 @@
     }
 
     async function acreditarPago(enRegistro){
-      if(!premiosEngineV2Enabled){
+      if(!premiosEngineV2Enabled()){
         throw new Error('PREMIOS_ENGINE_V2_DISABLED: acreditarPago deshabilitado por bandera global.');
       }
       const db = dbRef();
@@ -2964,7 +3047,7 @@
 
     async function aprobarPagos(ids){
       if(!ids.length) return;
-      if(!premiosEngineV2Enabled){
+      if(!premiosEngineV2Enabled()){
         alert('Proceso deshabilitado: premiosEngineV2Enabled=false. No se aprobarán pagos administrativos.');
         return;
       }
@@ -3159,10 +3242,7 @@
       }
       const pagosAprobarBtn = document.getElementById('pagos-aprobar');
       if(pagosAprobarBtn){
-        pagosAprobarBtn.disabled = !premiosEngineV2Enabled;
-        pagosAprobarBtn.title = premiosEngineV2Enabled
-          ? 'Procesar pagos seleccionados'
-          : 'Deshabilitado por premiosEngineV2Enabled=false';
+        pagosAprobarBtn.disabled = !premiosEngineV2Enabled();
       }
       document.getElementById('pagos-aprobar').addEventListener('click', async()=>{
         const seleccion = obtenerSeleccion('tabla-pagos');
@@ -3238,6 +3318,7 @@
       contenidoColaboradores.style.display = 'none';
 
       document.getElementById('volver-btn').addEventListener('click', e=>volverConFallback(e));
+      cpSincronizarBotonesConEngine();
     }
 
     function obtenerRegistroPorTipo(tipo, id){
@@ -3484,6 +3565,7 @@
       configurarFiltros();
       configurarBotones();
       configurarInteraccionesTablas();
+      await cpSincronizarEngineConBackend();
       try {
         await ensureFirebaseListo();
       } catch (err) {
