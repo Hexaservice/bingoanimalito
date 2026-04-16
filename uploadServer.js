@@ -24,6 +24,12 @@ const PREMIOS_ENGINE_V2_ENABLED = String(process.env.PREMIOS_ENGINE_V2_ENABLED |
 const PREMIOS_PAGOS_DIRECTOS_MIRROR_ENABLED = String(process.env.PREMIOS_PAGOS_DIRECTOS_MIRROR_ENABLED || 'false').trim().toLowerCase() === 'true';
 const WINNER_LOCKS_LEGACY_READ_ENABLED = String(process.env.WINNER_LOCKS_LEGACY_READ_ENABLED || 'true').trim().toLowerCase() !== 'false';
 const WINNER_LOCKS_COLLECTION = 'GanadoresSorteosTiempoReal';
+const AUTO_FINALIZATION_CONTROLLER_ENABLED = String(process.env.AUTO_FINALIZATION_CONTROLLER_ENABLED || 'true').trim().toLowerCase() !== 'false';
+const AUTO_FINALIZATION_CONTROLLER_INTERVAL_MS = Math.max(5000, Number(process.env.AUTO_FINALIZATION_CONTROLLER_INTERVAL_MS || 15000));
+const AUTO_FINALIZATION_CONTROLLER_LIMIT = Math.max(1, Number(process.env.AUTO_FINALIZATION_CONTROLLER_LIMIT || 40));
+
+let autoFinalizationControllerTimer = null;
+let autoFinalizationControllerRunning = false;
 
 function getMissingRequiredEnv(env = process.env) {
   return requiredEnv.filter((name) => !env[name]);
@@ -770,6 +776,126 @@ async function resolveWinnerFormIdxsFromRealtime({ tx, db, sorteoId, sorteoData 
   }
 }
 
+function buildMissingWinnerFormsWithAmounts(missingWinnerForms = [], sorteoData = {}) {
+  const formasCatalogo = new Map(
+    (Array.isArray(sorteoData?.formas) ? sorteoData.formas : [])
+      .map((item) => [Number(item?.idx), item])
+      .filter(([idx]) => Number.isFinite(idx))
+  );
+  return missingWinnerForms.map((item) => {
+    const idx = Number(item?.idx);
+    const formaBase = formasCatalogo.get(idx) || {};
+    const montoCreditos = Number((Math.max(
+      0,
+      normalizeNumber(
+        formaBase?.creditos
+        ?? formaBase?.premio
+        ?? formaBase?.monto
+        ?? 0
+      )
+    )).toFixed(6));
+    return {
+      idx,
+      nombre: normalizeString(item?.nombre || formaBase?.nombre || `Forma ${idx}`, 120) || `Forma ${idx}`,
+      montoCreditos
+    };
+  });
+}
+
+async function registerNoWinnerAccumulatedForms({
+  tx,
+  db,
+  sorteoRef,
+  cantarsorteosRef,
+  sorteoId,
+  sorteoData = {},
+  missingWinnerForms = [],
+  operadorEmail = ''
+} = {}) {
+  const normalizedSorteoId = normalizeString(sorteoId, 120);
+  if (!normalizedSorteoId || !db || !tx || !sorteoRef || !cantarsorteosRef) {
+    return { status: 'noop', montoCreditos: 0, formas: [] };
+  }
+  const formasDetalladas = buildMissingWinnerFormsWithAmounts(missingWinnerForms, sorteoData)
+    .filter((item) => Number.isFinite(item.idx) && item.montoCreditos > 0);
+  const montoCreditos = Number(formasDetalladas.reduce((acc, item) => acc + item.montoCreditos, 0).toFixed(6));
+  if (!formasDetalladas.length || montoCreditos <= 0) {
+    return { status: 'noop', montoCreditos: 0, formas: [] };
+  }
+
+  const cantarsorteosSnap = await tx.get(cantarsorteosRef);
+  const cantarsorteosData = cantarsorteosSnap.exists ? (cantarsorteosSnap.data() || {}) : {};
+  const acumuladoPrevio = cantarsorteosData?.acumuladoFormas;
+  if (acumuladoPrevio && normalizeString(acumuladoPrevio?.estado, 40).toLowerCase() === 'registrado') {
+    return {
+      status: 'already_registered',
+      montoCreditos: Number((Math.max(0, normalizeNumber(acumuladoPrevio?.montoCreditos || 0))).toFixed(6)),
+      formas: Array.isArray(acumuladoPrevio?.formas) ? acumuladoPrevio.formas : [],
+      abortDeploy: true
+    };
+  }
+
+  const sorteoNombre = normalizeString(sorteoData?.nombre, 200);
+  const timestamp = admin.firestore.FieldValue.serverTimestamp();
+  const detalleAcumulado = {
+    estado: 'registrado',
+    montoCreditos,
+    formas: formasDetalladas.map((item) => ({ idx: item.idx, nombre: item.nombre, montoCreditos: item.montoCreditos })),
+    movimientoContable: {
+      cuentaOrigen: `sorteos/${normalizedSorteoId}/premios_no_asignados`,
+      cuentaDestino: 'acumulados/disponible_global',
+      creditosTransferidos: montoCreditos
+    },
+    origen: 'uploadServer/finalizacion-autoritativa',
+    registradoPor: normalizeString(operadorEmail, 200) || 'sistema',
+    creadoEn: timestamp,
+    actualizadoEn: timestamp
+  };
+
+  tx.set(cantarsorteosRef, { acumuladoFormas: detalleAcumulado }, { merge: true });
+  formasDetalladas.forEach((item) => {
+    const acumuladoFormaId = `${normalizedSorteoId}__f${String(item.idx).padStart(2, '0')}`;
+    const acumuladoFormaRef = db.collection('acumulados').doc(acumuladoFormaId);
+    tx.set(acumuladoFormaRef, {
+      id: acumuladoFormaId,
+      sorteoOrigenId: normalizedSorteoId,
+      sorteoOrigenNombre: sorteoNombre || normalizedSorteoId,
+      formaIdx: item.idx,
+      formaNombre: item.nombre,
+      montoOriginal: item.montoCreditos,
+      montoDisponible: item.montoCreditos,
+      montoTransferido: 0,
+      estado: 'DISPONIBLE',
+      contabilidad: {
+        cuentaOrigen: `sorteos/${normalizedSorteoId}/formas/${item.idx}`,
+        cuentaDestino: `acumulados/${acumuladoFormaId}`,
+        creditosEntrada: item.montoCreditos,
+        creditosSalida: 0,
+        creditosTransferidos: item.montoCreditos
+      },
+      transferencias: [],
+      creadoEn: timestamp,
+      actualizadoEn: timestamp
+    }, { merge: false });
+  });
+
+  tx.set(sorteoRef, {
+    finalizacionControl: {
+      criterioAbortarDeploy: {
+        discrepanciaBloquesResultados: false,
+        dobleAcumuladoDetectado: false
+      },
+      actualizadoEn: timestamp
+    }
+  }, { merge: true });
+
+  return {
+    status: 'registered',
+    montoCreditos,
+    formas: formasDetalladas
+  };
+}
+
 async function executeAuthoritativeSorteoFinalization({ db, sorteoId, operadorEmail }) {
   const normalizedSorteoId = normalizeString(sorteoId, 120);
   if (!normalizedSorteoId) {
@@ -781,6 +907,7 @@ async function executeAuthoritativeSorteoFinalization({ db, sorteoId, operadorEm
   }
   const sorteoRef = db.collection('sorteos').doc(normalizedSorteoId);
   const cantosRef = db.collection('cantos').doc(normalizedSorteoId);
+  const cantarsorteosRef = db.collection('cantarsorteos').doc(normalizedSorteoId);
   return db.runTransaction(async (tx) => {
     const [sorteoSnap, cantosSnap] = await Promise.all([tx.get(sorteoRef), tx.get(cantosRef)]);
     if (!sorteoSnap.exists) {
@@ -802,7 +929,46 @@ async function executeAuthoritativeSorteoFinalization({ db, sorteoId, operadorEm
       loteriasConfig,
       winnerFormIdxs
     });
-    if (!contrato.permitido) return contrato;
+    if (!contrato.permitido) {
+      const totalCargados = Number(contrato?.detalle?.totalResultadosCargados || 0);
+      const totalRequeridos = Number(contrato?.detalle?.totalResultadosRequeridos || 0);
+      return {
+        ...contrato,
+        detalle: {
+          ...(contrato.detalle || {}),
+          criterioAbortarDeploy: {
+            discrepanciaBloquesResultados: totalRequeridos > 0 && totalCargados > totalRequeridos,
+            dobleAcumuladoDetectado: false
+          }
+        }
+      };
+    }
+    const acumulado = await registerNoWinnerAccumulatedForms({
+      tx,
+      db,
+      sorteoRef,
+      cantarsorteosRef,
+      sorteoId: normalizedSorteoId,
+      sorteoData,
+      missingWinnerForms: Array.isArray(contrato?.detalle?.formasSinGanador) ? contrato.detalle.formasSinGanador : [],
+      operadorEmail
+    });
+    if (acumulado?.status === 'already_registered') {
+      return {
+        permitido: false,
+        motivo: 'doble_acumulado_detectado',
+        detalle: {
+          mensaje: 'Ya existe un acumulado registrado para este sorteo.',
+          sorteoId: normalizedSorteoId,
+          acumuladoFormas: acumulado?.formas || [],
+          criterioAbortarDeploy: {
+            discrepanciaBloquesResultados: false,
+            dobleAcumuladoDetectado: true
+          },
+          abortDeploy: true
+        }
+      };
+    }
     tx.update(sorteoRef, {
       estado: 'Finalizado',
       pdfresul: 'si',
@@ -817,9 +983,93 @@ async function executeAuthoritativeSorteoFinalization({ db, sorteoId, operadorEm
       motivo: 'finalizado',
       detalle: {
         ...contrato.detalle,
-        sorteoId: normalizedSorteoId
+        sorteoId: normalizedSorteoId,
+        acumuladoFormas: acumulado?.status === 'registered'
+          ? { montoCreditos: acumulado.montoCreditos, formas: acumulado.formas || [] }
+          : null,
+        criterioAbortarDeploy: {
+          discrepanciaBloquesResultados: false,
+          dobleAcumuladoDetectado: false
+        }
       }
     };
+  });
+}
+
+async function runAutomaticFinalizationControllerTick({ db } = {}) {
+  if (!db) return { ok: false, reason: 'db_missing' };
+  if (autoFinalizationControllerRunning) {
+    return { ok: false, reason: 'already_running' };
+  }
+  autoFinalizationControllerRunning = true;
+  try {
+    const sorteosSnap = await db
+      .collection('sorteos')
+      .where('estado', '==', 'Jugando')
+      .limit(AUTO_FINALIZATION_CONTROLLER_LIMIT)
+      .get();
+    if (sorteosSnap.empty) return { ok: true, scanned: 0, finalized: 0 };
+
+    let finalized = 0;
+    let blockedByCriteria = 0;
+    for (const sorteoDoc of sorteosSnap.docs) {
+      const result = await executeAuthoritativeSorteoFinalization({
+        db,
+        sorteoId: sorteoDoc.id,
+        operadorEmail: 'sistema:auto-finalizacion'
+      });
+      if (result?.permitido) {
+        finalized += 1;
+      } else if (
+        result?.detalle?.criterioAbortarDeploy?.dobleAcumuladoDetectado
+        || result?.detalle?.criterioAbortarDeploy?.discrepanciaBloquesResultados
+      ) {
+        blockedByCriteria += 1;
+        console.error('[auto-finalizacion][criterio-abortar-deploy]', {
+          sorteoId: sorteoDoc.id,
+          motivo: result?.motivo || 'doble_acumulado_detectado',
+          detalle: result?.detalle || null
+        });
+      }
+    }
+    return {
+      ok: true,
+      scanned: sorteosSnap.size,
+      finalized,
+      blockedByCriteria
+    };
+  } catch (error) {
+    console.error('[auto-finalizacion][tick-error]', { message: error?.message || 'error_desconocido' });
+    return { ok: false, reason: 'tick_error', message: error?.message || 'error_desconocido' };
+  } finally {
+    autoFinalizationControllerRunning = false;
+  }
+}
+
+function startAutomaticFinalizationController({ db } = {}) {
+  if (!AUTO_FINALIZATION_CONTROLLER_ENABLED) {
+    console.info('[auto-finalizacion] controlador deshabilitado por configuración.');
+    return;
+  }
+  if (!db) {
+    console.warn('[auto-finalizacion] no se inició: db no disponible.');
+    return;
+  }
+  if (autoFinalizationControllerTimer) return;
+  autoFinalizationControllerTimer = setInterval(() => {
+    runAutomaticFinalizationControllerTick({ db }).catch((error) => {
+      console.error('[auto-finalizacion][interval-error]', { message: error?.message || 'error_desconocido' });
+    });
+  }, AUTO_FINALIZATION_CONTROLLER_INTERVAL_MS);
+  if (typeof autoFinalizationControllerTimer.unref === 'function') {
+    autoFinalizationControllerTimer.unref();
+  }
+  runAutomaticFinalizationControllerTick({ db }).catch((error) => {
+    console.error('[auto-finalizacion][bootstrap-error]', { message: error?.message || 'error_desconocido' });
+  });
+  console.info('[auto-finalizacion] controlador iniciado.', {
+    intervalMs: AUTO_FINALIZATION_CONTROLLER_INTERVAL_MS,
+    limit: AUTO_FINALIZATION_CONTROLLER_LIMIT
   });
 }
 
@@ -3250,6 +3500,7 @@ app.use((err, req, res, next) => {
 function startServer() {
   validateRequiredEnv();
   initializeFirebase();
+  startAutomaticFinalizationController({ db: admin.firestore() });
 
   const PORT = process.env.PORT || 3000;
   app.listen(PORT, () => {
@@ -3281,6 +3532,9 @@ module.exports = {
   normalizeOperationalRole,
   buildFinalizationContract,
   executeAuthoritativeSorteoFinalization,
+  registerNoWinnerAccumulatedForms,
+  runAutomaticFinalizationControllerTick,
+  startAutomaticFinalizationController,
   ejecutarSelladoConLiquidacionAdmin,
   buildReconciledPrizeTransactionId,
   reconcileSinglePendingPrize,
