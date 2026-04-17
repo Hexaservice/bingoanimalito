@@ -1,4 +1,9 @@
 #!/usr/bin/env node
+/**
+ * @deprecated Script de migración legacy.
+ * No se ejecuta en runtime ni en pipelines actuales.
+ * Ejecutar solo con plan de rollback explícito y respaldo previo.
+ */
 const admin = require('firebase-admin');
 const fs = require('fs');
 

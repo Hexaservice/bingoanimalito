@@ -1,3 +1,8 @@
+/**
+ * @deprecated Script legacy de bootstrap manual.
+ * No forma parte de los flujos operativos actuales ni de npm scripts.
+ * Conservar solo para incidentes históricos controlados.
+ */
 const admin = require('firebase-admin');
 const fs = require('fs');
 
