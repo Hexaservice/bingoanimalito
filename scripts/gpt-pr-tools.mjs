@@ -1,3 +1,8 @@
+/**
+ * @deprecated Utilidad legacy para CI externo.
+ * Este repositorio no la referencia desde npm scripts/workflows versionados.
+ * Conservar temporalmente por compatibilidad de entornos externos.
+ */
 // scripts/gpt-pr-tools.mjs
 import OpenAI from "openai";
 import { execSync } from "node:child_process";
